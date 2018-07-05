@@ -24,6 +24,10 @@ using namespace isaac;
 #define VOLUME_Y 64
 #define VOLUME_Z 64
 
+#define PARTICLE_COUNT 500
+
+
+
 //////////////////////
 // Example Source 1 //
 //////////////////////
@@ -119,6 +123,80 @@ class TestSource2
 			isaac_float_dim<1> result;
 			result.value.x = value;
 			return result;
+		}
+};
+template<typename ElemType>
+class ParticleIterator1
+{
+public:
+  size_t size;
+  
+  ISAAC_NO_HOST_DEVICE_WARNING
+  ISAAC_HOST_DEVICE_INLINE ParticleIterator1(ElemType* first_element, size_t size) : 
+      current_element(first_element),
+      size(size)
+      {}
+  
+  ISAAC_HOST_DEVICE_INLINE void next()
+  {
+    current_element = &current_element[1];
+  }
+  
+    ISAAC_HOST_DEVICE_INLINE ElemType getPosition() const
+  {
+    return *current_element;
+  }
+  
+    ISAAC_HOST_DEVICE_INLINE isaac_float3 getAttribute() const
+  {
+    return {0.0f, 0.5f, 0.0f};
+  }
+  
+  
+private:
+  ElemType* current_element;
+  
+  
+};
+
+//////////////////////
+// Example Source 2 //
+//////////////////////
+ISAAC_NO_HOST_DEVICE_WARNING
+#if ISAAC_ALPAKA == 1
+template < typename TDevAcc, typename THost, typename TStream >
+#endif
+class ParticleSource1
+{
+	public:
+
+		ISAAC_NO_HOST_DEVICE_WARNING
+        ParticleSource1 (
+            #if ISAAC_ALPAKA == 1
+                TDevAcc acc,
+                THost host,
+                TStream stream,
+            #endif
+            isaac_float3* ptr,
+	    size_t size
+        ) :
+		ptr(ptr),
+		size(size)
+		{}
+
+		ISAAC_HOST_INLINE static std::string getName()
+		{
+			return std::string("Particle Source 1");
+		}
+
+		isaac_float3* ptr;
+		size_t size;
+
+		ISAAC_NO_HOST_DEVICE_WARNING
+		ISAAC_HOST_DEVICE_INLINE ParticleIterator1<isaac_float3> getIterator(const isaac_int3& local_grid_coord) const
+		{
+			
+			return ParticleIterator1<isaac_float3>(ptr, size);
 		}
 };
 
@@ -239,6 +317,8 @@ int main(int argc, char **argv)
 		float3_t* deviceBuffer1; cudaMalloc((float3_t**)&deviceBuffer1, sizeof(float3_t)*prod);
 		float* hostBuffer2 = (float*)malloc(sizeof(float)*prod);
 		float* deviceBuffer2; cudaMalloc((float**)&deviceBuffer2, sizeof(float)*prod);
+		float3_t* hostBuffer3 = (float3_t*)malloc(sizeof(float3_t)*PARTICLE_COUNT);
+		float3_t* deviceBuffer3; cudaMalloc((float3_t**)&deviceBuffer3, sizeof(float3_t)*PARTICLE_COUNT);
 	#endif
 
 	//////////////////////////
@@ -265,18 +345,26 @@ int main(int argc, char **argv)
 	#else //CUDA
 		TestSource1 testSource1 ( reinterpret_cast<isaac_float3*>(deviceBuffer1) );
 		TestSource2 testSource2 ( reinterpret_cast<isaac_float*>(deviceBuffer2) );
+		
+		ParticleSource1 particleTestSource1 ( reinterpret_cast<isaac_float3*>(deviceBuffer3) , PARTICLE_COUNT);
 		using SourceList = boost::fusion::list
 		<
 			TestSource1,
 			TestSource2
 		>;
+		using ParticleList = boost::fusion::list
+		<
+			ParticleSource1
+		>;
 	#endif
-
+	
+	ParticleList particle_sources(particleTestSource1);
 	SourceList sources( testSource1, testSource2 );
-
+	
 	#if ISAAC_NO_SIMULATION == 1
 		if (!filename)
 			update_data(stream,hostBuffer1, deviceBuffer1, hostBuffer2, deviceBuffer2, prod, 0.0f,local_size,position,global_size);
+		
 	#endif
 	int s_x = 1,s_y = 1,s_z = 1;
 	if (filename)
@@ -298,6 +386,7 @@ int main(int argc, char **argv)
 			AccDim, //Alpaka specific Acceleration Dimension Type
 		#endif
 		SimDim, //Dimension of the Simulation. In this case: 3D
+		ParticleList,
 		SourceList, //The boost::fusion list of Source Types
 		#if ISAAC_ALPAKA == 1
 			alpaka::vec::Vec<SimDim, ISAAC_IDX_TYPE>, //Type of the 3D vectors used later
@@ -332,6 +421,7 @@ int main(int argc, char **argv)
 		global_size, //Size of the whole volumen including all nodes
 		local_size, //Local size of the subvolume
 		position, //Position of the subvolume in the globale volume
+		particle_sources,
 		sources, //instances of the sources to render
 		scaling
 	);
@@ -398,6 +488,7 @@ int main(int argc, char **argv)
 				if (!filename)
 					update_data(stream,hostBuffer1, deviceBuffer1, hostBuffer2, deviceBuffer2, prod, a,local_size,position,global_size);
 			#endif
+			update_particles(hostBuffer3, deviceBuffer3, PARTICLE_COUNT, a);
 			simulation_time +=visualization->getTicksUs() - start_simulation;
 		}
 		step++;
@@ -518,6 +609,7 @@ int main(int argc, char **argv)
 		free(hostBuffer2);
 		cudaFree(deviceBuffer1);
 		cudaFree(deviceBuffer2);
+		cudaFree(deviceBuffer3);
 	#endif
 
 	MPI_Finalize();

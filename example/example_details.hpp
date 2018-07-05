@@ -19,6 +19,28 @@
 
 typedef float float3_t[3];
 
+template<	
+	typename THost3,
+	typename TDev3
+>
+void update_particles(
+  	THost3 hostBuffer3,
+	TDev3 deviceBuffer3,
+	size_t particle_count,
+	float pos)
+{
+  	for(size_t i = 0; i < particle_count; i++)
+	{
+	  //hostBuffer3[i][0] = 0.0f;
+	  //hostBuffer3[i][1] = 0.0f;
+	  //hostBuffer3[i][2] = 0.0f;
+	  hostBuffer3[i][0] = float((int(i * 29.6f))%64);
+	  hostBuffer3[i][1] = float((int(i * 23.1f))%64);
+	  hostBuffer3[i][2] = float((int((i * 7.9f + pos * (i % 20 + 1)) * 1000))%64000) / 1000.0f;
+	}
+	cudaMemcpy(deviceBuffer3, hostBuffer3, sizeof(float3_t)*particle_count, cudaMemcpyHostToDevice);
+}
+
 template <
 	typename TStream,
 	typename THost1,
@@ -78,6 +100,7 @@ void update_data(
 			}
 	cudaMemcpy(deviceBuffer1, hostBuffer1, sizeof(float3_t)*prod, cudaMemcpyHostToDevice);
 	cudaMemcpy(deviceBuffer2, hostBuffer2, sizeof(float)*prod, cudaMemcpyHostToDevice);
+
 #endif
 }
 

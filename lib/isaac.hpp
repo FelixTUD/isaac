@@ -68,6 +68,7 @@ template <
     typename TAccDim,
 #endif
     typename TSimDim,
+    typename TParticleList,
     typename TSourceList,
     typename TDomainSize,
     ISAAC_IDX_TYPE TTransfer_size,
@@ -387,6 +388,7 @@ class IsaacVisualization
             const TDomainSize global_size,
             const TDomainSize local_size,
             const TDomainSize position,
+	    TParticleList& particle_sources,
             TSourceList& sources,
             TScale scale
             ) :
@@ -417,6 +419,7 @@ class IsaacVisualization
             iso_surface(false),
             step(isaac_float( ISAAC_DEFAULT_STEP )),
             framebuffer_prod(ISAAC_IDX_TYPE(framebuffer_size.x) * ISAAC_IDX_TYPE(framebuffer_size.y)),
+            particle_sources( particle_sources ),
             sources( sources ),
             scale( scale ),
             icet_bounding_box( true )
@@ -1480,6 +1483,7 @@ class IsaacVisualization
                 IsaacRenderKernelCaller
                 <
                     TSimDim,
+		    TParticleList,
                     TSourceList,
                     transfer_d_struct< boost::mpl::size< TSourceList >::type::value >,
                     source_weight_struct< boost::mpl::size< TSourceList >::type::value >,
@@ -1499,6 +1503,7 @@ class IsaacVisualization
                     myself->framebuffer,
                     myself->framebuffer_size,
                     framebuffer_start,
+		    myself->particle_sources,
                     myself->sources,
                     myself->step,
                     bg_color,
@@ -1520,6 +1525,7 @@ class IsaacVisualization
                 IsaacRenderKernelCaller
                 <
                     TSimDim,
+		    TParticleList,
                     TSourceList,
                     transfer_d_struct< boost::mpl::size< TSourceList >::type::value >,
                     source_weight_struct< boost::mpl::size< TSourceList >::type::value >,
@@ -1534,6 +1540,7 @@ class IsaacVisualization
                     myself->framebuffer,
                     myself->framebuffer_size,
                     framebuffer_start,
+		    myself->particle_sources,
                     myself->sources,
                     myself->step,
                     bg_color,
@@ -1820,6 +1827,7 @@ class IsaacVisualization
         isaac_int master;
         isaac_int numProc;
         isaac_uint metaNr;
+	TParticleList& particle_sources;
         TSourceList& sources;
         IceTContext icetContext[TController::pass_count];
         IsaacVisualizationMetaEnum thr_metaTargets;
@@ -1849,11 +1857,11 @@ class IsaacVisualization
 };
 
 #if ISAAC_ALPAKA == 1
-    template <typename THost,typename TAcc,typename TStream,typename TAccDim,typename TSimDim, typename TSourceList, typename TDomainSize, ISAAC_IDX_TYPE TTransfer_size,typename TScale,typename TController,typename TCompositor>
-    IsaacVisualization<THost,TAcc,TStream,TAccDim,TSimDim,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>* IsaacVisualization<THost,TAcc,TStream,TAccDim,TSimDim,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>::myself = NULL;
+    template <typename THost,typename TAcc,typename TStream,typename TAccDim,typename TSimDim, typename TParticleList, typename TSourceList, typename TDomainSize, ISAAC_IDX_TYPE TTransfer_size,typename TScale,typename TController,typename TCompositor>
+    IsaacVisualization<THost,TAcc,TStream,TAccDim,TSimDim,TParticleList,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>* IsaacVisualization<THost,TAcc,TStream,TAccDim,TSimDim,TParticleList,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>::myself = NULL;
 #else
-    template <typename TSimDim, typename TSourceList, typename TDomainSize, ISAAC_IDX_TYPE TTransfer_size,typename TScale,typename TController,typename TCompositor>
-    IsaacVisualization<TSimDim,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>* IsaacVisualization<TSimDim,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>::myself = NULL;
+    template <typename TSimDim, typename TParticleList, typename TSourceList, typename TDomainSize, ISAAC_IDX_TYPE TTransfer_size,typename TScale,typename TController,typename TCompositor>
+    IsaacVisualization<TSimDim,TParticleList,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>* IsaacVisualization<TSimDim,TParticleList,TSourceList,TDomainSize,TTransfer_size,TScale,TController,TCompositor>::myself = NULL;
 #endif
 
 } //namespace isaac;

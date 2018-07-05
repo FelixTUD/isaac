@@ -18,6 +18,7 @@
 #include "isaac_macros.hpp"
 #include "isaac_fusion_extension.hpp"
 #include "isaac_functors.hpp"
+#include "isaac_iterator.hpp"
 
 #include <boost/mpl/at.hpp>
 #include <boost/mpl/vector.hpp>
@@ -268,6 +269,137 @@ ISAAC_HOST_DEVICE_INLINE void check_coord( isaac_float3& coord, const TLocalSize
         coord.z = isaac_float(local_size.value.z)-isaac_float(1);
 }
 
+struct merge_particle_iterator
+{
+      template
+    <
+        typename NR,
+        typename TSource,
+        typename TColor,
+        typename TStart,
+	typename TDepthOffset,
+        typename TDir,
+	typename TLightDir,
+        typename TFeedback
+    >
+    ISAAC_HOST_DEVICE_INLINE  void operator()(
+        const NR& nr,
+        const TSource& source,
+        TColor& color,
+        const TStart& start,
+	const TDepthOffset& depth_offset,
+        const TDir& dir,
+	const TLightDir& light_dir,
+        TFeedback& feedback
+    ) const
+    {
+      /* 
+      TColor newColor;
+      newColor = source.getIntersection(start, dir);
+      if(newColor.w < color.w && newColor.w >= 0.0f)
+      {
+	color = newColor;
+	feedback = 1;
+      }
+      */
+
+      isaac_float3 particle_pos;
+      isaac_float t0, t1;
+      isaac_float3 L;
+      isaac_float radius;
+      isaac_float radius2;
+      float tca;
+      float d2;
+      float thc;
+      isaac_float3 normal;
+      isaac_float3 p_color;
+      isaac_float specular;
+      bool particle_hit = false;
+      bool only_color = false;
+      auto particle_iterator = source.getIterator({0, 0, 0});
+      for(int i = 0; i < particle_iterator.size; i++)
+      {
+	/*
+	particle_pos.x = 4 + (i * 7)%57;
+	particle_pos.y = 4 + (i * 27)%57;
+	particle_pos.z = 4 + (i * 17)%57;
+	*/
+	/*
+	particle_pos.x = (int(i * 29.6f))%64;
+	particle_pos.y = (int(i * 23.1f))%64;
+	particle_pos.z = (int(i * 7.9f))%64;
+	*/
+	
+	particle_pos = particle_iterator.getPosition();
+	L = particle_pos - start;
+	radius = 1.0f;
+	radius2 = radius * radius;
+	tca = L.x * dir.x + L.y * dir.y + L.z * dir.z;
+	d2 = (L.x * L.x + L.y * L.y + L.z * L.z) - tca * tca;
+	if(d2 > radius2){
+	  particle_iterator.next();
+	  continue;
+	}
+	thc = sqrt(radius2 - d2);
+	t0 = tca - thc;
+	t1 = tca + thc;
+	/*
+	if(t0 < 0 && t1 >= 0 && t0 + depth_offset > 0)
+	{
+	  t0 = 0;
+	  only_color = true;
+	}
+	*/
+	if(tca + radius >= 0 && t0 + depth_offset > 0 && t0 < color.w)
+	{
+	  color.w = t0;
+	  feedback = 1;
+	  normal = start + t0 * dir - particle_pos;
+	  /*
+	  p_color.x = (30 + (i * 33)%225) / 255.0f;
+	  p_color.y = (30 + (i * 56)%225) / 255.0f;
+	  p_color.z = (30 + (i * 77)%225) / 255.0f;
+	  */
+	  /*
+	  p_color.x = normal.x * 0.5f + 0.5;
+	  p_color.y = normal.y * 0.5f + 0.5;
+	  p_color.z = normal.z * 0.5f + 0.5;
+	  */
+	  p_color = particle_iterator.getAttribute();
+	
+	  particle_hit = true;
+	}
+	particle_iterator.next();
+      }
+      if(particle_hit)
+      {
+	if(!only_color)
+	{
+	  normal = normal / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+	  specular = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
+	  isaac_float light_factor = specular * 0.5f + 0.5f;
+	  specular = specular * specular * specular * specular * specular * specular * specular * specular * specular;
+	  color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
+	  color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
+	  color.z = ISAAC_MIN(p_color.z * light_factor + specular, 1.0f);
+	  
+	}
+	else{
+	  color.x = p_color.x;
+	  color.y = p_color.y;
+	  color.z = p_color.z;
+	}
+	/*
+	color.x = normal.x;
+	color.y = normal.y;
+	color.z = normal.z;
+	*/
+      }
+
+
+    }
+};
+
 template <
     ISAAC_IDX_TYPE Ttransfer_size,
     typename TFilter,
@@ -435,6 +567,7 @@ struct check_no_source_iterator
 
 template <
     typename TSimDim,
+    typename TParticleList,
     typename TSourceList,
     typename TTransferArray,
     typename TSourceWeight,
@@ -457,6 +590,7 @@ template <
             uint32_t * const pixels,
             const isaac_size2 framebuffer_size,
             const isaac_uint2 framebuffer_start,
+	    const TParticleList particle_sources,
             const TSourceList sources,
             isaac_float step,
             const isaac_float4 background_color,
@@ -692,7 +826,47 @@ template <
                 }
             }
             ISAAC_ELEM_ALL_TRUE_RETURN( finish )
-
+	     
+	    
+	    isaac_float4 particle_color[ISAAC_VECTOR_ELEM];
+	    isaac_int result_particle[ISAAC_VECTOR_ELEM];
+	    isaac_float3 local_start[ISAAC_VECTOR_ELEM];
+	    isaac_float depth_offset[ISAAC_VECTOR_ELEM];
+	    isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
+	    ISAAC_ELEM_ITERATE(e)
+	    {
+	      
+		particle_color[e].w = (last[e] - first[e]) * step;
+		local_start[e] = start[e] + step_vec[e] * isaac_float(first[e]);
+		result_particle[e] = 0;
+		isaac_float3 normalized_dir = step_vec[e] / step;
+		depth_offset[e] = isaac_float(first[e]) * step;
+		light_dir[e] = -normalized_dir;
+		//light_dir[e] = {0.0f, 1.0f, 0.0f};
+		isaac_for_each_with_mpl_params
+		(
+		    particle_sources,
+		    merge_particle_iterator
+		    (),
+		    particle_color[e],
+		    local_start[e],
+		    depth_offset[e],
+		    normalized_dir,
+		    light_dir[e],
+		    result_particle[e]
+		);
+		if(result_particle[e]){
+		  last[e] = ISAAC_MIN(last[e], first[e] + int(ceil(particle_color[e].w / step)));
+		  /*
+		  particle_color[e].x = -first[e] * 0.01f;
+		  particle_color[e].y = -first[e] * 0.01f;
+		  particle_color[e].z = -first[e] * 0.01f;
+		  */
+		}
+		
+		
+	    }
+	    
             isaac_float min_size[ISAAC_VECTOR_ELEM];
             isaac_float factor[ISAAC_VECTOR_ELEM];
             isaac_float4 value[ISAAC_VECTOR_ELEM];
@@ -708,6 +882,11 @@ template <
                     int(isaac_size_d[0].global_size.value.y),
                     int(isaac_size_d[0].global_size.value.z) ) );
                 factor[e] = step / /*isaac_size_d[0].max_global_size*/ min_size[e] * isaac_float(2) * l[e]/l_scaled[e];
+		value[e].x = 0;
+                value[e].y = 0;
+                value[e].z = 0;
+                value[e].w = 0;
+		result[e] = 0;
                 for (isaac_int i = first[e]; i <= last[e]; i++)
                 {
                     pos[e] = start[e] + step_vec[e] * isaac_float(i);
@@ -760,6 +939,12 @@ template <
                             break;
                     }
                 }
+                if(result_particle[e] && !result[e])
+		{
+		    particle_color[e].w = 1;
+		    color[e] = color[e] + particle_color[e] * (1 - color[e].w);
+		}
+                
                 #if ISAAC_SHOWBORDER == 1
                     if (color[e].w <= isaac_float(0.99))
                     {
@@ -768,10 +953,12 @@ template <
                         color_add[e].y = 0;
                         color_add[e].z = 0;
                         color_add[e].w = oma[e] * factor[e] * isaac_float(10);
-                        };
                         color[e] = color[e] + color_add[e];
                     }
                 #endif
+                
+
+		
                 if (!finish[e])
                     ISAAC_SET_COLOR( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
             }
@@ -782,6 +969,7 @@ template <
 
 template <
     typename TSimDim,
+    typename TParticleList,
     typename TSourceList,
     typename TTransferArray,
     typename TSourceWeight,
@@ -807,6 +995,7 @@ struct IsaacRenderKernelCaller
         TFramebuffer framebuffer,
         const isaac_size2& framebuffer_size,
         const isaac_uint2& framebuffer_start,
+	const TParticleList& particle_sources,
         const TSourceList& sources,
         const isaac_float& step,
         const isaac_float4& background_color,
@@ -824,6 +1013,7 @@ struct IsaacRenderKernelCaller
             IsaacRenderKernelCaller
             <
                 TSimDim,
+		TParticleList,
                 TSourceList,
                 TTransferArray,
                 TSourceWeight,
@@ -847,6 +1037,7 @@ struct IsaacRenderKernelCaller
                 framebuffer,
                 framebuffer_size,
                 framebuffer_start,
+		particle_sources,
                 sources,
                 step,
                 background_color,
@@ -863,6 +1054,7 @@ struct IsaacRenderKernelCaller
             IsaacRenderKernelCaller
             <
                 TSimDim,
+		TParticleList,
                 TSourceList,
                 TTransferArray,
                 TSourceWeight,
@@ -886,6 +1078,7 @@ struct IsaacRenderKernelCaller
                 framebuffer,
                 framebuffer_size,
                 framebuffer_start,
+		particle_sources,
                 sources,
                 step,
                 background_color,
@@ -903,6 +1096,7 @@ struct IsaacRenderKernelCaller
 
 template <
     typename TSimDim,
+    typename TParticleList,
     typename TSourceList,
     typename TTransferArray,
     typename TSourceWeight,
@@ -921,6 +1115,7 @@ template <
 struct IsaacRenderKernelCaller
 <
     TSimDim,
+    TParticleList,
     TSourceList,
     TTransferArray,
     TSourceWeight,
@@ -945,6 +1140,7 @@ struct IsaacRenderKernelCaller
         TFramebuffer framebuffer,
         const isaac_size2& framebuffer_size,
         const isaac_uint2& framebuffer_start,
+	const TParticleList& particle_sources,
         const TSourceList& sources,
         const isaac_float& step,
         const isaac_float4& background_color,
@@ -987,6 +1183,7 @@ struct IsaacRenderKernelCaller
                 isaacRenderKernel \
                 < \
                     TSimDim, \
+                    TParticleList, \
                     TSourceList, \
                     TTransferArray, \
                     TSourceWeight, \
@@ -1006,6 +1203,7 @@ struct IsaacRenderKernelCaller
                         alpaka::mem::view::getPtrNative(framebuffer), \
                         framebuffer_size, \
                         framebuffer_start, \
+                        particle_sources, \
                         sources, \
                         step, \
                         background_color, \
@@ -1025,6 +1223,7 @@ struct IsaacRenderKernelCaller
                 isaacRenderKernel \
                 < \
                     TSimDim, \
+                    TParticleList, \
                     TSourceList, \
                     TTransferArray, \
                     TSourceWeight, \
@@ -1038,6 +1237,7 @@ struct IsaacRenderKernelCaller
                     framebuffer, \
                     framebuffer_size, \
                     framebuffer_start, \
+                    particle_sources, \
                     sources, \
                     step, \
                     background_color, \
@@ -1269,3 +1469,4 @@ template
 } //namespace isaac;
 
 #pragma GCC diagnostic pop
+
