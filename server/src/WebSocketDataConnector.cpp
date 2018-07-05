@@ -89,8 +89,7 @@ struct per_session_data__isaac {
 	char url[32];
 };
 
-static int
-callback_isaac(
+static int callback_isaac(
 		struct lws *wsi,
 		enum lws_callback_reasons reason,
 		void *user,
@@ -98,9 +97,7 @@ callback_isaac(
 		size_t len )
 {
 	int n, m;
-	char buf[LWS_SEND_BUFFER_PRE_PADDING + ISAAC_MAX_RECEIVE +
-						  LWS_SEND_BUFFER_POST_PADDING];
-	char *p = &buf[LWS_SEND_BUFFER_PRE_PADDING];
+     
 	struct per_session_data__isaac *pss = (struct per_session_data__isaac *)user;
 	Broker** broker_ptr = (Broker**)lws_context_user(lws_get_context(wsi));
 	Broker* broker = NULL;
@@ -118,6 +115,10 @@ callback_isaac(
 	case LWS_CALLBACK_SERVER_WRITEABLE:
 		if (pss->client)
 		{
+            char* buf = new char[LWS_SEND_BUFFER_PRE_PADDING + ISAAC_MAX_RECEIVE +
+                        LWS_SEND_BUFFER_POST_PADDING];
+                         
+            char *p = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 			MessageContainer* message = NULL;
 			int l = 0;
 			do
@@ -137,6 +138,7 @@ callback_isaac(
 					char* buffer = json_dumps( message->json_root, 0 );
 					pthread_mutex_unlock(&MessageContainer::deep_copy_mutex);
 					n = strlen(buffer);
+                        //std::cout << "n = " << n << "\n"; 
 					sprintf(p,"%s",buffer);
 					m = lws_write(wsi, (unsigned char*)p, n, LWS_WRITE_TEXT);
 					free(buffer);
@@ -150,6 +152,7 @@ callback_isaac(
 				}
 			}
 			while (l > 1 && !lws_send_pipe_choked(wsi));
+            delete[] buf;
 		}
 		break;
 	//case LWS_CALLBACK_CLOSED:
@@ -181,7 +184,7 @@ callback_isaac(
 	default:
 		break;
 	}
-
+    
 	return 0;
 }
 
