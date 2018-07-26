@@ -34,9 +34,9 @@ void update_particles(
 	  //hostBuffer3[i][0] = 0.0f;
 	  //hostBuffer3[i][1] = 0.0f;
 	  //hostBuffer3[i][2] = 0.0f;
-	  hostBuffer3[i][0] = float((int(i * 29.6f))%64);
-	  hostBuffer3[i][1] = float((int(i * 23.1f))%64);
-	  hostBuffer3[i][2] = float((int((i * 7.9f + pos * (i % 20 + 1)) * 1000))%64000) / 1000.0f;
+	  hostBuffer3[i][0] = float((int(i * 29.6f))%64)/64.0f;
+	  hostBuffer3[i][1] = float((int(i * 23.1f))%64)/64.0f;
+	  hostBuffer3[i][2] = float((int((i * 7.9f + pos * (i % 20 + 1)) * 1000))%64000) / 1000.0f / 64.0f;
 	}
 	cudaMemcpy(deviceBuffer3, hostBuffer3, sizeof(float3_t)*particle_count, cudaMemcpyHostToDevice);
 }

@@ -24,7 +24,11 @@ using namespace isaac;
 #define VOLUME_Y 64
 #define VOLUME_Z 64
 
-#define PARTICLE_COUNT 500
+#define PARTICLE_VOLUME_X 3
+#define PARTICLE_VOLUME_Y 3
+#define PARTICLE_VOLUME_Z 3
+
+#define PARTICLE_COUNT 128
 
 
 
@@ -132,14 +136,16 @@ public:
   size_t size;
   
   ISAAC_NO_HOST_DEVICE_WARNING
-  ISAAC_HOST_DEVICE_INLINE ParticleIterator1(ElemType* first_element, size_t size) : 
+  ISAAC_HOST_DEVICE_INLINE ParticleIterator1(ElemType* first_element, size_t size, const isaac_uint3& local_grid_coord) : 
       current_element(first_element),
-      size(size)
+      size(size),
+      local_grid_coord(local_grid_coord)
       {}
   
   ISAAC_HOST_DEVICE_INLINE void next()
   {
     current_element = &current_element[1];
+    i++;
   }
   
     ISAAC_HOST_DEVICE_INLINE ElemType getPosition() const
@@ -149,13 +155,22 @@ public:
   
     ISAAC_HOST_DEVICE_INLINE isaac_float3 getAttribute() const
   {
-    return {0.0f, 0.5f, 0.0f};
+//     return (*current_element) * 0.7f + 0.3f;
+    return {isaac_float(local_grid_coord.x) / float(PARTICLE_VOLUME_X), isaac_float(local_grid_coord.y) / float(PARTICLE_VOLUME_Y), isaac_float(local_grid_coord.z) / float(PARTICLE_VOLUME_Z)};
+    //return {0.5f, 0.5f, 0.5f};
+  }
+  
+        ISAAC_HOST_DEVICE_INLINE isaac_float getRadius() const
+  {
+    //return 0.007f;
+    return 0.05f;
   }
   
   
 private:
   ElemType* current_element;
-  
+  int i = 0;
+  isaac_uint3 local_grid_coord;
   
 };
 
@@ -169,7 +184,7 @@ template < typename TDevAcc, typename THost, typename TStream >
 class ParticleSource1
 {
 	public:
-
+		static const ISAAC_IDX_TYPE feature_dim = 3;
 		ISAAC_NO_HOST_DEVICE_WARNING
         ParticleSource1 (
             #if ISAAC_ALPAKA == 1
@@ -188,15 +203,17 @@ class ParticleSource1
 		{
 			return std::string("Particle Source 1");
 		}
+		
+		ISAAC_HOST_INLINE void update() {}
 
 		isaac_float3* ptr;
 		size_t size;
 
 		ISAAC_NO_HOST_DEVICE_WARNING
-		ISAAC_HOST_DEVICE_INLINE ParticleIterator1<isaac_float3> getIterator(const isaac_int3& local_grid_coord) const
+		ISAAC_HOST_DEVICE_INLINE ParticleIterator1<isaac_float3> getIterator(const isaac_uint3& local_grid_coord) const
 		{
 			
-			return ParticleIterator1<isaac_float3>(ptr, size);
+			return ParticleIterator1<isaac_float3>(ptr, size, local_grid_coord);
 		}
 };
 
@@ -366,7 +383,7 @@ int main(int argc, char **argv)
 			update_data(stream,hostBuffer1, deviceBuffer1, hostBuffer2, deviceBuffer2, prod, 0.0f,local_size,position,global_size);
 		
 	#endif
-	int s_x = 1,s_y = 1,s_z = 1;
+	int s_x = 1,s_y = 1,s_z = 3;
 	if (filename)
 		read_vtk_to_memory(filename,stream,hostBuffer1, deviceBuffer1, hostBuffer2, deviceBuffer2, prod, 0.0f,local_size,position,global_size,s_x,s_y,s_z);
 
@@ -420,6 +437,7 @@ int main(int argc, char **argv)
 		framebuffer_size, //Size of the rendered image
 		global_size, //Size of the whole volumen including all nodes
 		local_size, //Local size of the subvolume
+		{PARTICLE_VOLUME_X,PARTICLE_VOLUME_Y,PARTICLE_VOLUME_Z},
 		position, //Position of the subvolume in the globale volume
 		particle_sources,
 		sources, //instances of the sources to render

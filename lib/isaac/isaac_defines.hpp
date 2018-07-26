@@ -54,7 +54,7 @@
 #endif
 
 #define ISAAC_MAX_RECEIVE 262144 //256kb
-#define ISAAC_Z_NEAR 0.1f
+#define ISAAC_Z_NEAR 0.002f
 #define ISAAC_Z_FAR 100.0f
 
 #if ISAAC_ALPAKA == 1

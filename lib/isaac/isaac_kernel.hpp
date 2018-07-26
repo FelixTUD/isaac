@@ -51,6 +51,12 @@ ISAAC_CONSTANT isaac_size_struct<3> isaac_size_d[1]; //[1] to access it for cuda
 ISAAC_CONSTANT isaac_float4 isaac_parameter_d[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCTORS ];
 ISAAC_CONSTANT isaac_functor_chain_pointer_N isaac_function_chain_d[ ISAAC_MAX_SOURCES ];
 
+template <typename T> 
+ISAAC_DEVICE_INLINE int sgn(T val) 
+{
+  return (T(0) < val) - (val < T(0));
+}
+
 
 template
 <
@@ -269,6 +275,10 @@ ISAAC_HOST_DEVICE_INLINE void check_coord( isaac_float3& coord, const TLocalSize
         coord.z = isaac_float(local_size.value.z)-isaac_float(1);
 }
 
+template <
+    int TOffset,
+    typename TFilter
+    >
 struct merge_particle_iterator
 {
       template
@@ -277,126 +287,124 @@ struct merge_particle_iterator
         typename TSource,
         typename TColor,
         typename TStart,
-	typename TDepthOffset,
         typename TDir,
 	typename TLightDir,
-        typename TFeedback
+	typename TCellPos,
+	typename TSourceWeight,
+        typename TFeedback,
+        typename TParticleScale
     >
     ISAAC_HOST_DEVICE_INLINE  void operator()(
         const NR& nr,
         const TSource& source,
         TColor& color,
         const TStart& start,
-	const TDepthOffset& depth_offset,
         const TDir& dir,
 	const TLightDir& light_dir,
-        TFeedback& feedback
+	const TCellPos& cell_pos,
+	const TSourceWeight sourceWeight,
+        TFeedback& feedback,
+        const TParticleScale particle_scale
     ) const
     {
-      /* 
-      TColor newColor;
-      newColor = source.getIntersection(start, dir);
-      if(newColor.w < color.w && newColor.w >= 0.0f)
+      if ( mpl::at_c< TFilter, NR::value + TOffset>::type::value )
       {
-	color = newColor;
-	feedback = 1;
-      }
-      */
-
-      isaac_float3 particle_pos;
-      isaac_float t0, t1;
-      isaac_float3 L;
-      isaac_float radius;
-      isaac_float radius2;
-      float tca;
-      float d2;
-      float thc;
-      isaac_float3 normal;
-      isaac_float3 p_color;
-      isaac_float specular;
-      bool particle_hit = false;
-      bool only_color = false;
-      auto particle_iterator = source.getIterator({0, 0, 0});
-      for(int i = 0; i < particle_iterator.size; i++)
-      {
-	/*
-	particle_pos.x = 4 + (i * 7)%57;
-	particle_pos.y = 4 + (i * 27)%57;
-	particle_pos.z = 4 + (i * 17)%57;
-	*/
-	/*
-	particle_pos.x = (int(i * 29.6f))%64;
-	particle_pos.y = (int(i * 23.1f))%64;
-	particle_pos.z = (int(i * 7.9f))%64;
-	*/
-	
-	particle_pos = particle_iterator.getPosition();
-	L = particle_pos - start;
-	radius = 1.0f;
-	radius2 = radius * radius;
-	tca = L.x * dir.x + L.y * dir.y + L.z * dir.z;
-	d2 = (L.x * L.x + L.y * L.y + L.z * L.z) - tca * tca;
-	if(d2 > radius2){
-	  particle_iterator.next();
-	  continue;
-	}
-	thc = sqrt(radius2 - d2);
-	t0 = tca - thc;
-	t1 = tca + thc;
-	/*
-	if(t0 < 0 && t1 >= 0 && t0 + depth_offset > 0)
+	/* 
+	TColor newColor;
+	newColor = source.getIntersection(start, dir);
+	if(newColor.w < color.w && newColor.w >= 0.0f)
 	{
-	  t0 = 0;
-	  only_color = true;
-	}
-	*/
-	if(tca + radius >= 0 && t0 + depth_offset > 0 && t0 < color.w)
-	{
-	  color.w = t0;
+	  color = newColor;
 	  feedback = 1;
-	  normal = start + t0 * dir - particle_pos;
-	  /*
-	  p_color.x = (30 + (i * 33)%225) / 255.0f;
-	  p_color.y = (30 + (i * 56)%225) / 255.0f;
-	  p_color.z = (30 + (i * 77)%225) / 255.0f;
-	  */
-	  /*
-	  p_color.x = normal.x * 0.5f + 0.5;
-	  p_color.y = normal.y * 0.5f + 0.5;
-	  p_color.z = normal.z * 0.5f + 0.5;
-	  */
-	  p_color = particle_iterator.getAttribute();
-	
-	  particle_hit = true;
 	}
-	particle_iterator.next();
-      }
-      if(particle_hit)
-      {
-	if(!only_color)
+	*/
+	isaac_float3 particle_pos;
+	isaac_float t0;
+	isaac_float3 L;
+	isaac_float radius;
+	isaac_float radius2;
+	float tca;
+	float d2;
+	float thc;
+	isaac_float3 normal;
+	isaac_float3 p_color;
+	isaac_float specular;
+	bool particle_hit = false;
+	auto particle_iterator = source.getIterator(cell_pos);
+	isaac_float3 cell_pos_f = {float(cell_pos.x), float(cell_pos.y), float(cell_pos.z)}; 
+	for(int i = 0; i < particle_iterator.size; i++)
 	{
-	  normal = normal / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-	  specular = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
-	  isaac_float light_factor = specular * 0.5f + 0.5f;
-	  specular = specular * specular * specular * specular * specular * specular * specular * specular * specular;
-	  color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
-	  color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
-	  color.z = ISAAC_MIN(p_color.z * light_factor + specular, 1.0f);
+	  /*
+	  particle_pos.x = 4 + (i * 7)%57;
+	  particle_pos.y = 4 + (i * 27)%57;
+	  particle_pos.z = 4 + (i * 17)%57;
+	  */
+	  /*
+	  particle_pos.x = (int(i * 29.6f))%64;
+	  particle_pos.y = (int(i * 23.1f))%64;
+	  particle_pos.z = (int(i * 7.9f))%64;
+	  */
+	  particle_pos = (particle_iterator.getPosition() + cell_pos_f) * particle_scale;
+	  L = particle_pos - start;
+	  radius = particle_iterator.getRadius() * sourceWeight.value[ NR::value + TOffset]; 
+	  radius2 = radius * radius;
+	  tca = L.x * dir.x + L.y * dir.y + L.z * dir.z;
+	  d2 = (L.x * L.x + L.y * L.y + L.z * L.z) - tca * tca;
+	  if(d2 > radius2){
+	    particle_iterator.next();
+	    continue;
+	  }
+	  thc = sqrt(radius2 - d2);
+	  t0 = tca - thc;
+	  //t1 = tca + thc;
+	  /*
+	  if(t0 < 0 && t1 >= 0 && t0 + depth_offset > 0)
+	  {
+	    t0 = 0;
+	    only_color = true;
+	  }
+	  */
+	  if(tca + radius >= 0 && t0 < color.w)
+	  {
+	    color.w = t0;
+	    feedback = 1;
+	    normal = start + t0 * dir - particle_pos;
+	    /*
+	    p_color.x = (30 + (i * 33)%225) / 255.0f;
+	    p_color.y = (30 + (i * 56)%225) / 255.0f;
+	    p_color.z = (30 + (i * 77)%225) / 255.0f;
+	    */
+	    /*
+	    p_color.x = normal.x * 0.5f + 0.5;
+	    p_color.y = normal.y * 0.5f + 0.5;
+	    p_color.z = normal.z * 0.5f + 0.5;
+	    */
+	    p_color = particle_iterator.getAttribute();
+	  
+	    particle_hit = true;
+	  }
+	  particle_iterator.next();
+	}
+// 	if(particle_iterator.size >= 1)
+// 	  feedback = 1;
+	if(particle_hit)
+	{
+	    normal = normal / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+	    specular = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
+	    isaac_float light_factor = specular * 0.4f + 0.6f;
+	    specular = specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * 0.5f;
+	    color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
+	    color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
+	    color.z = ISAAC_MIN(p_color.z * light_factor + specular, 1.0f);
+	  
+	  //color.x = normal.x * 0.5f + 0.5f;
+	  //color.y = normal.y * 0.5f + 0.5f; 
+	  //color.z = normal.z * 0.5f + 0.5f;
 	  
 	}
-	else{
-	  color.x = p_color.x;
-	  color.y = p_color.y;
-	  color.z = p_color.z;
-	}
-	/*
-	color.x = normal.x;
-	color.y = normal.y;
-	color.z = normal.z;
-	*/
+
+
       }
-
-
     }
 };
 
@@ -751,6 +759,8 @@ template <
 
             isaac_int first[ISAAC_VECTOR_ELEM];
             isaac_int last[ISAAC_VECTOR_ELEM];
+	    isaac_float first_f[ISAAC_VECTOR_ELEM];
+	    isaac_float last_f[ISAAC_VECTOR_ELEM];
             isaac_float3 pos[ISAAC_VECTOR_ELEM];
             isaac_int3 coord[ISAAC_VECTOR_ELEM];
             isaac_float d[ISAAC_VECTOR_ELEM];
@@ -760,7 +770,10 @@ template <
             {
                 first[e] = isaac_int( floor(count_start[e].x) );
                 last[e] = isaac_int( ceil(count_end[e].x) );
-
+		
+		first_f[e] = count_start[e].x;
+		last_f[e] = count_end[e].x;
+		
                 //Moving last and first until their points are valid
                 pos[e] = start[e] + step_vec[e] * isaac_float(last[e]);
                 coord[e].x = isaac_int(floor(pos[e].x));
@@ -788,7 +801,8 @@ template <
                     coord[e].y = isaac_int(floor(pos[e].y));
                     coord[e].z = isaac_int(floor(pos[e].z));
                 }
-
+		first[e] = ISAAC_MAX(first[e], 0);
+		first_f[e] = ISAAC_MAX(first_f[e], 0.0f);
                 //Extra clipping
                 for (isaac_int i = 0; i < input_clipping.count; i++)
                 {
@@ -803,67 +817,160 @@ template <
                                            -                     start[e].z * clipping[e].elem[i].normal.z ) / d[e];
                     if (d[e] > 0)
                     {
-                        if ( last[e] < intersection_step[e] )
+                        if ( last_f[e] < intersection_step[e] )
                         {
                             if (!finish[e])
                                 ISAAC_SET_COLOR( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
                             finish[e] = true;
                         }
-                        if ( first[e] < intersection_step[e] )
+                        if ( first_f[e] < intersection_step[e] )
+			{
                             first[e] = ceil( intersection_step[e] );
+			    first_f[e] = intersection_step[e];
+			}
                     }
                     else
                     {
-                        if ( first[e] > intersection_step[e] )
+                        if ( first_f[e] > intersection_step[e] )
                         {
                             if (!finish[e])
                                 ISAAC_SET_COLOR( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
                             finish[e] = true;
                         }
-                        if ( last[e] > intersection_step[e] )
+                        if ( last_f[e] > intersection_step[e] )
+			{
                             last[e] = floor( intersection_step[e] );
+			    last_f[e] = intersection_step[e];
+			}
                     }
                 }
+
             }
             ISAAC_ELEM_ALL_TRUE_RETURN( finish )
-	     
+	    
 	    
 	    isaac_float4 particle_color[ISAAC_VECTOR_ELEM];
 	    isaac_int result_particle[ISAAC_VECTOR_ELEM];
 	    isaac_float3 local_start[ISAAC_VECTOR_ELEM];
-	    isaac_float depth_offset[ISAAC_VECTOR_ELEM];
 	    isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
+	    isaac_float3 normalized_dir[ISAAC_VECTOR_ELEM];
+	    
+	    isaac_int3 dir_sign[ISAAC_VECTOR_ELEM];
+	    isaac_float3 current_pos[ISAAC_VECTOR_ELEM];
+	    isaac_uint3 current_cell[ISAAC_VECTOR_ELEM];
+	    isaac_float3 last_pos[ISAAC_VECTOR_ELEM];
+	    isaac_uint3 last_cell[ISAAC_VECTOR_ELEM];
+	    isaac_float3 t[ISAAC_VECTOR_ELEM];
+	    isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
+	    
+
+	    
+	    isaac_float3 particle_scale = {isaac_size_d[0].local_size_scaled.value.x / isaac_float(isaac_size_d[0].local_particle_size.value.x), 
+	      isaac_size_d[0].local_size_scaled.value.y / isaac_float(isaac_size_d[0].local_particle_size.value.y), 
+	      isaac_size_d[0].local_size_scaled.value.z / isaac_float(isaac_size_d[0].local_particle_size.value.z)};
 	    ISAAC_ELEM_ITERATE(e)
 	    {
-	      
-		particle_color[e].w = (last[e] - first[e]) * step;
-		local_start[e] = start[e] + step_vec[e] * isaac_float(first[e]);
+		particle_color[e].w = (last_f[e] - first_f[e]) * step * l_scaled[e] / l[e];
+		local_start[e] = (start[e] + step_vec[e] * first_f[e]) * scale;
 		result_particle[e] = 0;
-		isaac_float3 normalized_dir = step_vec[e] / step;
-		depth_offset[e] = isaac_float(first[e]) * step;
-		light_dir[e] = -normalized_dir;
+		normalized_dir[e] = step_vec[e] * scale / step;
+		normalized_dir[e] = normalized_dir[e] / sqrt(normalized_dir[e].x * normalized_dir[e].x + normalized_dir[e].y * normalized_dir[e].y + normalized_dir[e].z * normalized_dir[e].z);
+		light_dir[e] = -normalized_dir[e];
+		light_dir[e] = light_dir[e] / sqrt(light_dir[e].x * light_dir[e].x + light_dir[e].y * light_dir[e].y + light_dir[e].z * light_dir[e].z);
 		//light_dir[e] = {0.0f, 1.0f, 0.0f};
-		isaac_for_each_with_mpl_params
-		(
-		    particle_sources,
-		    merge_particle_iterator
-		    (),
-		    particle_color[e],
-		    local_start[e],
-		    depth_offset[e],
-		    normalized_dir,
-		    light_dir[e],
-		    result_particle[e]
-		);
-		if(result_particle[e]){
-		  last[e] = ISAAC_MIN(last[e], first[e] + int(ceil(particle_color[e].w / step)));
-		  /*
-		  particle_color[e].x = -first[e] * 0.01f;
-		  particle_color[e].y = -first[e] * 0.01f;
-		  particle_color[e].z = -first[e] * 0.01f;
-		  */
-		}
 		
+		dir_sign[e].x = sgn(normalized_dir[e].x);
+		dir_sign[e].y = sgn(normalized_dir[e].y);
+		dir_sign[e].z = sgn(normalized_dir[e].z);
+		
+		current_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(first_f[e], 0.0f) + 0.001f)) * scale;
+
+		
+		current_cell[e].x = int(current_pos[e].x / particle_scale.x);
+		current_cell[e].y = int(current_pos[e].y / particle_scale.y); 
+		current_cell[e].z = int(current_pos[e].z / particle_scale.z);
+		
+		last_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(last_f[e], 0.0f) - 0.001f)) * scale;
+		
+		last_cell[e].x = int(last_pos[e].x / particle_scale.x);
+		last_cell[e].y = int(last_pos[e].y / particle_scale.y); 
+		last_cell[e].z = int(last_pos[e].z / particle_scale.z);
+		 
+
+		t[e].x = ((current_cell[e].x + ISAAC_MAX(dir_sign[e].x, 0)) * particle_scale.x - current_pos[e].x) / normalized_dir[e].x;
+		t[e].y = ((current_cell[e].y + ISAAC_MAX(dir_sign[e].y, 0)) * particle_scale.y - current_pos[e].y) / normalized_dir[e].y;
+		t[e].z = ((current_cell[e].z + ISAAC_MAX(dir_sign[e].z, 0)) * particle_scale.z - current_pos[e].z) / normalized_dir[e].z;
+		
+		delta_t[e].x = particle_scale.x / normalized_dir[e].x * dir_sign[e].x;
+		delta_t[e].y = particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
+		delta_t[e].z = particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
+		
+		while(
+		  current_cell[e].x < isaac_size_d[0].local_particle_size.value.x && 
+		  current_cell[e].y < isaac_size_d[0].local_particle_size.value.y && 
+		  current_cell[e].z < isaac_size_d[0].local_particle_size.value.z && 
+		  result_particle[e] == false)
+		{
+		  isaac_for_each_with_mpl_params
+		  (
+		      particle_sources,
+		      merge_particle_iterator
+		      <
+			  mpl::size< TSourceList >::type::value,
+			  TFilter
+		      >
+		      (),
+		      particle_color[e],
+		      local_start[e],
+		      normalized_dir[e],
+		      light_dir[e],
+		      current_cell[e],
+		      sourceWeight,
+		      result_particle[e],
+		      particle_scale
+		  );
+		  
+		  if(result_particle[e]){
+		    last[e] = ISAAC_MIN(last[e], int(ceil(first_f[e] + particle_color[e].w / (step * l_scaled[e] / l[e]))));
+// 		    color[e].x = current_cell[e].x / 8.0f;
+// 		    color[e].y = current_cell[e].y / 8.0f;
+// 		    color[e].z = current_cell[e].z / 8.0f;
+// 		    color[e].w = 1.0f;
+// 		    result_particle[e] = 0;
+		  }
+
+		  if(current_cell[e].x == last_cell[e].x && current_cell[e].y == last_cell[e].y && current_cell[e].z == last_cell[e].z)
+		  {
+		    break;
+		  }
+
+		  if(t[e].x < t[e].y && t[e].x < t[e].z)
+		  {
+		    current_cell[e].x += dir_sign[e].x;
+		    t[e].x += delta_t[e].x;
+		  }
+		  else if(t[e].y < t[e].x && t[e].y < t[e].z)
+		  {
+		    current_cell[e].y += dir_sign[e].y;
+		    t[e].y += delta_t[e].y;
+		  }
+		  else{
+		    current_cell[e].z += dir_sign[e].z;
+		    t[e].z += delta_t[e].z;
+		  }
+		
+		  
+		  
+		}
+
+
+// 		color[e] = {int((start[e] + step_vec[e] * isaac_float(first[e])).x + 0.5f) % 2, int((start[e] + step_vec[e] * isaac_float(first[e])).x + 0.5f) % 2, int((start[e] + step_vec[e] * isaac_float(first[e])).x + 0.5f) % 2, 1.0f};
+		//color[e] = {127, 127, 127};
+		
+// 		color[e].x = current_cell[e].x % 2;
+// 		color[e].y = current_cell[e].y % 2;
+// 		color[e].z = current_cell[e].z % 2;
+// 		color[e].w = 1.0f;
 		
 	    }
 	    
@@ -873,20 +980,22 @@ template <
             isaac_int result[ISAAC_VECTOR_ELEM];
             isaac_float oma[ISAAC_VECTOR_ELEM];
             isaac_float4 color_add[ISAAC_VECTOR_ELEM];
-
+	    
             ISAAC_ELEM_ITERATE(e)
             {
+		
                 //Starting the main loop
                 min_size[e] = ISAAC_MIN(
                     int(isaac_size_d[0].global_size.value.x), ISAAC_MIN (
                     int(isaac_size_d[0].global_size.value.y),
                     int(isaac_size_d[0].global_size.value.z) ) );
-                factor[e] = step / /*isaac_size_d[0].max_global_size*/ min_size[e] * isaac_float(2) * l[e]/l_scaled[e];
+                factor[e] = step / min_size[e] * isaac_float(2);
 		value[e].x = 0;
                 value[e].y = 0;
                 value[e].z = 0;
                 value[e].w = 0;
 		result[e] = 0;
+		
                 for (isaac_int i = first[e]; i <= last[e]; i++)
                 {
                     pos[e] = start[e] + step_vec[e] * isaac_float(i);
@@ -916,8 +1025,8 @@ template <
                         step,
                         scale
                     );
-                    /*if ( mpl::size< TSourceList >::type::value > 1)
-                        value = value / isaac_float( mpl::size< TSourceList >::type::value );*/
+//                     if ( mpl::size< TSourceList >::type::value > 1)
+//                         value = value / isaac_float( mpl::size< TSourceList >::type::value );
                     if (TIsoSurface)
                     {
                         if (result[e])
@@ -957,7 +1066,6 @@ template <
                     }
                 #endif
                 
-
 		
                 if (!finish[e])
                     ISAAC_SET_COLOR( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
@@ -1009,7 +1117,7 @@ struct IsaacRenderKernelCaller
         const clipping_struct& clipping
     )
     {
-        if (sourceWeight.value[ mpl::size< TSourceList >::type::value - N] == isaac_float(0) )
+        if (sourceWeight.value[ mpl::size< TSourceList >::type::value + mpl::size< TParticleList >::type::value - N] == isaac_float(0) )
             IsaacRenderKernelCaller
             <
                 TSimDim,

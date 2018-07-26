@@ -99,6 +99,22 @@ class IsaacVisualization
                 json_object_set_new( content, "feature dimension", json_integer ( s.feature_dim ) );
             }
         };
+	
+	struct particle_source_2_json_iterator
+        {
+            template
+            <
+                typename TSource,
+                typename TJsonRoot
+            >
+            ISAAC_HOST_INLINE  void operator()( const int I,const TSource& s, TJsonRoot& jsonRoot) const
+            {
+                json_t *content = json_object();
+                json_array_append_new( jsonRoot, content );
+                json_object_set_new( content, "name", json_string ( TSource::getName().c_str() ) );
+                json_object_set_new( content, "feature dimension", json_integer ( 3 ) );
+            }
+        };
 
         struct functor_2_json_iterator
         {
@@ -142,12 +158,14 @@ class IsaacVisualization
             <
                 typename TSource,
                 typename TFunctions,
+		typename TOffset,
                 typename TDest
             >
             ISAAC_HOST_INLINE  void operator()(
                 const int I,
                 const TSource& source,
                 const TFunctions& functions,
+		const TOffset& offset,
                 TDest& dest
             ) const
             {
@@ -155,9 +173,9 @@ class IsaacVisualization
                 for (int i = 0; i < ISAAC_MAX_FUNCTORS; i++)
                 {
                     chain_nr *= ISAAC_FUNCTOR_COUNT;
-                    chain_nr += functions[I].bytecode[i];
+                    chain_nr += functions[I + offset].bytecode[i];
                 }
-                dest.nr[I] = chain_nr * 4 + TSource::feature_dim - 1;
+                dest.nr[I + offset] = chain_nr * 4 + TSource::feature_dim - 1;
             }
         };
 
@@ -206,6 +224,22 @@ class IsaacVisualization
                 }
             }
         };
+	
+	struct update_particle_source_iterator
+	{
+	    template
+	    <
+		typename TParticleSource
+	    >
+	    ISAAC_HOST_INLINE  void operator()(
+		const int I,
+		TParticleSource& particle_source
+	    ) const
+	    {
+	      particle_source.update();
+	    }
+	    
+	};
 
         struct update_pointer_array_iterator
         {
@@ -387,10 +421,12 @@ class IsaacVisualization
             const isaac_size2 framebuffer_size,
             const TDomainSize global_size,
             const TDomainSize local_size,
+	    const TDomainSize local_particle_size,
             const TDomainSize position,
 	    TParticleList& particle_sources,
             TSourceList& sources,
             TScale scale
+	    
             ) :
             #if ISAAC_ALPAKA == 1
                 host(host),
@@ -399,6 +435,7 @@ class IsaacVisualization
             #endif
             global_size(global_size),
             local_size(local_size),
+            local_particle_size(local_particle_size),
             position(position),
             name(name),
             master(master),
@@ -426,14 +463,14 @@ class IsaacVisualization
             #if ISAAC_ALPAKA == 1
                 ,framebuffer(alpaka::mem::buf::alloc<uint32_t, ISAAC_IDX_TYPE>(acc, framebuffer_prod))
                 ,functor_chain_d(alpaka::mem::buf::alloc<isaac_functor_chain_pointer_N, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( ISAAC_FUNCTOR_COMPLEX * 4)))
-                ,functor_chain_choose_d(alpaka::mem::buf::alloc<isaac_functor_chain_pointer_N, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( boost::mpl::size< TSourceList >::type::value )))
+                ,functor_chain_choose_d(alpaka::mem::buf::alloc<isaac_functor_chain_pointer_N, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) )))
                 ,local_minmax_array_d(alpaka::mem::buf::alloc<minmax_struct, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( local_size[0] * local_size[1] )))
         {
             #else
         {
                 ISAAC_CUDA_CHECK(cudaMalloc((uint32_t**)&framebuffer, sizeof(uint32_t)*framebuffer_prod));
                 ISAAC_CUDA_CHECK(cudaMalloc((isaac_functor_chain_pointer_N**)&functor_chain_d, sizeof(isaac_functor_chain_pointer_N) * ISAAC_FUNCTOR_COMPLEX * 4));
-                ISAAC_CUDA_CHECK(cudaMalloc((isaac_functor_chain_pointer_N**)&functor_chain_choose_d, sizeof(isaac_functor_chain_pointer_N) * boost::mpl::size< TSourceList >::type::value));
+                ISAAC_CUDA_CHECK(cudaMalloc((isaac_functor_chain_pointer_N**)&functor_chain_choose_d, sizeof(isaac_functor_chain_pointer_N) * (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)));
                 ISAAC_CUDA_CHECK(cudaMalloc((minmax_struct**)&local_minmax_array_d, sizeof(minmax_struct) * local_size[0] * local_size[1]));
             #endif
             #if ISAAC_VALGRIND_TWEAKS == 1
@@ -503,7 +540,7 @@ class IsaacVisualization
                 ISAAC_CUDA_CHECK(cudaDeviceSynchronize());
             #endif
             //Init functions:
-            for (int i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+            for (int i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
                 functions[i].source = std::string("idem");
             updateFunctions();
 
@@ -516,7 +553,7 @@ class IsaacVisualization
             );
 
             //Transfer func memory:
-            for (int i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+            for (int i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
             {
                 source_weight.value[i] = ISAAC_DEFAULT_WEIGHT;
                 #if ISAAC_ALPAKA == 1
@@ -528,8 +565,8 @@ class IsaacVisualization
                     ISAAC_CUDA_CHECK(cudaMalloc((isaac_float4**)&(transfer_d.pointer[i]), sizeof(isaac_float4)*TTransfer_size));
                     transfer_h.pointer[i] = (isaac_float4*)malloc( sizeof(isaac_float4)*TTransfer_size );
                 #endif
-                transfer_h.description[i].insert( std::pair< isaac_uint, isaac_float4> (0             , getHSVA(isaac_float(2*i)*M_PI/isaac_float(boost::mpl::size< TSourceList >::type::value),1,1,0) ));
-                transfer_h.description[i].insert( std::pair< isaac_uint, isaac_float4> (TTransfer_size, getHSVA(isaac_float(2*i)*M_PI/isaac_float(boost::mpl::size< TSourceList >::type::value),1,1,1) ));
+                transfer_h.description[i].insert( std::pair< isaac_uint, isaac_float4> (0             , getHSVA(isaac_float(2*i)*M_PI/isaac_float((boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)),1,1,0) ));
+                transfer_h.description[i].insert( std::pair< isaac_uint, isaac_float4> (TTransfer_size, getHSVA(isaac_float(2*i)*M_PI/isaac_float((boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)),1,1,1) ));
             }
             updateTransfer();
 
@@ -603,6 +640,7 @@ class IsaacVisualization
                 json_object_set_new( json_root, "sources", json_sources_array );
 
                 isaac_for_each_params( sources, source_2_json_iterator(), json_sources_array );
+		isaac_for_each_params( particle_sources, source_2_json_iterator(), json_sources_array );
 
                 json_object_set_new( json_root, "interpolation", json_boolean( interpolation ) );
                 json_object_set_new( json_root, "iso surface", json_boolean( iso_surface ) );
@@ -710,8 +748,8 @@ class IsaacVisualization
         {
             ISAAC_WAIT_VISUALIZATION
             IsaacFunctorPool functors;
-            isaac_float4 isaac_parameter_h[boost::mpl::size< TSourceList >::type::value * ISAAC_MAX_FUNCTORS];
-            for (int i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+            isaac_float4 isaac_parameter_h[(boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) * ISAAC_MAX_FUNCTORS];
+            for (int i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
             {
                 functions[i].error_code = 0;
                 //Going from | to |...
@@ -788,14 +826,16 @@ class IsaacVisualization
             }
 
             //Calculate functor chain nr per source
-            dest_array_struct< boost::mpl::size< TSourceList >::type::value > dest;
-            isaac_for_each_params( sources, update_functor_chain_iterator(), functions, dest);
+            dest_array_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)> dest;
+	    int zero = 0;
+            isaac_for_each_params( sources, update_functor_chain_iterator(), functions, zero, dest);
+	    isaac_for_each_params( particle_sources, update_functor_chain_iterator(), functions, boost::mpl::size< TSourceList >::type::value, dest);
             #if ISAAC_ALPAKA == 1
-                alpaka::mem::view::ViewPlainPtr<THost, isaac_float4, TFraDim, ISAAC_IDX_TYPE> parameter_buffer(isaac_parameter_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(ISAAC_MAX_FUNCTORS * boost::mpl::size< TSourceList >::type::value)));
+                alpaka::mem::view::ViewPlainPtr<THost, isaac_float4, TFraDim, ISAAC_IDX_TYPE> parameter_buffer(isaac_parameter_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(ISAAC_MAX_FUNCTORS * (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value))));
 
                 alpaka::vec::Vec<alpaka::dim::DimInt<1u>, ISAAC_IDX_TYPE> const parameter_d_extent(ISAAC_IDX_TYPE(16));
                 auto parameter_d_view(alpaka::mem::view::createStaticDevMemView(&isaac_parameter_d[0u],acc,parameter_d_extent));
-                alpaka::mem::view::copy( stream, parameter_d_view, parameter_buffer, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(ISAAC_MAX_FUNCTORS * boost::mpl::size< TSourceList >::type::value)) );
+                alpaka::mem::view::copy( stream, parameter_d_view, parameter_buffer, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(ISAAC_MAX_FUNCTORS * (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value))) );
 
                 const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> threads (ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
                 const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> blocks  (ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
@@ -803,8 +843,8 @@ class IsaacVisualization
                 auto const workdiv(alpaka::workdiv::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE>(grid,blocks,threads));
                 updateFunctorChainPointerKernel
                 <
-                    boost::mpl::size< TSourceList >::type::value,
-                    dest_array_struct< boost::mpl::size< TSourceList >::type::value >
+                    (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value),
+                    dest_array_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) >
                 > kernel;
                 auto const instance
                 (
@@ -822,22 +862,22 @@ class IsaacVisualization
 
                 alpaka::vec::Vec<alpaka::dim::DimInt<1u>, ISAAC_IDX_TYPE> const function_chain_d_extent( ISAAC_IDX_TYPE(ISAAC_MAX_SOURCES) );
                 auto function_chain_d_view(alpaka::mem::view::createStaticDevMemView(&isaac_function_chain_d[0u],acc,function_chain_d_extent));
-                alpaka::mem::view::copy( stream, function_chain_d_view, functor_chain_choose_d, ISAAC_IDX_TYPE( boost::mpl::size< TSourceList >::type::value ) );
+                alpaka::mem::view::copy( stream, function_chain_d_view, functor_chain_choose_d, ISAAC_IDX_TYPE( (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) ) );
             #else
                 ISAAC_CUDA_CHECK(cudaMemcpyToSymbol( isaac_parameter_d, isaac_parameter_h, sizeof( isaac_parameter_h )));
                 dim3 grid(1);
                 dim3 block(1);
-                updateFunctorChainPointerKernel< boost::mpl::size< TSourceList >::type::value > <<<grid,block>>>(functor_chain_choose_d, functor_chain_d, dest);
+                updateFunctorChainPointerKernel< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) > <<<grid,block>>>(functor_chain_choose_d, functor_chain_d, dest);
                 ISAAC_CUDA_CHECK(cudaDeviceSynchronize());
                 isaac_functor_chain_pointer_N* constant_ptr;
                 ISAAC_CUDA_CHECK(cudaGetSymbolAddress((void **)&constant_ptr, isaac_function_chain_d));
-                ISAAC_CUDA_CHECK(cudaMemcpy(constant_ptr, functor_chain_choose_d, boost::mpl::size< TSourceList >::type::value * sizeof( isaac_functor_chain_pointer_N ), cudaMemcpyDeviceToDevice));
+                ISAAC_CUDA_CHECK(cudaMemcpy(constant_ptr, functor_chain_choose_d, (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) * sizeof( isaac_functor_chain_pointer_N ), cudaMemcpyDeviceToDevice));
             #endif
         }
         void updateTransfer()
         {
             ISAAC_WAIT_VISUALIZATION
-            for (int i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+            for (int i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
             {
                 auto next = transfer_h.description[i].begin();
                 auto before = next;
@@ -891,7 +931,9 @@ class IsaacVisualization
                     ,stream
                 #endif
                 );
+		isaac_for_each_params(particle_sources, update_particle_source_iterator());
                 ISAAC_STOP_TIME_MEASUREMENT( buffer_time, +=, buffer, getTicksUs() )
+		
             }
             //if (rank == master)
             //    printf("-----\n");
@@ -1262,13 +1304,13 @@ class IsaacVisualization
                 );
                 if (rank == master)
                 {
-                    MPI_Reduce( MPI_IN_PLACE, minmax_array.min, boost::mpl::size< TSourceList >::type::value, MPI_FLOAT, MPI_MIN, master, mpi_world);
-                    MPI_Reduce( MPI_IN_PLACE, minmax_array.max, boost::mpl::size< TSourceList >::type::value, MPI_FLOAT, MPI_MAX, master, mpi_world);
+                    MPI_Reduce( MPI_IN_PLACE, minmax_array.min, (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value), MPI_FLOAT, MPI_MIN, master, mpi_world);
+                    MPI_Reduce( MPI_IN_PLACE, minmax_array.max, (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value), MPI_FLOAT, MPI_MAX, master, mpi_world);
                 }
                 else
                 {
-                    MPI_Reduce( minmax_array.min, NULL, boost::mpl::size< TSourceList >::type::value, MPI_FLOAT, MPI_MIN, master, mpi_world);
-                    MPI_Reduce( minmax_array.max, NULL, boost::mpl::size< TSourceList >::type::value, MPI_FLOAT, MPI_MAX, master, mpi_world);
+                    MPI_Reduce( minmax_array.min, NULL, (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value), MPI_FLOAT, MPI_MIN, master, mpi_world);
+                    MPI_Reduce( minmax_array.max, NULL, (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value), MPI_FLOAT, MPI_MAX, master, mpi_world);
                 }
             }
 
@@ -1368,7 +1410,7 @@ class IsaacVisualization
             for (int pass = 0; pass < TController::pass_count; pass++)
                 icetDestroyContext(icetContext[pass]);
             #if ISAAC_ALPAKA == 0
-                for (int i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+                for (int i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
                 {
                     if ( pointer_array.pointer[i] )
                         ISAAC_CUDA_CHECK(cudaFree( pointer_array.pointer[i] ) );
@@ -1430,6 +1472,10 @@ class IsaacVisualization
             size_h[0].local_size.value.y = myself->local_size[1];
             if (TSimDim::value > 2)
                 size_h[0].local_size.value.z = myself->local_size[2];
+	    size_h[0].local_particle_size.value.x = myself->local_particle_size[0];
+            size_h[0].local_particle_size.value.y = myself->local_particle_size[1];
+            if (TSimDim::value > 2)
+                size_h[0].local_particle_size.value.z = myself->local_particle_size[2];
             size_h[0].max_global_size = static_cast<float>(ISAAC_MAX(ISAAC_MAX(uint32_t(myself->global_size[0]),uint32_t(myself->global_size[1])),uint32_t(myself->global_size[2])));
 
             size_h[0].global_size_scaled.value.x = myself->global_size_scaled[0];
@@ -1445,7 +1491,7 @@ class IsaacVisualization
             if (TSimDim::value > 2)
                 size_h[0].local_size_scaled.value.z = myself->local_size_scaled[2];
             size_h[0].max_global_size_scaled = static_cast<float>(ISAAC_MAX(ISAAC_MAX(uint32_t(myself->global_size_scaled[0]),uint32_t(myself->global_size_scaled[1])),uint32_t(myself->global_size_scaled[2])));
-
+	    
             isaac_float3 isaac_scale =
             {
                 myself->scale[0],
@@ -1485,9 +1531,9 @@ class IsaacVisualization
                     TSimDim,
 		    TParticleList,
                     TSourceList,
-                    transfer_d_struct< boost::mpl::size< TSourceList >::type::value >,
-                    source_weight_struct< boost::mpl::size< TSourceList >::type::value >,
-                    pointer_array_struct< boost::mpl::size< TSourceList >::type::value >,
+                    transfer_d_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) >,
+                    source_weight_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) >,
+                    pointer_array_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) >,
                     mpl::vector<>,
                     alpaka::mem::buf::Buf<TDevAcc, uint32_t, TFraDim, ISAAC_IDX_TYPE>,
                     TTransfer_size,
@@ -1496,7 +1542,7 @@ class IsaacVisualization
                     TAcc,
                     TStream,
                     alpaka::mem::buf::Buf<TDevAcc, isaac_functor_chain_pointer_N, TFraDim, ISAAC_IDX_TYPE>,
-                    boost::mpl::size< TSourceList >::type::value
+                    (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)
                 >
                 ::call(
                     myself->stream,
@@ -1527,14 +1573,14 @@ class IsaacVisualization
                     TSimDim,
 		    TParticleList,
                     TSourceList,
-                    transfer_d_struct< boost::mpl::size< TSourceList >::type::value >,
-                    source_weight_struct< boost::mpl::size< TSourceList >::type::value >,
-                    pointer_array_struct< boost::mpl::size< TSourceList >::type::value >,
+                    transfer_d_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) >,
+                    source_weight_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) >,
+                    pointer_array_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) >,
                     mpl::vector<>,
                     uint32_t*,
                     TTransfer_size,
                     isaac_float3,
-                    boost::mpl::size< TSourceList >::type::value
+                    (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)
                 >
                 ::call(
                     myself->framebuffer,
@@ -1600,7 +1646,7 @@ class IsaacVisualization
                 if ( myself->send_transfer )
                 {
                     json_object_set_new( myself->json_root, "transfer array", matrix = json_array() );
-                    for (ISAAC_IDX_TYPE i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+                    for (ISAAC_IDX_TYPE i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
                     {
                         json_t* transfer = json_array();
                         json_array_append_new( matrix, transfer );
@@ -1615,7 +1661,7 @@ class IsaacVisualization
                         }
                     }
                     json_object_set_new( myself->json_root, "transfer points", matrix = json_array() );
-                    for (ISAAC_IDX_TYPE i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+                    for (ISAAC_IDX_TYPE i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
                     {
                         json_t* points = json_array();
                         json_array_append_new( matrix, points );
@@ -1634,7 +1680,7 @@ class IsaacVisualization
                 if ( myself->send_functions )
                 {
                     json_object_set_new( myself->json_root, "functions", matrix = json_array() );
-                    for (ISAAC_IDX_TYPE i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+                    for (ISAAC_IDX_TYPE i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
                     {
                         json_t* f = json_object();
                         json_array_append_new( matrix, f );
@@ -1645,7 +1691,7 @@ class IsaacVisualization
                 if ( myself->send_weight )
                 {
                     json_object_set_new( myself->json_root, "weight", matrix = json_array() );
-                    for (ISAAC_IDX_TYPE i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+                    for (ISAAC_IDX_TYPE i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
                         json_array_append_new( matrix, json_real( myself->source_weight.value[i] ) );
                 }
                 if ( myself->send_interpolation )
@@ -1669,7 +1715,7 @@ class IsaacVisualization
                 if ( myself->send_minmax )
                 {
                     json_object_set_new( myself->json_root, "minmax", matrix = json_array() );
-                    for (ISAAC_IDX_TYPE i = 0; i < boost::mpl::size< TSourceList >::type::value; i++)
+                    for (ISAAC_IDX_TYPE i = 0; i < (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value); i++)
                     {
                         json_t* v = json_object();
                         json_array_append_new( matrix, v );
@@ -1790,6 +1836,7 @@ class IsaacVisualization
         #endif
         TDomainSize global_size;
         TDomainSize local_size;
+	TDomainSize local_particle_size;
         TDomainSize position;
         std::vector<ISAAC_IDX_TYPE> global_size_scaled;
         std::vector<ISAAC_IDX_TYPE> local_size_scaled;
@@ -1837,13 +1884,13 @@ class IsaacVisualization
             std::vector< alpaka::mem::buf::Buf<  THost, isaac_float4, TTexDim, ISAAC_IDX_TYPE> > transfer_h_buf;
             std::vector< alpaka::mem::buf::Buf< TDevAcc, isaac_float, TFraDim, ISAAC_IDX_TYPE> > pointer_array_alpaka;
         #endif
-        transfer_d_struct< boost::mpl::size< TSourceList >::type::value > transfer_d;
-        transfer_h_struct< boost::mpl::size< TSourceList >::type::value > transfer_h;
-        source_weight_struct< boost::mpl::size< TSourceList >::type::value > source_weight;
-        pointer_array_struct< boost::mpl::size< TSourceList >::type::value > pointer_array;
-        minmax_array_struct< boost::mpl::size< TSourceList >::type::value > minmax_array;
+        transfer_d_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) > transfer_d;
+        transfer_h_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) > transfer_h;
+        source_weight_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) > source_weight;
+        pointer_array_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) > pointer_array;
+        minmax_array_struct< (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) > minmax_array;
         const static ISAAC_IDX_TYPE transfer_size = TTransfer_size;
-        functions_struct functions[boost::mpl::size< TSourceList >::type::value];
+        functions_struct functions[(boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)];
         ISAAC_IDX_TYPE max_size;
         ISAAC_IDX_TYPE max_size_scaled;
         IceTFloat background_color[4];
