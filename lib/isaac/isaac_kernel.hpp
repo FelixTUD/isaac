@@ -276,6 +276,7 @@ ISAAC_HOST_DEVICE_INLINE void check_coord( isaac_float3& coord, const TLocalSize
 }
 
 template <
+    ISAAC_IDX_TYPE Ttransfer_size,
     int TOffset,
     typename TFilter
     >
@@ -290,6 +291,7 @@ struct merge_particle_iterator
         typename TDir,
 	typename TLightDir,
 	typename TCellPos,
+	typename TTransferArray,
 	typename TSourceWeight,
         typename TFeedback,
         typename TParticleScale
@@ -302,12 +304,14 @@ struct merge_particle_iterator
         const TDir& dir,
 	const TLightDir& light_dir,
 	const TCellPos& cell_pos,
+	const TTransferArray& transferArray,
 	const TSourceWeight sourceWeight,
         TFeedback& feedback,
         const TParticleScale particle_scale
     ) const
     {
-      if ( mpl::at_c< TFilter, NR::value + TOffset>::type::value )
+      const int sourceNumber = NR::value + TOffset;
+      if ( mpl::at_c< TFilter, sourceNumber>::type::value )
       {
 	/* 
 	TColor newColor;
@@ -327,11 +331,12 @@ struct merge_particle_iterator
 	float d2;
 	float thc;
 	isaac_float3 normal;
-	isaac_float3 p_color;
+	isaac_float_dim < TSource::feature_dim > data;
 	isaac_float specular;
 	bool particle_hit = false;
 	auto particle_iterator = source.getIterator(cell_pos);
 	isaac_float3 cell_pos_f = {float(cell_pos.x), float(cell_pos.y), float(cell_pos.z)}; 
+	isaac_float4 value;
 	for(int i = 0; i < particle_iterator.size; i++)
 	{
 	  /*
@@ -366,9 +371,35 @@ struct merge_particle_iterator
 	  */
 	  if(tca + radius >= 0 && t0 < color.w)
 	  {
-	    color.w = t0;
-	    feedback = 1;
-	    normal = start + t0 * dir - particle_pos;
+	    data = particle_iterator.getAttribute();
+	    
+	    isaac_float result = isaac_float(0);
+
+	    #if ISAAC_ALPAKA == 1 || defined(__CUDA_ARCH__)
+		if (TSource::feature_dim == 1)
+		    result = reinterpret_cast<isaac_functor_chain_pointer_1>(isaac_function_chain_d[ sourceNumber ])( *(reinterpret_cast< isaac_float_dim<1>* >(&data)), sourceNumber);
+		if (TSource::feature_dim == 2)
+		    result = reinterpret_cast<isaac_functor_chain_pointer_2>(isaac_function_chain_d[ sourceNumber ])( *(reinterpret_cast< isaac_float_dim<2>* >(&data)), sourceNumber);
+		if (TSource::feature_dim == 3)
+		    result = reinterpret_cast<isaac_functor_chain_pointer_3>(isaac_function_chain_d[ sourceNumber ])( *(reinterpret_cast< isaac_float_dim<3>* >(&data)), sourceNumber);
+		if (TSource::feature_dim == 4)
+		    result = reinterpret_cast<isaac_functor_chain_pointer_4>(isaac_function_chain_d[ sourceNumber ])( *(reinterpret_cast< isaac_float_dim<4>* >(&data)), sourceNumber);
+	    #endif
+	    isaac_int lookup_value = isaac_int( round(result * isaac_float( Ttransfer_size ) ) );
+	    if (lookup_value < 0 )
+                lookup_value = 0;
+            if (lookup_value >= Ttransfer_size )
+                lookup_value = Ttransfer_size - 1;
+	    value = transferArray.pointer[ NR::value + TOffset ][ lookup_value ];
+	    
+	    if(value.w >= 0.5f)
+	    {
+	      color.w = t0;
+	      feedback = 1;
+	      normal = start + t0 * dir - particle_pos;
+	      particle_hit = true;
+	    }
+
 	    /*
 	    p_color.x = (30 + (i * 33)%225) / 255.0f;
 	    p_color.y = (30 + (i * 56)%225) / 255.0f;
@@ -379,9 +410,9 @@ struct merge_particle_iterator
 	    p_color.y = normal.y * 0.5f + 0.5;
 	    p_color.z = normal.z * 0.5f + 0.5;
 	    */
-	    p_color = particle_iterator.getAttribute();
+
 	  
-	    particle_hit = true;
+	    
 	  }
 	  particle_iterator.next();
 	}
@@ -393,9 +424,10 @@ struct merge_particle_iterator
 	    specular = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
 	    isaac_float light_factor = specular * 0.4f + 0.6f;
 	    specular = specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * 0.5f;
-	    color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
-	    color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
-	    color.z = ISAAC_MIN(p_color.z * light_factor + specular, 1.0f);
+	    color.x = ISAAC_MIN(value.x * light_factor + specular, 1.0f);
+	    color.y = ISAAC_MIN(value.y * light_factor + specular, 1.0f);
+	    color.z = ISAAC_MIN(value.z * light_factor + specular, 1.0f);
+	    
 	  
 	  //color.x = normal.x * 0.5f + 0.5f;
 	  //color.y = normal.y * 0.5f + 0.5f; 
@@ -916,6 +948,7 @@ template <
 		      particle_sources,
 		      merge_particle_iterator
 		      <
+			  Ttransfer_size,
 			  mpl::size< TSourceList >::type::value,
 			  TFilter
 		      >
@@ -925,6 +958,7 @@ template <
 		      normalized_dir[e],
 		      light_dir[e],
 		      current_cell[e],
+		      transferArray,
 		      sourceWeight,
 		      result_particle[e],
 		      particle_scale

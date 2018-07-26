@@ -24,9 +24,9 @@ using namespace isaac;
 #define VOLUME_Y 64
 #define VOLUME_Z 64
 
-#define PARTICLE_VOLUME_X 3
-#define PARTICLE_VOLUME_Y 3
-#define PARTICLE_VOLUME_Z 3
+#define PARTICLE_VOLUME_X 256
+#define PARTICLE_VOLUME_Y 256
+#define PARTICLE_VOLUME_Z 256
 
 #define PARTICLE_COUNT 128
 
@@ -129,7 +129,7 @@ class TestSource2
 			return result;
 		}
 };
-template<typename ElemType>
+template<size_t feature_dim, typename ElemType>
 class ParticleIterator1
 {
 public:
@@ -153,7 +153,7 @@ public:
     return *current_element;
   }
   
-    ISAAC_HOST_DEVICE_INLINE isaac_float3 getAttribute() const
+    ISAAC_HOST_DEVICE_INLINE isaac_float_dim<feature_dim> getAttribute() const
   {
 //     return (*current_element) * 0.7f + 0.3f;
     return {isaac_float(local_grid_coord.x) / float(PARTICLE_VOLUME_X), isaac_float(local_grid_coord.y) / float(PARTICLE_VOLUME_Y), isaac_float(local_grid_coord.z) / float(PARTICLE_VOLUME_Z)};
@@ -210,10 +210,10 @@ class ParticleSource1
 		size_t size;
 
 		ISAAC_NO_HOST_DEVICE_WARNING
-		ISAAC_HOST_DEVICE_INLINE ParticleIterator1<isaac_float3> getIterator(const isaac_uint3& local_grid_coord) const
+		ISAAC_HOST_DEVICE_INLINE ParticleIterator1<feature_dim, isaac_float3> getIterator(const isaac_uint3& local_grid_coord) const
 		{
 			
-			return ParticleIterator1<isaac_float3>(ptr, size, local_grid_coord);
+			return ParticleIterator1<feature_dim, isaac_float3>(ptr, size, local_grid_coord);
 		}
 };
 
