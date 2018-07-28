@@ -156,7 +156,7 @@ public:
     ISAAC_HOST_DEVICE_INLINE isaac_float_dim<feature_dim> getAttribute() const
   {
 //     return (*current_element) * 0.7f + 0.3f;
-    return {isaac_float(local_grid_coord.x) / float(PARTICLE_VOLUME_X), isaac_float(local_grid_coord.y) / float(PARTICLE_VOLUME_Y), isaac_float(local_grid_coord.z) / float(PARTICLE_VOLUME_Z)};
+    return {isaac_float(local_grid_coord.x), isaac_float(local_grid_coord.y), isaac_float(local_grid_coord.z)};
     //return {0.5f, 0.5f, 0.5f};
   }
   
@@ -204,7 +204,7 @@ class ParticleSource1
 			return std::string("Particle Source 1");
 		}
 		
-		ISAAC_HOST_INLINE void update() {}
+		ISAAC_HOST_INLINE void update(bool enabled, void* pointer) {}
 
 		isaac_float3* ptr;
 		size_t size;

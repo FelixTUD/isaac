@@ -334,6 +334,7 @@ struct merge_particle_iterator
 	isaac_float_dim < TSource::feature_dim > data;
 	isaac_float specular;
 	bool particle_hit = false;
+	isaac_float4 p_color;
 	auto particle_iterator = source.getIterator(cell_pos);
 	isaac_float3 cell_pos_f = {float(cell_pos.x), float(cell_pos.y), float(cell_pos.z)}; 
 	isaac_float4 value;
@@ -394,6 +395,7 @@ struct merge_particle_iterator
 	    
 	    if(value.w >= 0.5f)
 	    {
+	      p_color = value;
 	      color.w = t0;
 	      feedback = 1;
 	      normal = start + t0 * dir - particle_pos;
@@ -424,9 +426,9 @@ struct merge_particle_iterator
 	    specular = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
 	    isaac_float light_factor = specular * 0.4f + 0.6f;
 	    specular = specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * 0.5f;
-	    color.x = ISAAC_MIN(value.x * light_factor + specular, 1.0f);
-	    color.y = ISAAC_MIN(value.y * light_factor + specular, 1.0f);
-	    color.z = ISAAC_MIN(value.z * light_factor + specular, 1.0f);
+	    color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
+	    color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
+	    color.z = ISAAC_MIN(p_color.z * light_factor + specular, 1.0f);
 	    
 	  
 	  //color.x = normal.x * 0.5f + 0.5f;
@@ -1600,6 +1602,81 @@ template
                     max = value;
                 if (value < min)
                     min = value;
+            }
+            result[coord.x +  coord.y * local_size.x].min = min;
+            result[coord.x +  coord.y * local_size.x].max = max;
+        }
+#if ISAAC_ALPAKA == 1
+    };
+#endif
+    
+    template
+<
+    typename TParticleSource
+>
+#if ISAAC_ALPAKA == 1
+    struct minMaxPartikelKernel
+    {
+        template <typename TAcc__>
+        ALPAKA_FN_ACC void operator()(
+            TAcc__ const &acc,
+#else
+        __global__ void minMaxPartikelKernel(
+#endif
+            const TParticleSource particle_source,
+            const int nr,
+            minmax_struct * const result,
+            const isaac_int3 local_size)
+#if ISAAC_ALPAKA == 1
+        const
+#endif
+        {
+            #if ISAAC_ALPAKA == 1
+                auto alpThreadIdx = alpaka::idx::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+                isaac_uint3 coord =
+                {
+                    isaac_uint(alpThreadIdx[1]),
+                    isaac_uint(alpThreadIdx[2]),
+                    0
+                };
+            #else
+                isaac_uint3 coord =
+                {
+                    isaac_uint(threadIdx.x + blockIdx.x * blockDim.x),
+                    isaac_uint(threadIdx.y + blockIdx.y * blockDim.y),
+                    0
+                };
+            #endif
+            if ( ISAAC_FOR_EACH_DIM_TWICE(2, coord, >= local_size, || ) 0 )
+                return;
+            isaac_float min =  FLT_MAX;
+            isaac_float max = -FLT_MAX;
+            for (;coord.z < local_size.z; coord.z++)
+            {
+		auto particle_iterator = particle_source.getIterator(coord);
+		for(int i = 0; i < particle_iterator.size; i++)
+		{
+		    isaac_float_dim < TParticleSource::feature_dim > data;
+
+		    data = particle_iterator.getAttribute();
+
+		    isaac_float value = isaac_float(0);
+		    #if ISAAC_ALPAKA == 1 || defined(__CUDA_ARCH__)
+			if (TParticleSource::feature_dim == 1)
+			    value = reinterpret_cast<isaac_functor_chain_pointer_1>(isaac_function_chain_d[ nr ])( *(reinterpret_cast< isaac_float_dim<1>* >(&data)), nr );
+			if (TParticleSource::feature_dim == 2)
+			    value = reinterpret_cast<isaac_functor_chain_pointer_2>(isaac_function_chain_d[ nr ])( *(reinterpret_cast< isaac_float_dim<2>* >(&data)), nr );
+			if (TParticleSource::feature_dim == 3)
+			    value = reinterpret_cast<isaac_functor_chain_pointer_3>(isaac_function_chain_d[ nr ])( *(reinterpret_cast< isaac_float_dim<3>* >(&data)), nr );
+			if (TParticleSource::feature_dim == 4)
+			    value = reinterpret_cast<isaac_functor_chain_pointer_4>(isaac_function_chain_d[ nr ])( *(reinterpret_cast< isaac_float_dim<4>* >(&data)), nr );
+		    #endif
+		    if (value > max)
+			max = value;
+		    if (value < min)
+			min = value;
+		}
+
             }
             result[coord.x +  coord.y * local_size.x].min = min;
             result[coord.x +  coord.y * local_size.x].max = max;

@@ -229,14 +229,19 @@ class IsaacVisualization
 	{
 	    template
 	    <
-		typename TParticleSource
+		typename TParticleSource,
+		typename TWeight,
+                typename TPointer
 	    >
 	    ISAAC_HOST_INLINE  void operator()(
 		const int I,
-		TParticleSource& particle_source
+		TParticleSource& particle_source,
+		const TWeight& weight,
+                const TPointer& pointer
 	    ) const
 	    {
-	      particle_source.update();
+	      bool enabled = weight.value[ I ] != isaac_float(0);
+	      particle_source.update( enabled, pointer );
 	    }
 	    
 	};
@@ -407,6 +412,95 @@ class IsaacVisualization
                 }
             }
         };
+	template
+	<
+	    int TOffset
+	>
+	 struct calc_particle_minmax_iterator
+        {
+            template
+            <
+                typename TParticleSource,
+                typename TMinmax,
+                typename TLocalMinmax,
+                typename TLocalSize
+                #if ISAAC_ALPAKA == 1
+                    ,typename TStream__
+                    ,typename THost__
+                #endif
+            >
+            ISAAC_HOST_INLINE  void operator()(
+                const int I,
+                const TParticleSource& particle_source,
+                TMinmax& minmax,
+                TLocalMinmax& local_minmax,
+                TLocalSize& local_size
+                #if ISAAC_ALPAKA == 1
+                    ,TStream__& stream
+                    ,const THost__& host
+                #endif
+            ) const
+            {
+                isaac_size2 grid_size=
+                {
+                    ISAAC_IDX_TYPE((local_size[0]+15)/16),
+                    ISAAC_IDX_TYPE((local_size[1]+15)/16),
+                };
+                isaac_size2 block_size=
+                {
+                    ISAAC_IDX_TYPE(16),
+                    ISAAC_IDX_TYPE(16),
+                };
+                isaac_int3 local_size_array = { isaac_int(local_size[0]), isaac_int(local_size[1]), isaac_int(local_size[2]) };
+                minmax_struct local_minmax_array_h[ local_size_array.x * local_size_array.y ];
+                #if ISAAC_ALPAKA == 1
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+                    if ( mpl::not_<boost::is_same<TAcc, alpaka::acc::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+#endif
+                    {
+                        grid_size.x = ISAAC_IDX_TYPE(local_size[0]);
+                        grid_size.y = ISAAC_IDX_TYPE(local_size[0]);
+                        block_size.x = ISAAC_IDX_TYPE(1);
+                        block_size.y = ISAAC_IDX_TYPE(1);
+                    }
+                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> threads (ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
+                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> blocks  (ISAAC_IDX_TYPE(1), block_size.x, block_size.y);
+                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> grid    (ISAAC_IDX_TYPE(1), grid_size.x, grid_size.y);
+                    auto const workdiv(alpaka::workdiv::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE>(grid,blocks,threads));
+                    minMaxPartikelKernel<TParticleSource> kernel;
+                    auto const instance
+                    (
+                        alpaka::exec::create<TAcc>
+                        (
+                            workdiv,
+                            kernel,
+                            particle_source,
+                            I + TOffset,
+                            alpaka::mem::view::getPtrNative(local_minmax),
+                            local_size_array
+                        )
+                    );
+                    alpaka::stream::enqueue(stream, instance);
+                    alpaka::wait::wait(stream);
+                    alpaka::mem::view::ViewPlainPtr<THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(local_minmax_array_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
+                    alpaka::mem::view::copy( stream, minmax_buffer, local_minmax, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
+                #else
+                    dim3 block (block_size.x, block_size.y);
+                    dim3 grid  (grid_size.x, grid_size.y);
+                    minMaxPartikelKernel<<<grid,block>>>( particle_source, I + TOffset, local_minmax, local_size_array);
+                    ISAAC_CUDA_CHECK(cudaMemcpy( local_minmax_array_h, local_minmax, sizeof(minmax_struct)*local_size_array.x * local_size_array.y, cudaMemcpyDeviceToHost));
+                #endif
+                minmax.min[ I + TOffset ] =  FLT_MAX;
+                minmax.max[ I + TOffset ] = -FLT_MAX;
+                for (int i = 0; i < local_size_array.x * local_size_array.y; i++)
+                {
+                    if ( local_minmax_array_h[i].min < minmax.min[ I + TOffset ])
+                        minmax.min[ I + TOffset ] = local_minmax_array_h[i].min;
+                    if ( local_minmax_array_h[i].max > minmax.max[ I + TOffset ])
+                        minmax.max[ I + TOffset ] = local_minmax_array_h[i].max;
+                }
+            }
+        };
 
         IsaacVisualization(
             #if ISAAC_ALPAKA == 1
@@ -464,7 +558,8 @@ class IsaacVisualization
                 ,framebuffer(alpaka::mem::buf::alloc<uint32_t, ISAAC_IDX_TYPE>(acc, framebuffer_prod))
                 ,functor_chain_d(alpaka::mem::buf::alloc<isaac_functor_chain_pointer_N, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( ISAAC_FUNCTOR_COMPLEX * 4)))
                 ,functor_chain_choose_d(alpaka::mem::buf::alloc<isaac_functor_chain_pointer_N, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value) )))
-                ,local_minmax_array_d(alpaka::mem::buf::alloc<minmax_struct, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( local_size[0] * local_size[1] )))
+                ,local_minmax_array_d(alpaka::mem::buf::alloc<minmax_struct, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( local_size[0] * local_size[1])))
+		,local_particle_minmax_array_d(alpaka::mem::buf::alloc<minmax_struct, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE( local_particle_size[0] * local_particle_size[1])))
         {
             #else
         {
@@ -472,6 +567,7 @@ class IsaacVisualization
                 ISAAC_CUDA_CHECK(cudaMalloc((isaac_functor_chain_pointer_N**)&functor_chain_d, sizeof(isaac_functor_chain_pointer_N) * ISAAC_FUNCTOR_COMPLEX * 4));
                 ISAAC_CUDA_CHECK(cudaMalloc((isaac_functor_chain_pointer_N**)&functor_chain_choose_d, sizeof(isaac_functor_chain_pointer_N) * (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value)));
                 ISAAC_CUDA_CHECK(cudaMalloc((minmax_struct**)&local_minmax_array_d, sizeof(minmax_struct) * local_size[0] * local_size[1]));
+		ISAAC_CUDA_CHECK(cudaMalloc((minmax_struct**)&local_particle_minmax_array_d, sizeof(minmax_struct) * local_particle_size[0] * local_particle_size[1]));
             #endif
             #if ISAAC_VALGRIND_TWEAKS == 1
                 //Jansson has some optimizations for 2 and 4 byte aligned
@@ -931,7 +1027,7 @@ class IsaacVisualization
                     ,stream
                 #endif
                 );
-		isaac_for_each_params(particle_sources, update_particle_source_iterator());
+		isaac_for_each_params(particle_sources, update_particle_source_iterator(), source_weight, pointer);
                 ISAAC_STOP_TIME_MEASUREMENT( buffer_time, +=, buffer, getTicksUs() )
 		
             }
@@ -1302,6 +1398,13 @@ class IsaacVisualization
                     ,host
                 #endif
                 );
+		isaac_for_each_params( particle_sources, calc_particle_minmax_iterator<boost::mpl::size< TSourceList >::type::value>(), minmax_array, local_particle_minmax_array_d, local_particle_size
+                #if ISAAC_ALPAKA == 1
+                    ,stream
+                    ,host
+                #endif
+                );
+		
                 if (rank == master)
                 {
                     MPI_Reduce( MPI_IN_PLACE, minmax_array.min, (boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value), MPI_FLOAT, MPI_MIN, master, mpi_world);
@@ -1421,6 +1524,7 @@ class IsaacVisualization
                 ISAAC_CUDA_CHECK(cudaFree( functor_chain_d ) );
                 ISAAC_CUDA_CHECK(cudaFree( functor_chain_choose_d ) );
                 ISAAC_CUDA_CHECK(cudaFree( local_minmax_array_d ) );
+		ISAAC_CUDA_CHECK(cudaFree( local_particle_minmax_array_d ) );
             #endif
             delete communicator;
             json_decref(json_init_root);
@@ -1827,12 +1931,14 @@ class IsaacVisualization
             alpaka::mem::buf::Buf<TDevAcc, isaac_functor_chain_pointer_N, TFraDim, ISAAC_IDX_TYPE> functor_chain_d;
             alpaka::mem::buf::Buf<TDevAcc, isaac_functor_chain_pointer_N, TFraDim, ISAAC_IDX_TYPE> functor_chain_choose_d;
             alpaka::mem::buf::Buf<TDevAcc, minmax_struct, TFraDim, ISAAC_IDX_TYPE> local_minmax_array_d;
+            alpaka::mem::buf::Buf<TDevAcc, minmax_struct, TFraDim, ISAAC_IDX_TYPE> local_particle_minmax_array_d;
         #else
             ISAAC_IDX_TYPE framebuffer_prod;
             isaac_uint* framebuffer;
             isaac_functor_chain_pointer_N* functor_chain_d;
             isaac_functor_chain_pointer_N* functor_chain_choose_d;
             minmax_struct* local_minmax_array_d;
+	    minmax_struct* local_particle_minmax_array_d;
         #endif
         TDomainSize global_size;
         TDomainSize local_size;
