@@ -340,16 +340,6 @@ struct merge_particle_iterator
 	isaac_float4 value;
 	for(int i = 0; i < particle_iterator.size; i++)
 	{
-	  /*
-	  particle_pos.x = 4 + (i * 7)%57;
-	  particle_pos.y = 4 + (i * 27)%57;
-	  particle_pos.z = 4 + (i * 17)%57;
-	  */
-	  /*
-	  particle_pos.x = (int(i * 29.6f))%64;
-	  particle_pos.y = (int(i * 23.1f))%64;
-	  particle_pos.z = (int(i * 7.9f))%64;
-	  */
 	  particle_pos = (particle_iterator.getPosition() + cell_pos_f) * particle_scale;
 	  L = particle_pos - start;
 	  radius = particle_iterator.getRadius() * sourceWeight.value[ NR::value + TOffset]; 
@@ -401,20 +391,6 @@ struct merge_particle_iterator
 	      normal = start + t0 * dir - particle_pos;
 	      particle_hit = true;
 	    }
-
-	    /*
-	    p_color.x = (30 + (i * 33)%225) / 255.0f;
-	    p_color.y = (30 + (i * 56)%225) / 255.0f;
-	    p_color.z = (30 + (i * 77)%225) / 255.0f;
-	    */
-	    /*
-	    p_color.x = normal.x * 0.5f + 0.5;
-	    p_color.y = normal.y * 0.5f + 0.5;
-	    p_color.z = normal.z * 0.5f + 0.5;
-	    */
-
-	  
-	    
 	  }
 	  particle_iterator.next();
 	}
@@ -423,21 +399,16 @@ struct merge_particle_iterator
 	if(particle_hit)
 	{
 	    normal = normal / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-	    specular = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
-	    isaac_float light_factor = specular * 0.4f + 0.6f;
-	    specular = specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * specular * 0.5f;
+	    isaac_float light_factor = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
+	    isaac_float3 half_vector = -dir + light_dir;
+	    half_vector = half_vector / sqrt(half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z);
+	    specular = normal.x * half_vector.x + normal.y * half_vector.y + normal.z * half_vector.z;
+	    specular = pow(specular, 7);
+	    light_factor = light_factor * 0.5f + 0.5f;
 	    color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
 	    color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
 	    color.z = ISAAC_MIN(p_color.z * light_factor + specular, 1.0f);
-	    
-	  
-	  //color.x = normal.x * 0.5f + 0.5f;
-	  //color.y = normal.y * 0.5f + 0.5f; 
-	  //color.z = normal.z * 0.5f + 0.5f;
-	  
 	}
-
-
       }
     }
 };
@@ -910,8 +881,8 @@ template <
 		normalized_dir[e] = step_vec[e] * scale / step;
 		normalized_dir[e] = normalized_dir[e] / sqrt(normalized_dir[e].x * normalized_dir[e].x + normalized_dir[e].y * normalized_dir[e].y + normalized_dir[e].z * normalized_dir[e].z);
 		light_dir[e] = -normalized_dir[e];
-		light_dir[e] = light_dir[e] / sqrt(light_dir[e].x * light_dir[e].x + light_dir[e].y * light_dir[e].y + light_dir[e].z * light_dir[e].z);
-		//light_dir[e] = {0.0f, 1.0f, 0.0f};
+		//light_dir[e] = {0.0f, 0.5f, 0.0f};
+		//light_dir[e] = light_dir[e] / sqrt(light_dir[e].x * light_dir[e].x + light_dir[e].y * light_dir[e].y + light_dir[e].z * light_dir[e].z);
 		
 		dir_sign[e].x = sgn(normalized_dir[e].x);
 		dir_sign[e].y = sgn(normalized_dir[e].y);
