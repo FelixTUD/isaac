@@ -216,7 +216,7 @@ class ParticleSource1
 			return ParticleIterator1<feature_dim, isaac_float3>(ptr, size, local_grid_coord);
 		}
 };
-
+ 
 
 //////////////////
 // Main program //

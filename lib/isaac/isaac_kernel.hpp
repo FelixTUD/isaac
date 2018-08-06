@@ -360,7 +360,7 @@ struct merge_particle_iterator
 	    only_color = true;
 	  }
 	  */
-	  if(tca + radius >= 0 && t0 < color.w)
+	  if(tca + radius * 2 >= 0 && t0 < color.w)
 	  {
 	    data = particle_iterator.getAttribute();
 	    
@@ -403,7 +403,8 @@ struct merge_particle_iterator
 	    isaac_float3 half_vector = -dir + light_dir;
 	    half_vector = half_vector / sqrt(half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z);
 	    specular = normal.x * half_vector.x + normal.y * half_vector.y + normal.z * half_vector.z;
-	    specular = pow(specular, 7);
+	    specular = pow(specular, 11);
+	    specular *= 0.5f;
 	    light_factor = light_factor * 0.5f + 0.5f;
 	    color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
 	    color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
