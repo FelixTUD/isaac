@@ -889,14 +889,14 @@ template <
 		dir_sign[e].y = sgn(normalized_dir[e].y);
 		dir_sign[e].z = sgn(normalized_dir[e].z);
 		
-		current_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(first_f[e], 0.0f) + 0.001f)) * scale;
+		current_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(first_f[e], 0.0f) + 0.001f * particle_scale)) * scale;
 
 		
 		current_cell[e].x = int(current_pos[e].x / particle_scale.x);
 		current_cell[e].y = int(current_pos[e].y / particle_scale.y); 
 		current_cell[e].z = int(current_pos[e].z / particle_scale.z);
 		
-		last_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(last_f[e], 0.0f) - 0.001f)) * scale;
+		last_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(last_f[e], 0.0f) - 0.001f * particle_scale)) * scale;
 		
 		last_cell[e].x = int(last_pos[e].x / particle_scale.x);
 		last_cell[e].y = int(last_pos[e].y / particle_scale.y); 
