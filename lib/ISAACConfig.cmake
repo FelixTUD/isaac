@@ -192,7 +192,7 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(ISAAC
                                         ISAAC_INCLUDE_DIRS
                                         JANSSON_LIBRARIES
                                         JANSSON_INCLUDE_DIRS
-                                        CMAKE_THREAD_LIBS_INIT
+                                        Threads_FOUND
                                         ISAAC_MPI_FOUND
                                         ICET_CORE_LIBS
                                         ICET_MPI_LIBS
