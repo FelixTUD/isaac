@@ -79,6 +79,12 @@ template <
 class IsaacVisualization
 {
     public:
+      
+	IsaacCommunicator* getCommunicator(){
+	  return communicator;
+	}
+      
+      
         #if ISAAC_ALPAKA == 1
             using TDevAcc = alpaka::dev::Dev<TAcc>;
             using TFraDim = alpaka::dim::DimInt<1>;

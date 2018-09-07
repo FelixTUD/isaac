@@ -27,6 +27,7 @@
 #include <boost/mpl/push_back.hpp>
 #include <boost/fusion/include/push_back.hpp>
 #include <boost/mpl/size.hpp>
+#include <limits>
 
 #include <float.h>
 
@@ -360,7 +361,7 @@ struct merge_particle_iterator
 	    only_color = true;
 	  }
 	  */
-	  if(tca + radius * 2 >= 0 && t0 < color.w)
+	  if(tca >= 0 && t0 < color.w)
 	  {
 	    data = particle_iterator.getAttribute();
 	    
@@ -864,6 +865,7 @@ template <
 	    isaac_int3 dir_sign[ISAAC_VECTOR_ELEM];
 	    isaac_float3 current_pos[ISAAC_VECTOR_ELEM];
 	    isaac_uint3 current_cell[ISAAC_VECTOR_ELEM];
+	    //isaac_uint3 surrounding_cell[ISAAC_VECTOR_ELEM];
 	    isaac_float3 last_pos[ISAAC_VECTOR_ELEM];
 	    isaac_uint3 last_cell[ISAAC_VECTOR_ELEM];
 	    isaac_float3 t[ISAAC_VECTOR_ELEM];
@@ -911,12 +913,57 @@ template <
 		delta_t[e].y = particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
 		delta_t[e].z = particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
 		
+		if(normalized_dir[e].x == 0)
+		  t[e].x = std::numeric_limits<float>::max();
+		if(normalized_dir[e].y == 0)
+		  t[e].y = std::numeric_limits<float>::max();
+		if(normalized_dir[e].z == 0)
+		  t[e].z = std::numeric_limits<float>::max();
+		
 		while(
 		  current_cell[e].x < isaac_size_d[0].local_particle_size.value.x && 
 		  current_cell[e].y < isaac_size_d[0].local_particle_size.value.y && 
 		  current_cell[e].z < isaac_size_d[0].local_particle_size.value.z && 
 		  result_particle[e] == false)
 		{
+		  /*
+		  for(int x = -1; x < 2; x++)
+		  {
+		    for(int y = -1; y < 2; y++)
+		    {
+		      for(int z = -1; z < 2; z++)
+		      {
+			surrounding_cell[e].x = current_cell[e].x + x;
+			surrounding_cell[e].y = current_cell[e].y + y;
+			surrounding_cell[e].z = current_cell[e].z + z;
+			if(surrounding_cell[e].x < isaac_size_d[0].local_particle_size.value.x && 
+			  surrounding_cell[e].y < isaac_size_d[0].local_particle_size.value.y && 
+			  surrounding_cell[e].z < isaac_size_d[0].local_particle_size.value.z)
+			{
+			  isaac_for_each_with_mpl_params
+			  (
+			      particle_sources,
+			      merge_particle_iterator
+			      <
+				  Ttransfer_size,
+				  mpl::size< TSourceList >::type::value,
+				  TFilter
+			      >
+			      (),
+			      particle_color[e],
+			      local_start[e],
+			      normalized_dir[e],
+			      light_dir[e],
+			      surrounding_cell[e],
+			      transferArray,
+			      sourceWeight,
+			      result_particle[e],
+			      particle_scale
+			  );
+			}
+		      }
+		    }
+		  }*/
 		  isaac_for_each_with_mpl_params
 		  (
 		      particle_sources,
@@ -940,11 +987,6 @@ template <
 		  
 		  if(result_particle[e]){
 		    last[e] = ISAAC_MIN(last[e], int(ceil(first_f[e] + particle_color[e].w / (step * l_scaled[e] / l[e]))));
-// 		    color[e].x = current_cell[e].x / 8.0f;
-// 		    color[e].y = current_cell[e].y / 8.0f;
-// 		    color[e].z = current_cell[e].z / 8.0f;
-// 		    color[e].w = 1.0f;
-// 		    result_particle[e] = 0;
 		  }
 
 		  if(current_cell[e].x == last_cell[e].x && current_cell[e].y == last_cell[e].y && current_cell[e].z == last_cell[e].z)
