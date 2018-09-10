@@ -418,6 +418,8 @@ class IsaacVisualization
                 }
             }
         };
+	
+	// calculate minmax for particles
 	template
 	<
 	    int TOffset
@@ -447,6 +449,8 @@ class IsaacVisualization
                 #endif
             ) const
             {
+		// iterate over all cells and the particle lists
+	      
                 isaac_size2 grid_size=
                 {
                     ISAAC_IDX_TYPE((local_size[0]+15)/16),
@@ -498,6 +502,7 @@ class IsaacVisualization
                 #endif
                 minmax.min[ I + TOffset ] =  FLT_MAX;
                 minmax.max[ I + TOffset ] = -FLT_MAX;
+		// find the min and max
                 for (int i = 0; i < local_size_array.x * local_size_array.y; i++)
                 {
                     if ( local_minmax_array_h[i].min < minmax.min[ I + TOffset ])

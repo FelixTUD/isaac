@@ -314,15 +314,6 @@ struct merge_particle_iterator
       const int sourceNumber = NR::value + TOffset;
       if ( mpl::at_c< TFilter, sourceNumber>::type::value )
       {
-	/* 
-	TColor newColor;
-	newColor = source.getIntersection(start, dir);
-	if(newColor.w < color.w && newColor.w >= 0.0f)
-	{
-	  color = newColor;
-	  feedback = 1;
-	}
-	*/
 	isaac_float3 particle_pos;
 	isaac_float t0;
 	isaac_float3 L;
@@ -339,8 +330,10 @@ struct merge_particle_iterator
 	auto particle_iterator = source.getIterator(cell_pos);
 	isaac_float3 cell_pos_f = {float(cell_pos.x), float(cell_pos.y), float(cell_pos.z)}; 
 	isaac_float4 value;
+	// iterate over all particles in current cell
 	for(int i = 0; i < particle_iterator.size; i++)
 	{
+	  // ray sphere intersection
 	  particle_pos = (particle_iterator.getPosition() + cell_pos_f) * particle_scale;
 	  L = particle_pos - start;
 	  radius = particle_iterator.getRadius() * sourceWeight.value[ NR::value + TOffset]; 
@@ -353,20 +346,15 @@ struct merge_particle_iterator
 	  }
 	  thc = sqrt(radius2 - d2);
 	  t0 = tca - thc;
-	  //t1 = tca + thc;
-	  /*
-	  if(t0 < 0 && t1 >= 0 && t0 + depth_offset > 0)
-	  {
-	    t0 = 0;
-	    only_color = true;
-	  }
-	  */
+	  
+	  // if the ray hits a the sphere
 	  if(tca >= 0 && t0 < color.w)
 	  {
 	    data = particle_iterator.getAttribute();
 	    
 	    isaac_float result = isaac_float(0);
-
+	    
+	    // apply functorchain
 	    #if ISAAC_ALPAKA == 1 || defined(__CUDA_ARCH__)
 		if (TSource::feature_dim == 1)
 		    result = reinterpret_cast<isaac_functor_chain_pointer_1>(isaac_function_chain_d[ sourceNumber ])( *(reinterpret_cast< isaac_float_dim<1>* >(&data)), sourceNumber);
@@ -377,6 +365,8 @@ struct merge_particle_iterator
 		if (TSource::feature_dim == 4)
 		    result = reinterpret_cast<isaac_functor_chain_pointer_4>(isaac_function_chain_d[ sourceNumber ])( *(reinterpret_cast< isaac_float_dim<4>* >(&data)), sourceNumber);
 	    #endif
+	    
+	    // apply transferfunction
 	    isaac_int lookup_value = isaac_int( round(result * isaac_float( Ttransfer_size ) ) );
 	    if (lookup_value < 0 )
                 lookup_value = 0;
@@ -384,6 +374,7 @@ struct merge_particle_iterator
                 lookup_value = Ttransfer_size - 1;
 	    value = transferArray.pointer[ NR::value + TOffset ][ lookup_value ];
 	    
+	    // check if the alpha value is greater or equal than 0.5
 	    if(value.w >= 0.5f)
 	    {
 	      p_color = value;
@@ -395,10 +386,9 @@ struct merge_particle_iterator
 	  }
 	  particle_iterator.next();
 	}
-// 	if(particle_iterator.size >= 1)
-// 	  feedback = 1;
 	if(particle_hit)
 	{
+	    // calculate lighting properties for the last hit particle
 	    normal = normal / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
 	    isaac_float light_factor = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
 	    isaac_float3 half_vector = -dir + light_dir;
@@ -407,6 +397,7 @@ struct merge_particle_iterator
 	    specular = pow(specular, 11);
 	    specular *= 0.5f;
 	    light_factor = light_factor * 0.5f + 0.5f;
+	    // calculate final color
 	    color.x = ISAAC_MIN(p_color.x * light_factor + specular, 1.0f);
 	    color.y = ISAAC_MIN(p_color.y * light_factor + specular, 1.0f);
 	    color.z = ISAAC_MIN(p_color.z * light_factor + specular, 1.0f);
@@ -878,41 +869,51 @@ template <
 	      isaac_size_d[0].local_size_scaled.value.z / isaac_float(isaac_size_d[0].local_particle_size.value.z)};
 	    ISAAC_ELEM_ITERATE(e)
 	    {
+		// set distance check in alpha channel on scaled max distance
 		particle_color[e].w = (last_f[e] - first_f[e]) * step * l_scaled[e] / l[e];
 		local_start[e] = (start[e] + step_vec[e] * first_f[e]) * scale;
 		result_particle[e] = 0;
 		normalized_dir[e] = step_vec[e] * scale / step;
 		normalized_dir[e] = normalized_dir[e] / sqrt(normalized_dir[e].x * normalized_dir[e].x + normalized_dir[e].y * normalized_dir[e].y + normalized_dir[e].z * normalized_dir[e].z);
+		// light direction is camera direction
 		light_dir[e] = -normalized_dir[e];
 		//light_dir[e] = {0.0f, 0.5f, 0.0f};
 		//light_dir[e] = light_dir[e] / sqrt(light_dir[e].x * light_dir[e].x + light_dir[e].y * light_dir[e].y + light_dir[e].z * light_dir[e].z);
 		
+		/* RAYMARCH */
+		
+		// get the signs of the direction for the raymarch
 		dir_sign[e].x = sgn(normalized_dir[e].x);
 		dir_sign[e].y = sgn(normalized_dir[e].y);
 		dir_sign[e].z = sgn(normalized_dir[e].z);
 		
+		// calculate current position in scaled object space
 		current_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(first_f[e], 0.0f) + 0.001f * particle_scale)) * scale;
 
-		
+		// calculate current local cell coordinates
 		current_cell[e].x = int(current_pos[e].x / particle_scale.x);
 		current_cell[e].y = int(current_pos[e].y / particle_scale.y); 
 		current_cell[e].z = int(current_pos[e].z / particle_scale.z);
 		
+		// calculate end position in scaled object space
 		last_pos[e] = (start[e] + step_vec[e] * (ISAAC_MAX(last_f[e], 0.0f) - 0.001f * particle_scale)) * scale;
 		
+		// calculate end local cell coordinates
 		last_cell[e].x = int(last_pos[e].x / particle_scale.x);
 		last_cell[e].y = int(last_pos[e].y / particle_scale.y); 
 		last_cell[e].z = int(last_pos[e].z / particle_scale.z);
 		 
-
+		// calculate next intersection with each dimension
 		t[e].x = ((current_cell[e].x + ISAAC_MAX(dir_sign[e].x, 0)) * particle_scale.x - current_pos[e].x) / normalized_dir[e].x;
 		t[e].y = ((current_cell[e].y + ISAAC_MAX(dir_sign[e].y, 0)) * particle_scale.y - current_pos[e].y) / normalized_dir[e].y;
 		t[e].z = ((current_cell[e].z + ISAAC_MAX(dir_sign[e].z, 0)) * particle_scale.z - current_pos[e].z) / normalized_dir[e].z;
 		
+		// calculate delta length to next intersection in the same dimension
 		delta_t[e].x = particle_scale.x / normalized_dir[e].x * dir_sign[e].x;
 		delta_t[e].y = particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
 		delta_t[e].z = particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
 		
+		// check for .../0 to stop infinite looping
 		if(normalized_dir[e].x == 0)
 		  t[e].x = std::numeric_limits<float>::max();
 		if(normalized_dir[e].y == 0)
@@ -920,6 +921,7 @@ template <
 		if(normalized_dir[e].z == 0)
 		  t[e].z = std::numeric_limits<float>::max();
 		
+		// check if the ray leaves the local volume or has a particle hit
 		while(
 		  current_cell[e].x < isaac_size_d[0].local_particle_size.value.x && 
 		  current_cell[e].y < isaac_size_d[0].local_particle_size.value.y && 
@@ -964,6 +966,7 @@ template <
 		      }
 		    }
 		  }*/
+		  // calculate particle intersections for each particle source
 		  isaac_for_each_with_mpl_params
 		  (
 		      particle_sources,
@@ -985,15 +988,18 @@ template <
 		      particle_scale
 		  );
 		  
+		  // if there was a hit set maximum volume raycast distance to particle hit distance
 		  if(result_particle[e]){
 		    last[e] = ISAAC_MIN(last[e], int(ceil(first_f[e] + particle_color[e].w / (step * l_scaled[e] / l[e]))));
 		  }
-
+		  
+		  // break the loop if the current cell is the end cell
 		  if(current_cell[e].x == last_cell[e].x && current_cell[e].y == last_cell[e].y && current_cell[e].z == last_cell[e].z)
 		  {
 		    break;
 		  }
-
+		  
+		  // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
 		  if(t[e].x < t[e].y && t[e].x < t[e].z)
 		  {
 		    current_cell[e].x += dir_sign[e].x;
@@ -1007,21 +1013,8 @@ template <
 		  else{
 		    current_cell[e].z += dir_sign[e].z;
 		    t[e].z += delta_t[e].z;
-		  }
-		
-		  
-		  
+		  }		  
 		}
-
-
-// 		color[e] = {int((start[e] + step_vec[e] * isaac_float(first[e])).x + 0.5f) % 2, int((start[e] + step_vec[e] * isaac_float(first[e])).x + 0.5f) % 2, int((start[e] + step_vec[e] * isaac_float(first[e])).x + 0.5f) % 2, 1.0f};
-		//color[e] = {127, 127, 127};
-		
-// 		color[e].x = current_cell[e].x % 2;
-// 		color[e].y = current_cell[e].y % 2;
-// 		color[e].z = current_cell[e].z % 2;
-// 		color[e].w = 1.0f;
-		
 	    }
 	    
             isaac_float min_size[ISAAC_VECTOR_ELEM];
