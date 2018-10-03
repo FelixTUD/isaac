@@ -364,49 +364,51 @@ class IsaacVisualization
                 };
                 isaac_size2 block_size=
                 {
-                    ISAAC_IDX_TYPE(16),
+		    ISAAC_IDX_TYPE(16),
                     ISAAC_IDX_TYPE(16),
                 };
                 isaac_int3 local_size_array = { isaac_int(local_size[0]), isaac_int(local_size[1]), isaac_int(local_size[2]) };
                 minmax_struct local_minmax_array_h[ local_size_array.x * local_size_array.y ];
-                #if ISAAC_ALPAKA == 1
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<TAcc, alpaka::acc::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
-#endif
-                    {
-                        grid_size.x = ISAAC_IDX_TYPE(local_size[0]);
-                        grid_size.y = ISAAC_IDX_TYPE(local_size[0]);
-                        block_size.x = ISAAC_IDX_TYPE(1);
-                        block_size.y = ISAAC_IDX_TYPE(1);
-                    }
-                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> threads (ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
-                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> blocks  (ISAAC_IDX_TYPE(1), block_size.x, block_size.y);
-                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> grid    (ISAAC_IDX_TYPE(1), grid_size.x, grid_size.y);
-                    auto const workdiv(alpaka::workdiv::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE>(grid,blocks,threads));
-                    minMaxKernel<TSource> kernel;
-                    auto const instance
-                    (
-                        alpaka::exec::create<TAcc>
-                        (
-                            workdiv,
-                            kernel,
-                            source,
-                            I,
-                            alpaka::mem::view::getPtrNative(local_minmax),
-                            local_size_array,
-                            pointer_array.pointer[ I ]
-                        )
-                    );
-                    alpaka::stream::enqueue(stream, instance);
-                    alpaka::wait::wait(stream);
-                    alpaka::mem::view::ViewPlainPtr<THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(local_minmax_array_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
-                    alpaka::mem::view::copy( stream, minmax_buffer, local_minmax, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
-                #else
-                    dim3 block (block_size.x, block_size.y);
-                    dim3 grid  (grid_size.x, grid_size.y);
-                    minMaxKernel<<<grid,block>>>( source, I, local_minmax, local_size_array, pointer_array.pointer[ I ]);
-                    ISAAC_CUDA_CHECK(cudaMemcpy( local_minmax_array_h, local_minmax, sizeof(minmax_struct)*local_size_array.x * local_size_array.y, cudaMemcpyDeviceToHost));
-                #endif
+		if(local_size[0] != 0 && local_size[1] != 0){
+		    #if ISAAC_ALPAKA == 1
+    #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+			if ( mpl::not_<boost::is_same<TAcc, alpaka::acc::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+    #endif
+			{
+			    grid_size.x = ISAAC_IDX_TYPE(local_size[0]);
+			    grid_size.y = ISAAC_IDX_TYPE(local_size[0]);
+			    block_size.x = ISAAC_IDX_TYPE(1);
+			    block_size.y = ISAAC_IDX_TYPE(1);
+			}
+			const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> threads (ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
+			const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> blocks  (ISAAC_IDX_TYPE(1), block_size.x, block_size.y);
+			const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> grid    (ISAAC_IDX_TYPE(1), grid_size.x, grid_size.y);
+			auto const workdiv(alpaka::workdiv::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE>(grid,blocks,threads));
+			minMaxKernel<TSource> kernel;
+			auto const instance
+			(
+			    alpaka::exec::create<TAcc>
+			    (
+				workdiv,
+				kernel,
+				source,
+				I,
+				alpaka::mem::view::getPtrNative(local_minmax),
+				local_size_array,
+				pointer_array.pointer[ I ]
+			    )
+			);
+			alpaka::stream::enqueue(stream, instance);
+			alpaka::wait::wait(stream);
+			alpaka::mem::view::ViewPlainPtr<THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(local_minmax_array_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
+			alpaka::mem::view::copy( stream, minmax_buffer, local_minmax, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
+		    #else
+			dim3 block (block_size.x, block_size.y);
+			dim3 grid  (grid_size.x, grid_size.y);
+			minMaxKernel<<<grid,block>>>( source, I, local_minmax, local_size_array, pointer_array.pointer[ I ]);
+			ISAAC_CUDA_CHECK(cudaMemcpy( local_minmax_array_h, local_minmax, sizeof(minmax_struct)*local_size_array.x * local_size_array.y, cudaMemcpyDeviceToHost));
+		    #endif
+		}
                 minmax.min[ I ] =  FLT_MAX;
                 minmax.max[ I ] = -FLT_MAX;
                 for (int i = 0; i < local_size_array.x * local_size_array.y; i++)
@@ -463,43 +465,45 @@ class IsaacVisualization
                 };
                 isaac_int3 local_size_array = { isaac_int(local_size[0]), isaac_int(local_size[1]), isaac_int(local_size[2]) };
                 minmax_struct local_minmax_array_h[ local_size_array.x * local_size_array.y ];
-                #if ISAAC_ALPAKA == 1
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<TAcc, alpaka::acc::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
-#endif
-                    {
-                        grid_size.x = ISAAC_IDX_TYPE(local_size[0]);
-                        grid_size.y = ISAAC_IDX_TYPE(local_size[0]);
-                        block_size.x = ISAAC_IDX_TYPE(1);
-                        block_size.y = ISAAC_IDX_TYPE(1);
-                    }
-                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> threads (ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
-                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> blocks  (ISAAC_IDX_TYPE(1), block_size.x, block_size.y);
-                    const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> grid    (ISAAC_IDX_TYPE(1), grid_size.x, grid_size.y);
-                    auto const workdiv(alpaka::workdiv::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE>(grid,blocks,threads));
-                    minMaxPartikelKernel<TParticleSource> kernel;
-                    auto const instance
-                    (
-                        alpaka::exec::create<TAcc>
-                        (
-                            workdiv,
-                            kernel,
-                            particle_source,
-                            I + TOffset,
-                            alpaka::mem::view::getPtrNative(local_minmax),
-                            local_size_array
-                        )
-                    );
-                    alpaka::stream::enqueue(stream, instance);
-                    alpaka::wait::wait(stream);
-                    alpaka::mem::view::ViewPlainPtr<THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(local_minmax_array_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
-                    alpaka::mem::view::copy( stream, minmax_buffer, local_minmax, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
-                #else
-                    dim3 block (block_size.x, block_size.y);
-                    dim3 grid  (grid_size.x, grid_size.y);
-                    minMaxPartikelKernel<<<grid,block>>>( particle_source, I + TOffset, local_minmax, local_size_array);
-                    ISAAC_CUDA_CHECK(cudaMemcpy( local_minmax_array_h, local_minmax, sizeof(minmax_struct)*local_size_array.x * local_size_array.y, cudaMemcpyDeviceToHost));
-                #endif
+		if(local_size[0] != 0 && local_size[1] != 0){
+		    #if ISAAC_ALPAKA == 1
+    #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+			if ( mpl::not_<boost::is_same<TAcc, alpaka::acc::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+    #endif
+			{
+			    grid_size.x = ISAAC_IDX_TYPE(local_size[0]);
+			    grid_size.y = ISAAC_IDX_TYPE(local_size[0]);
+			    block_size.x = ISAAC_IDX_TYPE(1);
+			    block_size.y = ISAAC_IDX_TYPE(1);
+			}
+			const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> threads (ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
+			const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> blocks  (ISAAC_IDX_TYPE(1), block_size.x, block_size.y);
+			const alpaka::vec::Vec<TAccDim, ISAAC_IDX_TYPE> grid    (ISAAC_IDX_TYPE(1), grid_size.x, grid_size.y);
+			auto const workdiv(alpaka::workdiv::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE>(grid,blocks,threads));
+			minMaxPartikelKernel<TParticleSource> kernel;
+			auto const instance
+			(
+			    alpaka::exec::create<TAcc>
+			    (
+				workdiv,
+				kernel,
+				particle_source,
+				I + TOffset,
+				alpaka::mem::view::getPtrNative(local_minmax),
+				local_size_array
+			    )
+			);
+			alpaka::stream::enqueue(stream, instance);
+			alpaka::wait::wait(stream);
+			alpaka::mem::view::ViewPlainPtr<THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(local_minmax_array_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
+			alpaka::mem::view::copy( stream, minmax_buffer, local_minmax, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(local_size_array.x * local_size_array.y)));
+		    #else
+			dim3 block (block_size.x, block_size.y);
+			dim3 grid  (grid_size.x, grid_size.y);
+			minMaxPartikelKernel<<<grid,block>>>( particle_source, I + TOffset, local_minmax, local_size_array);
+			ISAAC_CUDA_CHECK(cudaMemcpy( local_minmax_array_h, local_minmax, sizeof(minmax_struct)*local_size_array.x * local_size_array.y, cudaMemcpyDeviceToHost));
+		    #endif
+		}
                 minmax.min[ I + TOffset ] =  FLT_MAX;
                 minmax.max[ I + TOffset ] = -FLT_MAX;
 		// find the min and max
@@ -850,6 +854,11 @@ class IsaacVisualization
             this->local_size = local_size;
             for (int i = 0; i < 3; i++)
                 local_size_scaled[i] = isaac_int( (isaac_float) local_size[i] * (isaac_float)scale[i] );
+        }
+        void updateLocalParticleSize( const TDomainSize local_particle_size )
+        {
+            ISAAC_WAIT_VISUALIZATION
+            this->local_particle_size = local_particle_size;
         }
         void updateFunctions()
         {
