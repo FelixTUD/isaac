@@ -295,7 +295,9 @@ struct merge_particle_iterator
 	typename TTransferArray,
 	typename TSourceWeight,
         typename TFeedback,
-        typename TParticleScale
+        typename TParticleScale,
+	typename TClippingNormal,
+	typename TClipped
     >
     ISAAC_HOST_DEVICE_INLINE  void operator()(
         const NR& nr,
@@ -308,14 +310,16 @@ struct merge_particle_iterator
 	const TTransferArray& transferArray,
 	const TSourceWeight sourceWeight,
         TFeedback& feedback,
-        const TParticleScale particle_scale
+        const TParticleScale particle_scale,
+	const TClippingNormal& clipping_normal,
+	const TClipped& is_clipped
     ) const
     {
       const int sourceNumber = NR::value + TOffset;
       if ( mpl::at_c< TFilter, sourceNumber>::type::value )
       {
 	isaac_float3 particle_pos;
-	isaac_float t0;
+	isaac_float t0, t1;
 	isaac_float3 L;
 	isaac_float radius;
 	isaac_float radius2;
@@ -336,19 +340,21 @@ struct merge_particle_iterator
 	  // ray sphere intersection
 	  particle_pos = (particle_iterator.getPosition() + cell_pos_f) * particle_scale;
 	  L = particle_pos - start;
-	  radius = particle_iterator.getRadius() * sourceWeight.value[ NR::value + TOffset]; 
+	  radius = particle_iterator.getRadius() * sourceWeight.value[ NR::value + TOffset ]; 
 	  radius2 = radius * radius;
 	  tca = L.x * dir.x + L.y * dir.y + L.z * dir.z;
 	  d2 = (L.x * L.x + L.y * L.y + L.z * L.z) - tca * tca;
-	  if(d2 > radius2){
+	  if(d2 > radius2)
+	  {
 	    particle_iterator.next();
 	    continue;
 	  }
 	  thc = sqrt(radius2 - d2);
 	  t0 = tca - thc;
+	  t1 = tca + thc;
 	  
-	  // if the ray hits a the sphere
-	  if(tca >= 0 && t0 < color.w)
+	  // if the ray hits the sphere
+	  if(t1 >= 0 && t0 < color.w)
 	  {
 	    data = particle_iterator.getAttribute();
 	    
@@ -381,6 +387,8 @@ struct merge_particle_iterator
 	      color.w = t0;
 	      feedback = 1;
 	      normal = start + t0 * dir - particle_pos;
+	      if(t0 < 0 && is_clipped)
+		normal = -clipping_normal;
 	      particle_hit = true;
 	    }
 	  }
@@ -763,6 +771,8 @@ template <
             isaac_int3 coord[ISAAC_VECTOR_ELEM];
             isaac_float d[ISAAC_VECTOR_ELEM];
             isaac_float intersection_step[ISAAC_VECTOR_ELEM];
+	    isaac_float3 clipping_normal[ISAAC_VECTOR_ELEM];
+	    bool is_clipped[ISAAC_VECTOR_ELEM];
 
             ISAAC_ELEM_ITERATE(e)
             {
@@ -801,6 +811,7 @@ template <
                 }
 		first[e] = ISAAC_MAX(first[e], 0);
 		first_f[e] = ISAAC_MAX(first_f[e], 0.0f);
+		is_clipped[e] = false;
                 //Extra clipping
                 for (isaac_int i = 0; i < input_clipping.count; i++)
                 {
@@ -821,10 +832,12 @@ template <
                                 ISAAC_SET_COLOR( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
                             finish[e] = true;
                         }
-                        if ( first_f[e] < intersection_step[e] )
+                        if ( first_f[e] <= intersection_step[e] )
 			{
                             first[e] = ceil( intersection_step[e] );
 			    first_f[e] = intersection_step[e];
+			    clipping_normal[e] = clipping[e].elem[i].normal;
+			    is_clipped[e] = true;
 			}
                     }
                     else
@@ -985,7 +998,9 @@ template <
 		      transferArray,
 		      sourceWeight,
 		      result_particle[e],
-		      particle_scale
+		      particle_scale,
+		      clipping_normal[e],
+		      is_clipped[e]
 		  );
 		  
 		  // if there was a hit set maximum volume raycast distance to particle hit distance
