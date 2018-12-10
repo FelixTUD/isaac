@@ -89,8 +89,7 @@ struct per_session_data__isaac {
 	char url[32];
 };
 
-static int
-callback_isaac(
+static int callback_isaac(
 		struct lws *wsi,
 		enum lws_callback_reasons reason,
 		void *user,
@@ -98,8 +97,10 @@ callback_isaac(
 		size_t len )
 {
 	int n, m;
+     
 	char buf[LWS_SEND_BUFFER_PRE_PADDING + ISAAC_MAX_RECEIVE +
 						  LWS_SEND_BUFFER_POST_PADDING];
+                         
 	char *p = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 	struct per_session_data__isaac *pss = (struct per_session_data__isaac *)user;
 	Broker** broker_ptr = (Broker**)lws_context_user(lws_get_context(wsi));
@@ -181,7 +182,7 @@ callback_isaac(
 	default:
 		break;
 	}
-
+    
 	return 0;
 }
 
