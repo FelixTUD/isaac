@@ -138,7 +138,7 @@ static int callback_isaac(
 					char* buffer = json_dumps( message->json_root, 0 );
 					pthread_mutex_unlock(&MessageContainer::deep_copy_mutex);
 					n = strlen(buffer);
-                        std::cout << "n = " << n << "\n"; 
+                        //std::cout << "n = " << n << "\n"; 
 					sprintf(p,"%s",buffer);
 					m = lws_write(wsi, (unsigned char*)p, n, LWS_WRITE_TEXT);
 					free(buffer);
