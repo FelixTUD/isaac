@@ -24,11 +24,11 @@ using namespace isaac;
 #define VOLUME_Y 64
 #define VOLUME_Z 64
 
-#define PARTICLE_VOLUME_X 256
-#define PARTICLE_VOLUME_Y 256
-#define PARTICLE_VOLUME_Z 256
+#define PARTICLE_VOLUME_X 64
+#define PARTICLE_VOLUME_Y 64
+#define PARTICLE_VOLUME_Z 64
 
-#define PARTICLE_COUNT 128
+#define PARTICLE_COUNT 64
 
 
 
@@ -132,44 +132,39 @@ class TestSource2
 template<size_t feature_dim, typename ElemType>
 class ParticleIterator1
 {
-public:
-  size_t size;
+	public:
+	size_t size;
   
-  ISAAC_NO_HOST_DEVICE_WARNING
-  ISAAC_HOST_DEVICE_INLINE ParticleIterator1(ElemType* first_element, size_t size, const isaac_uint3& local_grid_coord) : 
-      current_element(first_element),
-      size(size),
-      local_grid_coord(local_grid_coord)
-      {}
+	ISAAC_NO_HOST_DEVICE_WARNING
+	ISAAC_HOST_DEVICE_INLINE ParticleIterator1(ElemType* first_element, size_t size, const isaac_uint3& local_grid_coord) : 
+		current_element(first_element),
+		size(size),
+		local_grid_coord(local_grid_coord)
+		{}
   
-  ISAAC_HOST_DEVICE_INLINE void next()
-  {
-    current_element = &current_element[1];
-    i++;
-  }
+	ISAAC_HOST_DEVICE_INLINE void next()
+	{
+		current_element = &current_element[1];
+	}
   
-    ISAAC_HOST_DEVICE_INLINE ElemType getPosition() const
-  {
-    return *current_element;
-  }
+	ISAAC_HOST_DEVICE_INLINE ElemType getPosition() const
+	{
+		return *current_element;
+	}
   
-    ISAAC_HOST_DEVICE_INLINE isaac_float_dim<feature_dim> getAttribute() const
-  {
-//     return (*current_element) * 0.7f + 0.3f;
-    return {isaac_float(local_grid_coord.x), isaac_float(local_grid_coord.y), isaac_float(local_grid_coord.z)};
-    //return {0.5f, 0.5f, 0.5f};
-  }
+	ISAAC_HOST_DEVICE_INLINE isaac_float_dim<feature_dim> getAttribute() const
+	{
+		return {isaac_float(local_grid_coord.x), isaac_float(local_grid_coord.y), isaac_float(local_grid_coord.z)};
+	}
   
-        ISAAC_HOST_DEVICE_INLINE isaac_float getRadius() const
-  {
-    //return 0.007f;
-    return 0.05f;
-  }
+	ISAAC_HOST_DEVICE_INLINE isaac_float getRadius() const
+	{
+		return 0.05f;
+	}
   
   
 private:
   ElemType* current_element;
-  int i = 0;
   isaac_uint3 local_grid_coord;
   
 };
@@ -635,5 +630,7 @@ int main(int argc, char **argv)
 }
 
 // Not necessary, just for the example
+
+
 
 

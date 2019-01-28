@@ -550,7 +550,7 @@ struct check_no_source_iterator {
     }
 };
 
-
+constexpr auto maxFloat = std::numeric_limits<float>::max();
 template <
     typename TSimDim,
     typename TParticleList,
@@ -895,14 +895,13 @@ __global__ void isaacRenderKernel (
             delta_t[e].y = particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
             delta_t[e].z = particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
 
-            // check for .../0 to stop infinite looping
+            // check for 0 to stop infinite looping
             if ( normalized_dir[e].x == 0 )
-                t[e].x = std::numeric_limits<float>::max();
+                t[e].x = maxFloat;
             if ( normalized_dir[e].y == 0 )
-                t[e].y = std::numeric_limits<float>::max();
+                t[e].y = maxFloat;
             if ( normalized_dir[e].z == 0 )
-                t[e].z = std::numeric_limits<float>::max();
-
+                t[e].z = maxFloat;
             // check if the ray leaves the local volume or has a particle hit
             while (
                 current_cell[e].x < isaac_size_d[0].local_particle_size.value.x &&
@@ -1649,5 +1648,6 @@ __global__ void minMaxPartikelKernel (
 } //namespace isaac;
 
 #pragma GCC diagnostic pop
+
 
 
