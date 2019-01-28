@@ -164,7 +164,7 @@ class IsaacVisualization
             <
                 typename TSource,
                 typename TFunctions,
-		typename TOffset,
+                typename TOffset,
                 typename TDest
             >
             ISAAC_HOST_INLINE  void operator()(
@@ -230,27 +230,29 @@ class IsaacVisualization
                 }
             }
         };
-	
-	struct update_particle_source_iterator
-	{
-	    template
-	    <
-		typename TParticleSource,
-		typename TWeight,
+
+        struct update_particle_source_iterator
+        {
+            template
+            <
+                typename TParticleSource,
+                typename TWeight,
+                typename TOffset,
                 typename TPointer
-	    >
-	    ISAAC_HOST_INLINE  void operator()(
-		const int I,
-		TParticleSource& particle_source,
-		const TWeight& weight,
+            >
+                ISAAC_HOST_INLINE  void operator()(
+                const int I,
+                TParticleSource& particle_source,
+                const TWeight& weight,
+                const TOffset& weightArrayOffset,
                 const TPointer& pointer
-	    ) const
-	    {
-	      bool enabled = weight.value[ I ] != isaac_float(0);
-	      particle_source.update( enabled, pointer );
-	    }
-	    
-	};
+            ) const
+            {
+                bool enabled = weight.value[ I + weightArrayOffset ] != isaac_float(0);
+                particle_source.update( enabled, pointer );
+            }
+            
+        };
 
         struct update_pointer_array_iterator
         {
@@ -1047,9 +1049,9 @@ class IsaacVisualization
                     ,stream
                 #endif
                 );
-		isaac_for_each_params(particle_sources, update_particle_source_iterator(), source_weight, pointer);
+                isaac_for_each_params(particle_sources, update_particle_source_iterator(), source_weight, boost::mpl::size< TSourceList >::type::value, pointer);
                 ISAAC_STOP_TIME_MEASUREMENT( buffer_time, +=, buffer, getTicksUs() )
-		
+            
             }
             //if (rank == master)
             //    printf("-----\n");

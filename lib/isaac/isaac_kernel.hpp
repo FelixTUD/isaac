@@ -635,9 +635,20 @@ template <
                 pixel[e] = pixel[e] + framebuffer_start;
                 if ( ISAAC_FOR_EACH_DIM_TWICE(2, pixel[e], >= framebuffer_size, || ) 0 )
                     finish[e] = true;
+
             }
             ISAAC_ELEM_ALL_TRUE_RETURN( finish )
-
+            /*
+            ISAAC_ELEM_ITERATE(e)
+            {
+                if(sourceWeight.value[ 0 ] > 0.0f)
+                {
+                    isaac_float4 a = {isaac_size_d[0].position_scaled.value.y / (float) isaac_size_d[0].global_size_scaled.value.y, 1 - isaac_size_d[0].position_scaled.value.y / (float) isaac_size_d[0].global_size_scaled.value.y, 0.0f, 1.0f};
+                    ISAAC_SET_COLOR( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], a )
+                    return;
+                }
+            }
+            */
             bool at_least_one[ISAAC_VECTOR_ELEM];
             isaac_float4 color[ISAAC_VECTOR_ELEM];
 
