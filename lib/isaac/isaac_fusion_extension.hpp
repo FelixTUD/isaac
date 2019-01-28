@@ -95,3 +95,4 @@ ISAAC_HOST_DEVICE_INLINE void isaac_for_each_with_mpl_params(Sequence& seq, F co
 }
 
 } //namespace isaac;
+
