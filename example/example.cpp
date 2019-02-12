@@ -35,6 +35,9 @@ using namespace isaac;
 //////////////////////
 // Example Source 1 //
 //////////////////////
+/*
+ * First volume source
+ */
 ISAAC_NO_HOST_DEVICE_WARNING
 #if ISAAC_ALPAKA == 1
 template < typename TDevAcc, typename THost, typename TStream >
@@ -84,6 +87,9 @@ class TestSource1
 //////////////////////
 // Example Source 2 //
 //////////////////////
+/*
+ * Second volume source
+ */
 ISAAC_NO_HOST_DEVICE_WARNING
 #if ISAAC_ALPAKA == 1
 template < typename TDevAcc, typename THost, typename TStream >
@@ -129,6 +135,10 @@ class TestSource2
 			return result;
 		}
 };
+
+/*
+ * Particle iterator for accessing the particle information
+ */
 template<size_t feature_dim, typename ElemType>
 class ParticleIterator1
 {
@@ -169,9 +179,9 @@ private:
   
 };
 
-//////////////////////
-// Example Source 2 //
-//////////////////////
+/*
+ * Particle source
+ */
 ISAAC_NO_HOST_DEVICE_WARNING
 #if ISAAC_ALPAKA == 1
 template < typename TDevAcc, typename THost, typename TStream >
@@ -203,7 +213,9 @@ class ParticleSource1
 
 		isaac_float3* ptr;
 		size_t size;
-
+		
+		
+		// Returns correct particle iterator for the requested cell (in the example the same particle list for each cell)
 		ISAAC_NO_HOST_DEVICE_WARNING
 		ISAAC_HOST_DEVICE_INLINE ParticleIterator1<feature_dim, isaac_float3> getIterator(const isaac_uint3& local_grid_coord) const
 		{

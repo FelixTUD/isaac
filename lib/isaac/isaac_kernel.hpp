@@ -908,44 +908,43 @@ __global__ void isaacRenderKernel (
                 current_cell[e].y < isaac_size_d[0].local_particle_size.value.y &&
                 current_cell[e].z < isaac_size_d[0].local_particle_size.value.z &&
                 result_particle[e] == false ) {
-                /*
-                for(int x = -1; x < 2; x++)
-                {
-                  for(int y = -1; y < 2; y++)
-                  {
-                    for(int z = -1; z < 2; z++)
-                    {
-                surrounding_cell[e].x = current_cell[e].x + x;
-                surrounding_cell[e].y = current_cell[e].y + y;
-                surrounding_cell[e].z = current_cell[e].z + z;
-                if(surrounding_cell[e].x < isaac_size_d[0].local_particle_size.value.x &&
-                  surrounding_cell[e].y < isaac_size_d[0].local_particle_size.value.y &&
-                  surrounding_cell[e].z < isaac_size_d[0].local_particle_size.value.z)
-                {
-                  isaac_for_each_with_mpl_params
-                  (
-                      particle_sources,
-                      merge_particle_iterator
-                      <
-                	  Ttransfer_size,
-                	  mpl::size< TSourceList >::type::value,
-                	  TFilter
-                      >
-                      (),
-                      particle_color[e],
-                      local_start[e],
-                      normalized_dir[e],
-                      light_dir[e],
-                      surrounding_cell[e],
-                      transferArray,
-                      sourceWeight,
-                      result_particle[e],
-                      particle_scale
-                  );
-                }
+				/*
+                for ( int x = -1; x < 2; x++ ) {
+                    for ( int y = -1; y < 2; y++ ) {
+                        for ( int z = -1; z < 2; z++ ) {
+                            surrounding_cell[e].x = current_cell[e].x + x;
+                            surrounding_cell[e].y = current_cell[e].y + y;
+                            surrounding_cell[e].z = current_cell[e].z + z;
+                            if ( surrounding_cell[e].x < isaac_size_d[0].local_particle_size.value.x &&
+                                    surrounding_cell[e].y < isaac_size_d[0].local_particle_size.value.y &&
+                                    surrounding_cell[e].z < isaac_size_d[0].local_particle_size.value.z ) {
+                                isaac_for_each_with_mpl_params
+                                (
+                                    particle_sources,
+                                    merge_particle_iterator
+                                    <
+                                    Ttransfer_size,
+                                    mpl::size< TSourceList >::type::value,
+                                    TFilter
+                                    >
+                                    (),
+									particle_color[e],
+									local_start[e],
+									normalized_dir[e],
+									light_dir[e],
+									surrounding_cell[e],
+									transferArray,
+									sourceWeight,
+									result_particle[e],
+									particle_scale,
+									clipping_normal[e],
+									is_clipped[e]
+                                );
+                            }
+                        }
                     }
-                  }
-                }*/
+                }
+                */
                 // calculate particle intersections for each particle source
                 isaac_for_each_with_mpl_params
                 (
@@ -969,7 +968,7 @@ __global__ void isaacRenderKernel (
                     clipping_normal[e],
                     is_clipped[e]
                 );
-
+                
                 // if there was a hit set maximum volume raycast distance to particle hit distance
                 if ( result_particle[e] ) {
                     last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
