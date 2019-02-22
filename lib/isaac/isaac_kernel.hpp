@@ -275,6 +275,8 @@ struct merge_particle_iterator {
         typename NR,
         typename TSource,
         typename TColor,
+		typename TNormal,
+		typename TPosition,
         typename TStart,
         typename TDir,
         typename TLightDir,
@@ -290,56 +292,44 @@ struct merge_particle_iterator {
         const NR& nr,
         const TSource& source,
         TColor& color,
+		TNormal& normal,
+		TPosition& position,
         const TStart& start,
         const TDir& dir,
         const TLightDir& light_dir,
         const TCellPos& cell_pos,
         const TTransferArray& transferArray,
-        const TSourceWeight sourceWeight,
+        const TSourceWeight& sourceWeight,
         TFeedback& feedback,
-        const TParticleScale particle_scale,
+        const TParticleScale& particle_scale,
         const TClippingNormal& clipping_normal,
         const TClipped& is_clipped
     ) const
     {
         const int sourceNumber = NR::value + TOffset;
         if ( mpl::at_c< TFilter, sourceNumber>::type::value ) {
-            isaac_float3 particle_pos;
-            isaac_float t0, t1;
-            isaac_float3 L;
-            isaac_float radius;
-            isaac_float radius2;
-            float tca;
-            float d2;
-            float thc;
-            isaac_float3 normal;
-            isaac_float_dim < TSource::feature_dim > data;
-            isaac_float specular;
-            bool particle_hit = false;
-            isaac_float4 p_color;
             auto particle_iterator = source.getIterator ( cell_pos );
-            isaac_float3 cell_pos_f = {float ( cell_pos.x ), float ( cell_pos.y ), float ( cell_pos.z ) };
-            isaac_float4 value;
+            isaac_float3 cell_pos_f = {isaac_float ( cell_pos.x ), isaac_float ( cell_pos.y ), isaac_float ( cell_pos.z ) };
             // iterate over all particles in current cell
             for ( int i = 0; i < particle_iterator.size; i++ ) {
                 // ray sphere intersection
-                particle_pos = ( particle_iterator.getPosition() + cell_pos_f ) * particle_scale;
-                L = particle_pos - start;
-                radius = particle_iterator.getRadius() * sourceWeight.value[ NR::value + TOffset ];
-                radius2 = radius * radius;
-                tca = L.x * dir.x + L.y * dir.y + L.z * dir.z;
-                d2 = ( L.x * L.x + L.y * L.y + L.z * L.z ) - tca * tca;
+                isaac_float3 particle_pos = ( particle_iterator.getPosition() + cell_pos_f ) * particle_scale;
+                isaac_float3 L = particle_pos - start;
+                isaac_float radius = particle_iterator.getRadius() * sourceWeight.value[ NR::value + TOffset ];
+                isaac_float radius2 = radius * radius;
+                isaac_float tca = L.x * dir.x + L.y * dir.y + L.z * dir.z;
+                isaac_float d2 = ( L.x * L.x + L.y * L.y + L.z * L.z ) - tca * tca;
                 if ( d2 > radius2 ) {
                     particle_iterator.next();
                     continue;
                 }
-                thc = sqrt ( radius2 - d2 );
-                t0 = tca - thc;
-                t1 = tca + thc;
+                isaac_float thc = sqrt ( radius2 - d2 );
+                isaac_float t0 = tca - thc;
+                isaac_float t1 = tca + thc;
 
                 // if the ray hits the sphere
                 if ( t1 >= 0 && t0 < color.w ) {
-                    data = particle_iterator.getAttribute();
+                    isaac_float_dim < TSource::feature_dim > data = particle_iterator.getAttribute();
 
                     isaac_float result = isaac_float ( 0 );
 
@@ -361,37 +351,69 @@ struct merge_particle_iterator {
                         lookup_value = 0;
                     if ( lookup_value >= Ttransfer_size )
                         lookup_value = Ttransfer_size - 1;
-                    value = transferArray.pointer[ NR::value + TOffset ][ lookup_value ];
+                    isaac_float4 value = transferArray.pointer[ NR::value + TOffset ][ lookup_value ];
 
                     // check if the alpha value is greater or equal than 0.5
                     if ( value.w >= 0.5f ) {
-                        p_color = value;
+                        color = value;
                         color.w = t0;
                         feedback = 1;
+						position = particle_pos;
                         normal = start + t0 * dir - particle_pos;
                         if ( t0 < 0 && is_clipped )
                             normal = -clipping_normal;
-                        particle_hit = true;
                     }
                 }
                 particle_iterator.next();
             }
-            if ( particle_hit ) {
-                // calculate lighting properties for the last hit particle
-                normal = normal / sqrt ( normal.x * normal.x + normal.y * normal.y + normal.z * normal.z );
-                isaac_float light_factor = normal.x * light_dir.x + normal.y * light_dir.y + normal.z * light_dir.z;
-                isaac_float3 half_vector = -dir + light_dir;
-                half_vector = half_vector / sqrt ( half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z );
-                specular = normal.x * half_vector.x + normal.y * half_vector.y + normal.z * half_vector.z;
-                specular = pow ( specular, 11 );
-                specular *= 0.5f;
-                light_factor = light_factor * 0.5f + 0.5f;
-                // calculate final color
-                color.x = ISAAC_MIN ( p_color.x * light_factor + specular, 1.0f );
-                color.y = ISAAC_MIN ( p_color.y * light_factor + specular, 1.0f );
-                color.z = ISAAC_MIN ( p_color.z * light_factor + specular, 1.0f );
-            }
         }
+    }
+};
+
+template <
+    int TOffset,
+    typename TFilter
+    >
+struct density_particle_iterator {
+    template
+    <
+        typename NR,
+        typename TSource,
+		typename TNormal,
+		typename TPosition,
+		typename TGridScale,
+		typename TDensity
+        >
+    ISAAC_HOST_DEVICE_INLINE  void operator() (
+        const NR& nr,
+        const TSource& source,
+		const TNormal& normal,
+		const TPosition& position,
+		const TGridScale& pGridScale,
+		TDensity& density
+    ) const
+    {
+        const int sourceNumber = NR::value + TOffset;
+        if ( mpl::at_c< TFilter, sourceNumber>::type::value ) {
+			isaac_uint3 last_cell_pos = {isaac_uint ( position.x / pGridScale.x ), isaac_uint ( position.y / pGridScale.y ), isaac_uint ( position.z / pGridScale.z ) };;
+			for(int i = 0; i < 10; i++)
+			{
+				isaac_float3 cell_posf = (position + i * normal * 10) / pGridScale;
+				isaac_uint3 cell_pos = {isaac_uint ( cell_posf.x ), isaac_uint ( cell_posf.y ), isaac_uint ( cell_posf.z ) };
+				if( cell_pos.x < isaac_size_d[0].local_particle_size.value.x &&
+					cell_pos.y < isaac_size_d[0].local_particle_size.value.y &&
+					cell_pos.z < isaac_size_d[0].local_particle_size.value.z ) {
+					last_cell_pos = cell_pos;
+				}
+				else {
+					cell_pos = last_cell_pos;
+				}
+				auto particle_iterator = source.getIterator ( cell_pos );
+				density += particle_iterator.size;
+
+			}
+
+		}
     }
 };
 
@@ -550,7 +572,7 @@ struct check_no_source_iterator {
     }
 };
 
-constexpr auto maxFloat = std::numeric_limits<float>::max();
+constexpr auto maxFloat = std::numeric_limits<isaac_float>::max();
 template <
     typename TSimDim,
     typename TParticleList,
@@ -829,6 +851,9 @@ __global__ void isaacRenderKernel (
 
 
         isaac_float4 particle_color[ISAAC_VECTOR_ELEM];
+		isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];
+		isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];
+		isaac_float particle_density[ISAAC_VECTOR_ELEM];
         isaac_int result_particle[ISAAC_VECTOR_ELEM];
         isaac_float3 local_start[ISAAC_VECTOR_ELEM];
         isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
@@ -894,7 +919,8 @@ __global__ void isaacRenderKernel (
             delta_t[e].x = particle_scale.x / normalized_dir[e].x * dir_sign[e].x;
             delta_t[e].y = particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
             delta_t[e].z = particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
-
+			particle_density[e] = 0;
+			particle_hitposition[e] = {0.0,0.0,0.0};
             // check for 0 to stop infinite looping
             if ( normalized_dir[e].x == 0 )
                 t[e].x = maxFloat;
@@ -957,6 +983,8 @@ __global__ void isaacRenderKernel (
                     >
                     (),
                     particle_color[e],
+					particle_normal[e],
+					particle_hitposition[e],
                     local_start[e],
                     normalized_dir[e],
                     light_dir[e],
@@ -969,10 +997,7 @@ __global__ void isaacRenderKernel (
                     is_clipped[e]
                 );
                 
-                // if there was a hit set maximum volume raycast distance to particle hit distance
-                if ( result_particle[e] ) {
-                    last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
-                }
+
 
                 // break the loop if the current cell is the end cell
                 if ( current_cell[e].x == last_cell[e].x && current_cell[e].y == last_cell[e].y && current_cell[e].z == last_cell[e].z ) {
@@ -991,7 +1016,51 @@ __global__ void isaacRenderKernel (
                     t[e].z += delta_t[e].z;
                 }
             }
+			// if there was a hit set maximum volume raycast distance to particle hit distance
+			if ( result_particle[e] ) {
+				last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
+				
+				// calculate lighting properties for the last hit particle
+				particle_normal[e] = particle_normal[e] / sqrt ( particle_normal[e].x * particle_normal[e].x
+					+ particle_normal[e].y * particle_normal[e].y
+					+ particle_normal[e].z * particle_normal[e].z );
+				
+				isaac_float light_factor = particle_normal[e].x * light_dir[e].x + particle_normal[e].y * light_dir[e].y + particle_normal[e].z * light_dir[e].z;
+				isaac_float3 half_vector = -normalized_dir[e] + light_dir[e];
+				half_vector = half_vector / sqrt ( half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z );
+				isaac_float specular = particle_normal[e].x * half_vector.x + particle_normal[e].y * half_vector.y + particle_normal[e].z * half_vector.z;
+				specular = pow ( specular, 10 );
+				specular *= 0.5f;
+				light_factor = light_factor * 0.5f + 0.5f;
+				
+				/*
+				isaac_for_each_with_mpl_params
+                (
+                    particle_sources,
+                    density_particle_iterator
+                    <
+                    mpl::size< TSourceList >::type::value,
+                    TFilter
+                    >
+                    (),
+					particle_normal[e],
+					particle_hitposition[e],
+                    particle_scale,
+					particle_density[e]
+                );
+				
+				particle_density[e] = 1.0 - ISAAC_MIN ( particle_density[e] / 2560.0f, 0.7f );
+				// calculate final color
+				particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor + specular) * particle_density[e], 1.0f );
+				particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor + specular) * particle_density[e], 1.0f );
+				particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor + specular) * particle_density[e], 1.0f );
+				*/
+				particle_color[e].x = ISAAC_MIN ( particle_color[e].x * light_factor + specular, 1.0f );
+				particle_color[e].y = ISAAC_MIN ( particle_color[e].y * light_factor + specular, 1.0f );
+				particle_color[e].z = ISAAC_MIN ( particle_color[e].z * light_factor + specular, 1.0f );
+			}
         }
+
 
         isaac_float min_size[ISAAC_VECTOR_ELEM];
         isaac_float factor[ISAAC_VECTOR_ELEM];
