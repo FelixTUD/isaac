@@ -656,8 +656,19 @@ public:
             ISAAC_CUDA_CHECK ( cudaMalloc ( ( isaac_float4** ) & ( transfer_d.pointer[i] ), sizeof ( isaac_float4 ) *TTransfer_size ) );
             transfer_h.pointer[i] = ( isaac_float4* ) malloc ( sizeof ( isaac_float4 ) *TTransfer_size );
 #endif
-            transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( 0, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,0 ) ) );
-            transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( TTransfer_size, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
+			//Init volume transfer func with a alpha ramp from 0 -> 1
+			if(i < boost::mpl::size< TSourceList >::type::value)
+			{
+				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( 0, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,0 ) ) );
+				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( TTransfer_size, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
+			}
+			//Init particle transfer func with constant alpha = 1
+			else
+			{
+				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( 0, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
+				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( TTransfer_size, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
+			}
+
         }
         updateTransfer();
 

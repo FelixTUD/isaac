@@ -853,7 +853,7 @@ __global__ void isaacRenderKernel (
         isaac_float4 particle_color[ISAAC_VECTOR_ELEM];
 		isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];
 		isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];
-		isaac_float particle_density[ISAAC_VECTOR_ELEM];
+		//isaac_float particle_density[ISAAC_VECTOR_ELEM];
         isaac_int result_particle[ISAAC_VECTOR_ELEM];
         isaac_float3 local_start[ISAAC_VECTOR_ELEM];
         isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
@@ -863,8 +863,8 @@ __global__ void isaacRenderKernel (
         isaac_float3 current_pos[ISAAC_VECTOR_ELEM];
         isaac_uint3 current_cell[ISAAC_VECTOR_ELEM];
         //isaac_uint3 surrounding_cell[ISAAC_VECTOR_ELEM];
-        isaac_float3 last_pos[ISAAC_VECTOR_ELEM];
-        isaac_uint3 last_cell[ISAAC_VECTOR_ELEM];
+        isaac_float ray_length[ISAAC_VECTOR_ELEM];
+		isaac_float march_length[ISAAC_VECTOR_ELEM];
         isaac_float3 t[ISAAC_VECTOR_ELEM];
         isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
 
@@ -894,6 +894,7 @@ __global__ void isaacRenderKernel (
             dir_sign[e].y = sgn ( normalized_dir[e].y );
             dir_sign[e].z = sgn ( normalized_dir[e].z );
 
+			//TODO: alternative for constant 0.001f
             // calculate current position in scaled object space
             current_pos[e] = ( start[e] + step_vec[e] * ( ISAAC_MAX ( first_f[e], 0.0f ) + 0.001f * particle_scale ) ) * scale;
 
@@ -903,13 +904,15 @@ __global__ void isaacRenderKernel (
             current_cell[e].z = int ( current_pos[e].z / particle_scale.z );
 
             // calculate end position in scaled object space
-            last_pos[e] = ( start[e] + step_vec[e] * ( ISAAC_MAX ( last_f[e], 0.0f ) - 0.001f * particle_scale ) ) * scale;
-
+            ray_length[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
+            march_length[e] = 0;
+			/*
             // calculate end local cell coordinates
             last_cell[e].x = int ( last_pos[e].x / particle_scale.x );
             last_cell[e].y = int ( last_pos[e].y / particle_scale.y );
             last_cell[e].z = int ( last_pos[e].z / particle_scale.z );
-
+			*/
+	
             // calculate next intersection with each dimension
             t[e].x = ( ( current_cell[e].x + ISAAC_MAX ( dir_sign[e].x, 0 ) ) * particle_scale.x - current_pos[e].x ) / normalized_dir[e].x;
             t[e].y = ( ( current_cell[e].y + ISAAC_MAX ( dir_sign[e].y, 0 ) ) * particle_scale.y - current_pos[e].y ) / normalized_dir[e].y;
@@ -919,8 +922,9 @@ __global__ void isaacRenderKernel (
             delta_t[e].x = particle_scale.x / normalized_dir[e].x * dir_sign[e].x;
             delta_t[e].y = particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
             delta_t[e].z = particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
-			particle_density[e] = 0;
+			//particle_density[e] = 0;
 			particle_hitposition[e] = {0.0,0.0,0.0};
+			
             // check for 0 to stop infinite looping
             if ( normalized_dir[e].x == 0 )
                 t[e].x = maxFloat;
@@ -928,12 +932,14 @@ __global__ void isaacRenderKernel (
                 t[e].y = maxFloat;
             if ( normalized_dir[e].z == 0 )
                 t[e].z = maxFloat;
-            // check if the ray leaves the local volume or has a particle hit
+            
+            
+            // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
             while (
                 current_cell[e].x < isaac_size_d[0].local_particle_size.value.x &&
                 current_cell[e].y < isaac_size_d[0].local_particle_size.value.y &&
                 current_cell[e].z < isaac_size_d[0].local_particle_size.value.z &&
-                result_particle[e] == false ) {
+                result_particle[e] == false && march_length[e] <= ray_length[e]) {
 				/*
                 for ( int x = -1; x < 2; x++ ) {
                     for ( int y = -1; y < 2; y++ ) {
@@ -998,25 +1004,23 @@ __global__ void isaacRenderKernel (
                 );
                 
 
-
-                // break the loop if the current cell is the end cell
-                if ( current_cell[e].x == last_cell[e].x && current_cell[e].y == last_cell[e].y && current_cell[e].z == last_cell[e].z ) {
-                    break;
-                }
-
                 // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
                 if ( t[e].x < t[e].y && t[e].x < t[e].z ) {
                     current_cell[e].x += dir_sign[e].x;
+                    march_length[e] = t[e].x;
                     t[e].x += delta_t[e].x;
                 } else if ( t[e].y < t[e].x && t[e].y < t[e].z ) {
                     current_cell[e].y += dir_sign[e].y;
+                    march_length[e] = t[e].y;
                     t[e].y += delta_t[e].y;
                 } else {
                     current_cell[e].z += dir_sign[e].z;
+                    march_length[e] = t[e].z;
                     t[e].z += delta_t[e].z;
                 }
+                
             }
-			// if there was a hit set maximum volume raycast distance to particle hit distance
+            // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
 			if ( result_particle[e] ) {
 				last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
 				
@@ -1716,6 +1720,7 @@ __global__ void minMaxPartikelKernel (
 } //namespace isaac;
 
 #pragma GCC diagnostic pop
+
 
 
 
