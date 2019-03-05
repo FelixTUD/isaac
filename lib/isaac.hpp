@@ -201,9 +201,9 @@ public:
 #endif
         ) const
         {
-            if ( TSource::persistent )
+            if ( TSource::persistent ) {
                 pointer_array.pointer[I] = NULL;
-            else {
+            } else {
 #if ISAAC_ALPAKA == 1
                 alpaka_vector.push_back (
                     alpaka::mem::buf::Buf< TDevAcc, isaac_float, TFraDim, ISAAC_IDX_TYPE> (
@@ -398,10 +398,12 @@ public:
             minmax.min[ I ] =  FLT_MAX;
             minmax.max[ I ] = -FLT_MAX;
             for ( int i = 0; i < local_size_array.x * local_size_array.y; i++ ) {
-                if ( local_minmax_array_h[i].min < minmax.min[ I ] )
+                if ( local_minmax_array_h[i].min < minmax.min[ I ] ) {
                     minmax.min[ I ] = local_minmax_array_h[i].min;
-                if ( local_minmax_array_h[i].max > minmax.max[ I ] )
+                }
+                if ( local_minmax_array_h[i].max > minmax.max[ I ] ) {
                     minmax.max[ I ] = local_minmax_array_h[i].max;
+                }
             }
         }
     };
@@ -490,10 +492,12 @@ public:
             minmax.max[ I + TOffset ] = -FLT_MAX;
             // find the min and max
             for ( int i = 0; i < local_size_array.x * local_size_array.y; i++ ) {
-                if ( local_minmax_array_h[i].min < minmax.min[ I + TOffset ] )
+                if ( local_minmax_array_h[i].min < minmax.min[ I + TOffset ] ) {
                     minmax.min[ I + TOffset ] = local_minmax_array_h[i].min;
-                if ( local_minmax_array_h[i].max > minmax.max[ I + TOffset ] )
+                }
+                if ( local_minmax_array_h[i].max > minmax.max[ I + TOffset ] ) {
                     minmax.max[ I + TOffset ] = local_minmax_array_h[i].max;
+                }
             }
         }
     };
@@ -632,7 +636,9 @@ public:
 #endif
         //Init functions:
         for ( int i = 0; i < ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ); i++ )
+        {
             functions[i].source = std::string ( "idem" );
+        }
         updateFunctions();
 
         //non persistent buffer memory
@@ -656,28 +662,30 @@ public:
             ISAAC_CUDA_CHECK ( cudaMalloc ( ( isaac_float4** ) & ( transfer_d.pointer[i] ), sizeof ( isaac_float4 ) *TTransfer_size ) );
             transfer_h.pointer[i] = ( isaac_float4* ) malloc ( sizeof ( isaac_float4 ) *TTransfer_size );
 #endif
-			//Init volume transfer func with a alpha ramp from 0 -> 1
-			if(i < boost::mpl::size< TSourceList >::type::value)
-			{
-				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( 0, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,0 ) ) );
-				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( TTransfer_size, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
-			}
-			//Init particle transfer func with constant alpha = 1
-			else
-			{
-				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( 0, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
-				transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( TTransfer_size, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
-			}
+            //Init volume transfer func with a alpha ramp from 0 -> 1
+            if ( i < boost::mpl::size< TSourceList >::type::value ) {
+                transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( 0, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,0 ) ) );
+                transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( TTransfer_size, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
+            }
+            //Init particle transfer func with constant alpha = 1
+            else {
+                transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( 0, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
+                transfer_h.description[i].insert ( std::pair< isaac_uint, isaac_float4> ( TTransfer_size, getHSVA ( isaac_float ( 2*i ) *M_PI/isaac_float ( ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ) ),1,1,1 ) ) );
+            }
 
         }
         updateTransfer();
 
         max_size = ISAAC_MAX ( uint32_t ( global_size[0] ),uint32_t ( global_size[1] ) );
         if ( TSimDim::value > 2 )
+        {
             max_size = ISAAC_MAX ( uint32_t ( global_size[2] ),uint32_t ( max_size ) );
+        }
         max_size_scaled = ISAAC_MAX ( uint32_t ( global_size_scaled[0] ),uint32_t ( global_size_scaled[1] ) );
         if ( TSimDim::value > 2 )
+        {
             max_size_scaled = ISAAC_MAX ( uint32_t ( global_size_scaled[2] ),uint32_t ( max_size_scaled ) );
+        }
 
         //ICET:
         IceTCommunicator icetComm;
@@ -750,10 +758,12 @@ public:
 
             json_object_set_new ( json_root, "dimension", json_integer ( TSimDim::value ) );
             json_object_set_new ( json_root, "width", json_integer ( global_size_scaled[0] ) );
-            if ( TSimDim::value > 1 )
+            if ( TSimDim::value > 1 ) {
                 json_object_set_new ( json_root, "height", json_integer ( global_size_scaled[1] ) );
-            if ( TSimDim::value > 2 )
+            }
+            if ( TSimDim::value > 2 ) {
                 json_object_set_new ( json_root, "depth", json_integer ( global_size_scaled[2] ) );
+            }
             json_t *json_version_array = json_array();
             json_array_append_new ( json_version_array, json_integer ( ISAAC_PROTOCOL_VERSION_MAJOR ) );
             json_array_append_new ( json_version_array, json_integer ( ISAAC_PROTOCOL_VERSION_MINOR ) );
@@ -763,20 +773,23 @@ public:
     void setJpegQuality ( isaac_uint jpeg_quality )
     {
         ISAAC_WAIT_VISUALIZATION
-        if ( communicator )
+        if ( communicator ) {
             communicator->setJpegQuality ( jpeg_quality );
+        }
     }
     bool editClipping ( isaac_uint nr,isaac_float px,isaac_float py,isaac_float pz,isaac_float nx,isaac_float ny,isaac_float nz )
     {
         ISAAC_WAIT_VISUALIZATION
-        if ( nr >= ISAAC_MAX_CLIPPING )
+        if ( nr >= ISAAC_MAX_CLIPPING ) {
             return false;
+        }
         isaac_float nx_s = nx * scale[0];
         isaac_float ny_s = ny * scale[1];
         isaac_float nz_s = nz * scale[2];
         isaac_float l = sqrt ( nx_s*nx_s+ny_s*ny_s+nz_s*nz_s );
-        if ( l == 0.0f )
+        if ( l == 0.0f ) {
             return false;
+        }
         nx_s /= l;
         ny_s /= l;
         nz_s /= l;
@@ -793,14 +806,16 @@ public:
     }
     void addClipping ( isaac_float px,isaac_float py,isaac_float pz,isaac_float nx,isaac_float ny,isaac_float nz )
     {
-        if ( editClipping ( clipping.count, px, py, pz, nx, ny, nz ) )
+        if ( editClipping ( clipping.count, px, py, pz, nx, ny, nz ) ) {
             clipping.count++;
+        }
     }
     void removeClipping ( isaac_uint nr )
     {
         ISAAC_WAIT_VISUALIZATION
-        if ( nr >= clipping.count )
+        if ( nr >= clipping.count ) {
             return;
+        }
         clipping.count--;
         for ( isaac_uint i = nr; i < clipping.count; i++ ) {
             clipping.elem[i] = clipping.elem[i+1];
@@ -816,31 +831,36 @@ public:
                 isaac_float f_l_width = ( isaac_float ) local_size_scaled[0]/ ( isaac_float ) max_size_scaled * 2.0f;
                 isaac_float f_l_height = ( isaac_float ) local_size_scaled[1]/ ( isaac_float ) max_size_scaled * 2.0f;
                 isaac_float f_l_depth = 0.0f;
-                if ( TSimDim::value > 2 )
+                if ( TSimDim::value > 2 ) {
                     f_l_depth = ( isaac_float ) local_size_scaled[2]/ ( isaac_float ) max_size_scaled * 2.0f;
+                }
                 isaac_float f_x = ( isaac_float ) position_scaled[0]/ ( isaac_float ) max_size_scaled * 2.0f - ( isaac_float ) global_size_scaled[0]/ ( isaac_float ) max_size_scaled;
                 isaac_float f_y = ( isaac_float ) position_scaled[1]/ ( isaac_float ) max_size_scaled * 2.0f - ( isaac_float ) global_size_scaled[1]/ ( isaac_float ) max_size_scaled;
                 isaac_float f_z = 0.0f;
-                if ( TSimDim::value > 2 )
+                if ( TSimDim::value > 2 ) {
                     f_z = ( isaac_float ) position_scaled[2]/ ( isaac_float ) max_size_scaled * isaac_float ( 2 ) - ( isaac_float ) global_size_scaled[2]/ ( isaac_float ) max_size_scaled;
+                }
                 icetBoundingBoxf ( f_x, f_x + f_l_width, f_y, f_y + f_l_height, f_z, f_z + f_l_depth );
-            } else
+            } else {
                 icetBoundingVertices ( 0,0,0,0,NULL );
+            }
         }
     }
     void updatePosition ( const TDomainSize position )
     {
         ISAAC_WAIT_VISUALIZATION
         this->position = position;
-        for ( int i = 0; i < 3; i++ )
+        for ( int i = 0; i < 3; i++ ) {
             position_scaled[i] = isaac_int ( ( isaac_float ) position[i] * ( isaac_float ) scale[i] );
+        }
     }
     void updateLocalSize ( const TDomainSize local_size )
     {
         ISAAC_WAIT_VISUALIZATION
         this->local_size = local_size;
-        for ( int i = 0; i < 3; i++ )
+        for ( int i = 0; i < 3; i++ ) {
             local_size_scaled[i] = isaac_int ( ( isaac_float ) local_size[i] * ( isaac_float ) scale[i] );
+        }
     }
     void updateLocalParticleSize ( const TDomainSize local_particle_size )
     {
@@ -870,17 +890,17 @@ public:
                 token.erase ( remove_if ( token.begin(), token.end(), isspace ), token.end() );
                 //search "(" and parse parameters
                 size_t t_begin = token.find ( "(" );
-                if ( t_begin == std::string::npos )
+                if ( t_begin == std::string::npos ) {
                     memset ( & ( isaac_parameter_h[i * ISAAC_MAX_FUNCTORS + elem] ), 0, sizeof ( isaac_float4 ) );
-                else {
+                } else {
                     size_t t_end = token.find ( ")" );
                     if ( t_end == std::string::npos ) {
                         functions[i].error_code = -1;
                         break;
                     }
-                    if ( t_end - t_begin == 1 ) //()
+                    if ( t_end - t_begin == 1 ) { //()
                         memset ( & ( isaac_parameter_h[i * ISAAC_MAX_FUNCTORS + elem] ), 0, sizeof ( isaac_float4 ) );
-                    else {
+                    } else {
                         std::string parameters = token.substr ( t_begin+1, t_end-t_begin-1 );
                         size_t p_pos = 0;
                         bool p_again = true;
@@ -896,13 +916,15 @@ public:
                             parameter_array[p_elem] = std::stof ( par );
                             p_elem++;
                         }
-                        for ( ; p_elem < 4; p_elem++ )
-                            parameter_array[p_elem] = parameter_array[p_elem - 1]; //last one repeated
+                        for ( ; p_elem < 4; p_elem++ ) {
+                            parameter_array[p_elem] = parameter_array[p_elem - 1];    //last one repeated
+                        }
                     }
                 }
                 //parse token itself
-                if ( t_begin != std::string::npos )
+                if ( t_begin != std::string::npos ) {
                     token = token.substr ( 0, t_begin );
+                }
                 bool found = false;
                 isaac_for_each_params ( functors, parse_functor_iterator(), token, functions[i].bytecode[elem], found );
                 if ( !found ) {
@@ -998,11 +1020,13 @@ public:
     int init ( CommunicatorSetting communicatorBehaviour = ReturnAtError )
     {
         int failed = 0;
-        if ( communicator && ( communicator->serverConnect ( communicatorBehaviour ) < 0 ) )
+        if ( communicator && ( communicator->serverConnect ( communicatorBehaviour ) < 0 ) ) {
             failed = 1;
+        }
         MPI_Bcast ( &failed,1, MPI_INT, master, mpi_world );
-        if ( failed )
+        if ( failed ) {
             return -1;
+        }
         if ( rank == master ) {
             json_init_root = json_root;
             communicator->serverSendRegister ( &json_init_root );
@@ -1060,34 +1084,48 @@ public:
                 //search for update requests
                 if ( js = json_object_get ( last, "request" ) ) {
                     const char* target = json_string_value ( js );
-                    if ( strcmp ( target, "rotation" ) == 0 )
+                    if ( strcmp ( target, "rotation" ) == 0 ) {
                         send_rotation = true;
-                    if ( strcmp ( target, "position" ) == 0 )
+                    }
+                    if ( strcmp ( target, "position" ) == 0 ) {
                         send_look_at = true;
-                    if ( strcmp ( target, "distance" ) == 0 )
+                    }
+                    if ( strcmp ( target, "distance" ) == 0 ) {
                         send_distance = true;
-                    if ( strcmp ( target, "projection" ) == 0 )
+                    }
+                    if ( strcmp ( target, "projection" ) == 0 ) {
                         send_projection = true;
-                    if ( strcmp ( target, "transfer" ) == 0 )
+                    }
+                    if ( strcmp ( target, "transfer" ) == 0 ) {
                         send_transfer = true;
-                    if ( strcmp ( target, "interpolation" ) == 0 )
+                    }
+                    if ( strcmp ( target, "interpolation" ) == 0 ) {
                         send_interpolation = true;
-                    if ( strcmp ( target, "step" ) == 0 )
+                    }
+                    if ( strcmp ( target, "step" ) == 0 ) {
                         send_step = true;
-                    if ( strcmp ( target, "iso surface" ) == 0 )
+                    }
+                    if ( strcmp ( target, "iso surface" ) == 0 ) {
                         send_iso_surface = true;
-                    if ( strcmp ( target, "functions" ) == 0 )
+                    }
+                    if ( strcmp ( target, "functions" ) == 0 ) {
                         send_functions = true;
-                    if ( strcmp ( target, "weight" ) == 0 )
+                    }
+                    if ( strcmp ( target, "weight" ) == 0 ) {
                         send_weight = true;
-                    if ( strcmp ( target, "background color" ) == 0 )
+                    }
+                    if ( strcmp ( target, "background color" ) == 0 ) {
                         send_background_color = true;
-                    if ( strcmp ( target, "clipping" ) == 0 )
+                    }
+                    if ( strcmp ( target, "clipping" ) == 0 ) {
                         send_clipping = true;
-                    if ( strcmp ( target, "controller" ) == 0 )
+                    }
+                    if ( strcmp ( target, "controller" ) == 0 ) {
                         send_controller = true;
-                    if ( strcmp ( target, "init" ) == 0 )
+                    }
+                    if ( strcmp ( target, "init" ) == 0 ) {
                         send_init_json = true;
+                    }
                 }
                 //Search for scene changes
                 if ( json_array_size ( js = json_object_get ( last, "rotation absolute" ) ) == 9 ) {
@@ -1221,10 +1259,12 @@ public:
         //search for requests for all ranks
         if ( js = json_object_get ( message, "request" ) ) {
             const char* target = json_string_value ( js );
-            if ( strcmp ( target, "redraw" ) == 0 )
+            if ( strcmp ( target, "redraw" ) == 0 ) {
                 redraw = true;
-            if ( strcmp ( target, "minmax" ) == 0 )
+            }
+            if ( strcmp ( target, "minmax" ) == 0 ) {
                 send_minmax = true;
+            }
         }
 
         //Scene set?
@@ -1266,8 +1306,9 @@ public:
         if ( js = json_object_get ( message, "step" ) ) {
             redraw = true;
             step = json_number_value ( js );
-            if ( step < isaac_float ( 0.01 ) )
+            if ( step < isaac_float ( 0.01 ) ) {
                 step = isaac_float ( 0.01 );
+            }
             send_step = true;
         }
         if ( js = json_object_get ( message, "iso surface" ) ) {
@@ -1301,10 +1342,11 @@ public:
                 icetSetContext ( icetContext[pass] );
                 if ( background_color[0] == 0.0f &&
                         background_color[1] == 0.0f &&
-                        background_color[2] == 0.0f )
+                        background_color[2] == 0.0f ) {
                     icetDisable ( ICET_CORRECT_COLORED_BACKGROUND );
-                else
+                } else {
                     icetEnable ( ICET_CORRECT_COLORED_BACKGROUND );
+                }
             }
             send_background_color = true;
         }
@@ -1345,8 +1387,9 @@ public:
         }
 
         json_t* metadata = json_object_get ( message, "metadata" );
-        if ( metadata )
+        if ( metadata ) {
             json_incref ( metadata );
+        }
         json_decref ( message );
         thr_metaTargets = metaTargets;
 
@@ -1373,8 +1416,9 @@ public:
             }
         }
 
-        for ( int pass = 0; pass < TController::pass_count; pass++ )
+        for ( int pass = 0; pass < TController::pass_count; pass++ ) {
             image[pass].opaque_internals = NULL;
+        }
 
         if ( redraw ) {
             for ( int pass = 0; pass < TController::pass_count; pass++ ) {
@@ -1396,8 +1440,9 @@ public:
                 MPI_Allgather ( &point_distance, 1, MPI_FLOAT, receive_buffer, 1, MPI_FLOAT, mpi_world );
                 //Putting to a std::multimap of {rank, distance}
                 std::multimap<float, isaac_int, std::less< float > > distance_map;
-                for ( isaac_int i = 0; i < numProc; i++ )
+                for ( isaac_int i = 0; i < numProc; i++ ) {
                     distance_map.insert ( std::pair<float, isaac_int> ( receive_buffer[i], i ) );
+                }
                 //Putting in an array for IceT
                 IceTInt icet_order_array[numProc];
                 {
@@ -1415,8 +1460,9 @@ public:
                 image[pass] = icetDrawFrame ( & ( projection[pass * 16] ),modelview,background_color );
                 ISAAC_STOP_TIME_MEASUREMENT ( merge_time, +=, merge, getTicksUs() )
             }
-        } else
+        } else {
             usleep ( 10000 );
+        }
 
         //Message merging
         char* buffer = json_dumps ( json_root, 0 );
@@ -1427,14 +1473,16 @@ public:
                 char receive_buffer[numProc][ISAAC_MAX_RECEIVE];
                 MPI_Gather ( message_buffer, ISAAC_MAX_RECEIVE, MPI_CHAR, receive_buffer, ISAAC_MAX_RECEIVE, MPI_CHAR, master, mpi_world );
                 for ( isaac_int i = 0; i < numProc; i++ ) {
-                    if ( i == master )
+                    if ( i == master ) {
                         continue;
+                    }
                     json_t* js = json_loads ( receive_buffer[i], 0, NULL );
                     mergeJSON ( json_root, js );
                     json_decref ( js );
                 }
-            } else
+            } else {
                 MPI_Gather ( message_buffer, ISAAC_MAX_RECEIVE, MPI_CHAR, NULL, 0,  MPI_CHAR, master, mpi_world );
+            }
         }
 
 #ifdef ISAAC_THREADING
@@ -1456,12 +1504,14 @@ public:
             free ( buffer );
             json_decref ( json_root );
         }
-        for ( int pass = 0; pass < TController::pass_count; pass++ )
+        for ( int pass = 0; pass < TController::pass_count; pass++ ) {
             icetDestroyContext ( icetContext[pass] );
+        }
 #if ISAAC_ALPAKA == 0
         for ( int i = 0; i < ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ); i++ ) {
-            if ( pointer_array.pointer[i] )
+            if ( pointer_array.pointer[i] ) {
                 ISAAC_CUDA_CHECK ( cudaFree ( pointer_array.pointer[i] ) );
+            }
             ISAAC_CUDA_CHECK ( cudaFree ( transfer_d.pointer[i] ) );
             free ( transfer_h.pointer[i] );
         }
@@ -1477,8 +1527,9 @@ public:
     uint64_t getTicksUs()
     {
         struct timespec ts;
-        if ( clock_gettime ( CLOCK_MONOTONIC_RAW,&ts ) == 0 )
+        if ( clock_gettime ( CLOCK_MONOTONIC_RAW,&ts ) == 0 ) {
             return ts.tv_sec*1000000 + ts.tv_nsec/1000;
+        }
         return 0;
     }
     uint64_t kernel_time;
@@ -1506,39 +1557,47 @@ private:
 #endif
         IceTDouble inverse[16];
         calcInverse ( inverse,projection_matrix,modelview_matrix );
-        for ( int i = 0; i < 16; i++ )
+        for ( int i = 0; i < 16; i++ ) {
             inverse_h[i] = static_cast<float> ( inverse[i] );
+        }
 
         size_h[0].global_size.value.x = myself->global_size[0];
         size_h[0].global_size.value.y = myself->global_size[1];
-        if ( TSimDim::value > 2 )
+        if ( TSimDim::value > 2 ) {
             size_h[0].global_size.value.z = myself->global_size[2];
+        }
         size_h[0].position.value.x = myself->position[0];
         size_h[0].position.value.y = myself->position[1];
-        if ( TSimDim::value > 2 )
+        if ( TSimDim::value > 2 ) {
             size_h[0].position.value.z = myself->position[2];
+        }
         size_h[0].local_size.value.x = myself->local_size[0];
         size_h[0].local_size.value.y = myself->local_size[1];
-        if ( TSimDim::value > 2 )
+        if ( TSimDim::value > 2 ) {
             size_h[0].local_size.value.z = myself->local_size[2];
+        }
         size_h[0].local_particle_size.value.x = myself->local_particle_size[0];
         size_h[0].local_particle_size.value.y = myself->local_particle_size[1];
-        if ( TSimDim::value > 2 )
+        if ( TSimDim::value > 2 ) {
             size_h[0].local_particle_size.value.z = myself->local_particle_size[2];
+        }
         size_h[0].max_global_size = static_cast<float> ( ISAAC_MAX ( ISAAC_MAX ( uint32_t ( myself->global_size[0] ),uint32_t ( myself->global_size[1] ) ),uint32_t ( myself->global_size[2] ) ) );
 
         size_h[0].global_size_scaled.value.x = myself->global_size_scaled[0];
         size_h[0].global_size_scaled.value.y = myself->global_size_scaled[1];
-        if ( TSimDim::value > 2 )
+        if ( TSimDim::value > 2 ) {
             size_h[0].global_size_scaled.value.z = myself->global_size_scaled[2];
+        }
         size_h[0].position_scaled.value.x = myself->position_scaled[0];
         size_h[0].position_scaled.value.y = myself->position_scaled[1];
-        if ( TSimDim::value > 2 )
+        if ( TSimDim::value > 2 ) {
             size_h[0].position_scaled.value.z = myself->position_scaled[2];
+        }
         size_h[0].local_size_scaled.value.x = myself->local_size_scaled[0];
         size_h[0].local_size_scaled.value.y = myself->local_size_scaled[1];
-        if ( TSimDim::value > 2 )
+        if ( TSimDim::value > 2 ) {
             size_h[0].local_size_scaled.value.z = myself->local_size_scaled[2];
+        }
         size_h[0].max_global_size_scaled = static_cast<float> ( ISAAC_MAX ( ISAAC_MAX ( uint32_t ( myself->global_size_scaled[0] ),uint32_t ( myself->global_size_scaled[1] ) ),uint32_t ( myself->global_size_scaled[2] ) ) );
 
         isaac_float3 isaac_scale = {
@@ -1724,8 +1783,9 @@ private:
             }
             if ( myself->send_weight ) {
                 json_object_set_new ( myself->json_root, "weight", matrix = json_array() );
-                for ( ISAAC_IDX_TYPE i = 0; i < ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ); i++ )
+                for ( ISAAC_IDX_TYPE i = 0; i < ( boost::mpl::size< TSourceList >::type::value + boost::mpl::size< TParticleList >::type::value ); i++ ) {
                     json_array_append_new ( matrix, json_real ( myself->source_weight.value[i] ) );
+                }
             }
             if ( myself->send_interpolation ) {
                 json_object_set_new ( myself->json_root, "interpolation", json_boolean ( myself->interpolation ) );
@@ -1753,8 +1813,9 @@ private:
             }
             if ( myself->send_background_color ) {
                 json_object_set_new ( myself->json_root, "background color", matrix = json_array() );
-                for ( ISAAC_IDX_TYPE i = 0; i < 3; i++ )
+                for ( ISAAC_IDX_TYPE i = 0; i < 3; i++ ) {
                     json_array_append_new ( matrix, json_real ( myself->background_color[i] ) );
+                }
                 json_object_set ( myself->json_init_root, "background color", matrix );
                 myself->send_init_json = true;
             }
@@ -1776,8 +1837,9 @@ private:
                 }
             }
             myself->controller.sendFeedback ( myself->json_root, myself->send_controller );
-            if ( myself->send_init_json )
+            if ( myself->send_init_json ) {
                 json_object_set ( myself->json_root,"init",myself->json_init_root );
+            }
             char* buffer = json_dumps ( myself->json_root, 0 );
             myself->communicator->serverSend ( buffer );
             free ( buffer );
@@ -1788,9 +1850,9 @@ private:
         //Sending video
         ISAAC_START_TIME_MEASUREMENT ( video_send, myself->getTicksUs() )
         if ( myself->communicator ) {
-            if ( myself->image[0].opaque_internals )
+            if ( myself->image[0].opaque_internals ) {
                 myself->communicator->serverSendFrame ( myself->compositor.doCompositing ( myself->image ),myself->compbuffer_size.x,myself->compbuffer_size.y,4 );
-            else {
+            } else {
                 myself->communicator->serverSend ( NULL,false,true );
             }
         }
@@ -1815,12 +1877,13 @@ private:
         IceTDouble rotation_m[16];
         for ( isaac_int x = 0; x < 4; x++ )
             for ( isaac_int y = 0; y < 4; y++ ) {
-                if ( x < 3 && y < 3 )
+                if ( x < 3 && y < 3 ) {
                     rotation_m[x+y*4] = rotation[x+y*3];
-                else if ( x!=3 || y!=3 )
+                } else if ( x!=3 || y!=3 ) {
                     rotation_m[x+y*4] = 0.0;
-                else
+                } else {
                     rotation_m[x+y*4] = 1.0;
+                }
             }
 
         IceTDouble distance_m[16];

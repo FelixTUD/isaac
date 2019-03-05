@@ -149,8 +149,9 @@ __global__ void fillFunctorChainPointerKernel (
                 if ( bytecode[j] < ISAAC_FUNCTOR_COUNT-1 ) {
                     bytecode[j]++;
                     break;
-                } else
+                } else {
                     bytecode[j] = 0;
+                }
         }
     }
 #if ISAAC_ALPAKA == 1
@@ -182,10 +183,11 @@ ISAAC_HOST_DEVICE_INLINE isaac_float get_value (
             isaac_int ( pos.y ),
             isaac_int ( pos.z )
         };
-        if ( TSource::persistent )
+        if ( TSource::persistent ) {
             data = source[coord];
-        else
+        } else {
             data = ptr[coord.x + ISAAC_GUARD_SIZE + ( coord.y + ISAAC_GUARD_SIZE ) * ( local_size.value.x + 2 * ISAAC_GUARD_SIZE ) + ( coord.z + ISAAC_GUARD_SIZE ) * ( ( local_size.value.x + 2 * ISAAC_GUARD_SIZE ) * ( local_size.value.y + 2 * ISAAC_GUARD_SIZE ) )];
+        }
     } else {
         isaac_int3 coord;
         isaac_float_dim < TSource::feature_dim > data8[2][2][2];
@@ -196,17 +198,21 @@ ISAAC_HOST_DEVICE_INLINE isaac_float get_value (
                     coord.y = isaac_int ( y?ceil ( pos.y ) :floor ( pos.y ) );
                     coord.z = isaac_int ( z?ceil ( pos.z ) :floor ( pos.z ) );
                     if ( !TSource::has_guard && TSource::persistent ) {
-                        if ( isaac_uint ( coord.x ) >= local_size.value.x )
+                        if ( isaac_uint ( coord.x ) >= local_size.value.x ) {
                             coord.x = isaac_int ( x?floor ( pos.x ) :ceil ( pos.x ) );
-                        if ( isaac_uint ( coord.y ) >= local_size.value.y )
+                        }
+                        if ( isaac_uint ( coord.y ) >= local_size.value.y ) {
                             coord.y = isaac_int ( y?floor ( pos.y ) :ceil ( pos.y ) );
-                        if ( isaac_uint ( coord.z ) >= local_size.value.z )
+                        }
+                        if ( isaac_uint ( coord.z ) >= local_size.value.z ) {
                             coord.z = isaac_int ( z?floor ( pos.z ) :ceil ( pos.z ) );
+                        }
                     }
-                    if ( TSource::persistent )
+                    if ( TSource::persistent ) {
                         data8[x][y][z] = source[coord];
-                    else
+                    } else {
                         data8[x][y][z] = ptr[coord.x + ISAAC_GUARD_SIZE + ( coord.y + ISAAC_GUARD_SIZE ) * ( local_size.value.x + 2 * ISAAC_GUARD_SIZE ) + ( coord.z + ISAAC_GUARD_SIZE ) * ( ( local_size.value.x + 2 * ISAAC_GUARD_SIZE ) * ( local_size.value.y + 2 * ISAAC_GUARD_SIZE ) )];
+                    }
                 }
         //Against annoying double->float casting warning with gcc5
 #pragma GCC diagnostic push
@@ -235,14 +241,18 @@ ISAAC_HOST_DEVICE_INLINE isaac_float get_value (
     isaac_float result = isaac_float ( 0 );
 
 #if ISAAC_ALPAKA == 1 || defined(__CUDA_ARCH__)
-    if ( TSource::feature_dim == 1 )
+    if ( TSource::feature_dim == 1 ) {
         result = reinterpret_cast<isaac_functor_chain_pointer_1> ( isaac_function_chain_d[ NR::value ] ) ( * ( reinterpret_cast< isaac_float_dim<1>* > ( &data ) ), NR::value );
-    if ( TSource::feature_dim == 2 )
+    }
+    if ( TSource::feature_dim == 2 ) {
         result = reinterpret_cast<isaac_functor_chain_pointer_2> ( isaac_function_chain_d[ NR::value ] ) ( * ( reinterpret_cast< isaac_float_dim<2>* > ( &data ) ), NR::value );
-    if ( TSource::feature_dim == 3 )
+    }
+    if ( TSource::feature_dim == 3 ) {
         result = reinterpret_cast<isaac_functor_chain_pointer_3> ( isaac_function_chain_d[ NR::value ] ) ( * ( reinterpret_cast< isaac_float_dim<3>* > ( &data ) ), NR::value );
-    if ( TSource::feature_dim == 4 )
+    }
+    if ( TSource::feature_dim == 4 ) {
         result = reinterpret_cast<isaac_functor_chain_pointer_4> ( isaac_function_chain_d[ NR::value ] ) ( * ( reinterpret_cast< isaac_float_dim<4>* > ( &data ) ), NR::value );
+    }
 #endif
     return result;
 }
@@ -250,18 +260,24 @@ ISAAC_HOST_DEVICE_INLINE isaac_float get_value (
 template < typename TLocalSize >
 ISAAC_HOST_DEVICE_INLINE void check_coord ( isaac_float3& coord, const TLocalSize local_size )
 {
-    if ( coord.x < isaac_float ( 0 ) )
+    if ( coord.x < isaac_float ( 0 ) ) {
         coord.x = isaac_float ( 0 );
-    if ( coord.y < isaac_float ( 0 ) )
+    }
+    if ( coord.y < isaac_float ( 0 ) ) {
         coord.y = isaac_float ( 0 );
-    if ( coord.z < isaac_float ( 0 ) )
+    }
+    if ( coord.z < isaac_float ( 0 ) ) {
         coord.z = isaac_float ( 0 );
-    if ( coord.x >= isaac_float ( local_size.value.x ) )
+    }
+    if ( coord.x >= isaac_float ( local_size.value.x ) ) {
         coord.x = isaac_float ( local_size.value.x )-isaac_float ( 1 );
-    if ( coord.y >= isaac_float ( local_size.value.y ) )
+    }
+    if ( coord.y >= isaac_float ( local_size.value.y ) ) {
         coord.y = isaac_float ( local_size.value.y )-isaac_float ( 1 );
-    if ( coord.z >= isaac_float ( local_size.value.z ) )
+    }
+    if ( coord.z >= isaac_float ( local_size.value.z ) ) {
         coord.z = isaac_float ( local_size.value.z )-isaac_float ( 1 );
+    }
 }
 
 template <
@@ -275,8 +291,8 @@ struct merge_particle_iterator {
         typename NR,
         typename TSource,
         typename TColor,
-		typename TNormal,
-		typename TPosition,
+        typename TNormal,
+        typename TPosition,
         typename TStart,
         typename TDir,
         typename TLightDir,
@@ -292,8 +308,8 @@ struct merge_particle_iterator {
         const NR& nr,
         const TSource& source,
         TColor& color,
-		TNormal& normal,
-		TPosition& position,
+        TNormal& normal,
+        TPosition& position,
         const TStart& start,
         const TDir& dir,
         const TLightDir& light_dir,
@@ -335,22 +351,28 @@ struct merge_particle_iterator {
 
                     // apply functorchain
 #if ISAAC_ALPAKA == 1 || defined(__CUDA_ARCH__)
-                    if ( TSource::feature_dim == 1 )
+                    if ( TSource::feature_dim == 1 ) {
                         result = reinterpret_cast<isaac_functor_chain_pointer_1> ( isaac_function_chain_d[ sourceNumber ] ) ( * ( reinterpret_cast< isaac_float_dim<1>* > ( &data ) ), sourceNumber );
-                    if ( TSource::feature_dim == 2 )
+                    }
+                    if ( TSource::feature_dim == 2 ) {
                         result = reinterpret_cast<isaac_functor_chain_pointer_2> ( isaac_function_chain_d[ sourceNumber ] ) ( * ( reinterpret_cast< isaac_float_dim<2>* > ( &data ) ), sourceNumber );
-                    if ( TSource::feature_dim == 3 )
+                    }
+                    if ( TSource::feature_dim == 3 ) {
                         result = reinterpret_cast<isaac_functor_chain_pointer_3> ( isaac_function_chain_d[ sourceNumber ] ) ( * ( reinterpret_cast< isaac_float_dim<3>* > ( &data ) ), sourceNumber );
-                    if ( TSource::feature_dim == 4 )
+                    }
+                    if ( TSource::feature_dim == 4 ) {
                         result = reinterpret_cast<isaac_functor_chain_pointer_4> ( isaac_function_chain_d[ sourceNumber ] ) ( * ( reinterpret_cast< isaac_float_dim<4>* > ( &data ) ), sourceNumber );
+                    }
 #endif
 
                     // apply transferfunction
                     isaac_int lookup_value = isaac_int ( round ( result * isaac_float ( Ttransfer_size ) ) );
-                    if ( lookup_value < 0 )
+                    if ( lookup_value < 0 ) {
                         lookup_value = 0;
-                    if ( lookup_value >= Ttransfer_size )
+                    }
+                    if ( lookup_value >= Ttransfer_size ) {
                         lookup_value = Ttransfer_size - 1;
+                    }
                     isaac_float4 value = transferArray.pointer[ NR::value + TOffset ][ lookup_value ];
 
                     // check if the alpha value is greater or equal than 0.5
@@ -358,10 +380,11 @@ struct merge_particle_iterator {
                         color = value;
                         color.w = t0;
                         feedback = 1;
-						position = particle_pos;
+                        position = particle_pos;
                         normal = start + t0 * dir - particle_pos;
-                        if ( t0 < 0 && is_clipped )
+                        if ( t0 < 0 && is_clipped ) {
                             normal = -clipping_normal;
+                        }
                     }
                 }
                 particle_iterator.next();
@@ -379,41 +402,39 @@ struct density_particle_iterator {
     <
         typename NR,
         typename TSource,
-		typename TNormal,
-		typename TPosition,
-		typename TGridScale,
-		typename TDensity
+        typename TNormal,
+        typename TPosition,
+        typename TGridScale,
+        typename TDensity
         >
     ISAAC_HOST_DEVICE_INLINE  void operator() (
         const NR& nr,
         const TSource& source,
-		const TNormal& normal,
-		const TPosition& position,
-		const TGridScale& pGridScale,
-		TDensity& density
+        const TNormal& normal,
+        const TPosition& position,
+        const TGridScale& pGridScale,
+        TDensity& density
     ) const
     {
         const int sourceNumber = NR::value + TOffset;
         if ( mpl::at_c< TFilter, sourceNumber>::type::value ) {
-			isaac_uint3 last_cell_pos = {isaac_uint ( position.x / pGridScale.x ), isaac_uint ( position.y / pGridScale.y ), isaac_uint ( position.z / pGridScale.z ) };;
-			for(int i = 0; i < 10; i++)
-			{
-				isaac_float3 cell_posf = (position + i * normal * 10) / pGridScale;
-				isaac_uint3 cell_pos = {isaac_uint ( cell_posf.x ), isaac_uint ( cell_posf.y ), isaac_uint ( cell_posf.z ) };
-				if( cell_pos.x < isaac_size_d[0].local_particle_size.value.x &&
-					cell_pos.y < isaac_size_d[0].local_particle_size.value.y &&
-					cell_pos.z < isaac_size_d[0].local_particle_size.value.z ) {
-					last_cell_pos = cell_pos;
-				}
-				else {
-					cell_pos = last_cell_pos;
-				}
-				auto particle_iterator = source.getIterator ( cell_pos );
-				density += particle_iterator.size;
+            isaac_uint3 last_cell_pos = {isaac_uint ( position.x / pGridScale.x ), isaac_uint ( position.y / pGridScale.y ), isaac_uint ( position.z / pGridScale.z ) };;
+            for ( int i = 0; i < 10; i++ ) {
+                isaac_float3 cell_posf = ( position + i * normal * 10 ) / pGridScale;
+                isaac_uint3 cell_pos = {isaac_uint ( cell_posf.x ), isaac_uint ( cell_posf.y ), isaac_uint ( cell_posf.z ) };
+                if ( cell_pos.x < isaac_size_d[0].local_particle_size.value.x &&
+                        cell_pos.y < isaac_size_d[0].local_particle_size.value.y &&
+                        cell_pos.z < isaac_size_d[0].local_particle_size.value.z ) {
+                    last_cell_pos = cell_pos;
+                } else {
+                    cell_pos = last_cell_pos;
+                }
+                auto particle_iterator = source.getIterator ( cell_pos );
+                density += particle_iterator.size;
 
-			}
+            }
 
-		}
+        }
     }
 };
 
@@ -457,54 +478,65 @@ struct merge_source_iterator {
         if ( mpl::at_c< TFilter, NR::value >::type::value ) {
             isaac_float result = get_value< TInterpolation, NR > ( source, pos, pointerArray, local_size, scale );
             isaac_int lookup_value = isaac_int ( round ( result * isaac_float ( Ttransfer_size ) ) );
-            if ( lookup_value < 0 )
+            if ( lookup_value < 0 ) {
                 lookup_value = 0;
-            if ( lookup_value >= Ttransfer_size )
+            }
+            if ( lookup_value >= Ttransfer_size ) {
                 lookup_value = Ttransfer_size - 1;
+            }
             isaac_float4 value = transferArray.pointer[ NR::value ][ lookup_value ];
             if ( TIsoSurface ) {
                 if ( value.w >= isaac_float ( 0.5 ) ) {
                     isaac_float3  left = {-1, 0, 0};
                     left = left + pos;
-                    if ( !TSource::has_guard && TSource::persistent )
+                    if ( !TSource::has_guard && TSource::persistent ) {
                         check_coord ( left, local_size );
+                    }
                     isaac_float3 right = { 1, 0, 0};
                     right = right + pos;
-                    if ( !TSource::has_guard && TSource::persistent )
+                    if ( !TSource::has_guard && TSource::persistent ) {
                         check_coord ( right, local_size );
+                    }
                     isaac_float d1;
-                    if ( TInterpolation )
+                    if ( TInterpolation ) {
                         d1 = right.x - left.x;
-                    else
+                    } else {
                         d1 = isaac_int ( right.x ) - isaac_int ( left.x );
+                    }
 
                     isaac_float3    up = { 0,-1, 0};
                     up = up + pos;
-                    if ( !TSource::has_guard && TSource::persistent )
+                    if ( !TSource::has_guard && TSource::persistent ) {
                         check_coord ( up, local_size );
+                    }
                     isaac_float3  down = { 0, 1, 0};
                     down = down + pos;
-                    if ( !TSource::has_guard && TSource::persistent )
+                    if ( !TSource::has_guard && TSource::persistent ) {
                         check_coord ( down, local_size );
+                    }
                     isaac_float d2;
-                    if ( TInterpolation )
+                    if ( TInterpolation ) {
                         d2 = down.y - up.y;
-                    else
+                    } else {
                         d2 = isaac_int ( down.y ) - isaac_int ( up.y );
+                    }
 
                     isaac_float3 front = { 0, 0,-1};
                     front = front + pos;
-                    if ( !TSource::has_guard && TSource::persistent )
+                    if ( !TSource::has_guard && TSource::persistent ) {
                         check_coord ( front, local_size );
+                    }
                     isaac_float3  back = { 0, 0, 1};
                     back = back + pos;
-                    if ( !TSource::has_guard && TSource::persistent )
+                    if ( !TSource::has_guard && TSource::persistent ) {
                         check_coord ( back, local_size );
+                    }
                     isaac_float d3;
-                    if ( TInterpolation )
+                    if ( TInterpolation ) {
                         d3 = back.z - front.z;
-                    else
+                    } else {
                         d3 = isaac_int ( back.z ) - isaac_int ( front.z );
+                    }
 
                     isaac_float3 gradient= {
                         ( get_value< TInterpolation, NR > ( source, right, pointerArray, local_size, scale ) -
@@ -519,9 +551,9 @@ struct merge_source_iterator {
                                         gradient.y * gradient.y +
                                         gradient.z * gradient.z
                                     );
-                    if ( l == isaac_float ( 0 ) )
+                    if ( l == isaac_float ( 0 ) ) {
                         color = value;
-                    else {
+                    } else {
                         gradient = gradient / l;
                         isaac_float3 light = step / stepLength;
                         isaac_float ac = fabs (
@@ -626,8 +658,9 @@ __global__ void isaacRenderKernel (
 #endif
             finish[e] = false;
             pixel[e] = pixel[e] + framebuffer_start;
-            if ( ISAAC_FOR_EACH_DIM_TWICE ( 2, pixel[e], >= framebuffer_size, || ) 0 )
+            if ( ISAAC_FOR_EACH_DIM_TWICE ( 2, pixel[e], >= framebuffer_size, || ) 0 ) {
                 finish[e] = true;
+            }
 
         }
         ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
@@ -718,8 +751,9 @@ __global__ void isaacRenderKernel (
 
             start[e] = start[e] + move_f[e];
             end[e] =   end[e] + move_f[e];
-            for ( isaac_int i = 0; i < input_clipping.count; i++ )
+            for ( isaac_int i = 0; i < input_clipping.count; i++ ) {
                 clipping[e].elem[i].position = clipping[e].elem[i].position + move_f[e];
+            }
 
             vec[e] = end[e] - start[e];
             l_scaled[e] = sqrt ( vec[e].x * vec[e].x + vec[e].y * vec[e].y + vec[e].z * vec[e].z );
@@ -851,9 +885,9 @@ __global__ void isaacRenderKernel (
 
 
         isaac_float4 particle_color[ISAAC_VECTOR_ELEM];
-		isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];
-		isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];
-		//isaac_float particle_density[ISAAC_VECTOR_ELEM];
+        isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];
+        isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];
+        //isaac_float particle_density[ISAAC_VECTOR_ELEM];
         isaac_int result_particle[ISAAC_VECTOR_ELEM];
         isaac_float3 local_start[ISAAC_VECTOR_ELEM];
         isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
@@ -864,7 +898,7 @@ __global__ void isaacRenderKernel (
         isaac_uint3 current_cell[ISAAC_VECTOR_ELEM];
         //isaac_uint3 surrounding_cell[ISAAC_VECTOR_ELEM];
         isaac_float ray_length[ISAAC_VECTOR_ELEM];
-		isaac_float march_length[ISAAC_VECTOR_ELEM];
+        isaac_float march_length[ISAAC_VECTOR_ELEM];
         isaac_float3 t[ISAAC_VECTOR_ELEM];
         isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
 
@@ -894,7 +928,7 @@ __global__ void isaacRenderKernel (
             dir_sign[e].y = sgn ( normalized_dir[e].y );
             dir_sign[e].z = sgn ( normalized_dir[e].z );
 
-			//TODO: alternative for constant 0.001f
+            //TODO: alternative for constant 0.001f
             // calculate current position in scaled object space
             current_pos[e] = ( start[e] + step_vec[e] * ( ISAAC_MAX ( first_f[e], 0.0f ) + 0.001f * particle_scale ) ) * scale;
 
@@ -903,16 +937,10 @@ __global__ void isaacRenderKernel (
             current_cell[e].y = int ( current_pos[e].y / particle_scale.y );
             current_cell[e].z = int ( current_pos[e].z / particle_scale.z );
 
-            // calculate end position in scaled object space
             ray_length[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
             march_length[e] = 0;
-			/*
-            // calculate end local cell coordinates
-            last_cell[e].x = int ( last_pos[e].x / particle_scale.x );
-            last_cell[e].y = int ( last_pos[e].y / particle_scale.y );
-            last_cell[e].z = int ( last_pos[e].z / particle_scale.z );
-			*/
-	
+
+
             // calculate next intersection with each dimension
             t[e].x = ( ( current_cell[e].x + ISAAC_MAX ( dir_sign[e].x, 0 ) ) * particle_scale.x - current_pos[e].x ) / normalized_dir[e].x;
             t[e].y = ( ( current_cell[e].y + ISAAC_MAX ( dir_sign[e].y, 0 ) ) * particle_scale.y - current_pos[e].y ) / normalized_dir[e].y;
@@ -922,25 +950,28 @@ __global__ void isaacRenderKernel (
             delta_t[e].x = particle_scale.x / normalized_dir[e].x * dir_sign[e].x;
             delta_t[e].y = particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
             delta_t[e].z = particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
-			//particle_density[e] = 0;
-			particle_hitposition[e] = {0.0,0.0,0.0};
-			
+            //particle_density[e] = 0;
+            particle_hitposition[e] = {0.0,0.0,0.0};
+
             // check for 0 to stop infinite looping
-            if ( normalized_dir[e].x == 0 )
+            if ( normalized_dir[e].x == 0 ) {
                 t[e].x = maxFloat;
-            if ( normalized_dir[e].y == 0 )
+            }
+            if ( normalized_dir[e].y == 0 ) {
                 t[e].y = maxFloat;
-            if ( normalized_dir[e].z == 0 )
+            }
+            if ( normalized_dir[e].z == 0 ) {
                 t[e].z = maxFloat;
-            
-            
+            }
+
+
             // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
             while (
                 current_cell[e].x < isaac_size_d[0].local_particle_size.value.x &&
                 current_cell[e].y < isaac_size_d[0].local_particle_size.value.y &&
                 current_cell[e].z < isaac_size_d[0].local_particle_size.value.z &&
-                result_particle[e] == false && march_length[e] <= ray_length[e]) {
-				/*
+                result_particle[e] == false && march_length[e] <= ray_length[e] ) {
+                /*
                 for ( int x = -1; x < 2; x++ ) {
                     for ( int y = -1; y < 2; y++ ) {
                         for ( int z = -1; z < 2; z++ ) {
@@ -960,17 +991,17 @@ __global__ void isaacRenderKernel (
                                     TFilter
                                     >
                                     (),
-									particle_color[e],
-									local_start[e],
-									normalized_dir[e],
-									light_dir[e],
-									surrounding_cell[e],
-									transferArray,
-									sourceWeight,
-									result_particle[e],
-									particle_scale,
-									clipping_normal[e],
-									is_clipped[e]
+                					particle_color[e],
+                					local_start[e],
+                					normalized_dir[e],
+                					light_dir[e],
+                					surrounding_cell[e],
+                					transferArray,
+                					sourceWeight,
+                					result_particle[e],
+                					particle_scale,
+                					clipping_normal[e],
+                					is_clipped[e]
                                 );
                             }
                         }
@@ -989,8 +1020,8 @@ __global__ void isaacRenderKernel (
                     >
                     (),
                     particle_color[e],
-					particle_normal[e],
-					particle_hitposition[e],
+                    particle_normal[e],
+                    particle_hitposition[e],
                     local_start[e],
                     normalized_dir[e],
                     light_dir[e],
@@ -1002,7 +1033,7 @@ __global__ void isaacRenderKernel (
                     clipping_normal[e],
                     is_clipped[e]
                 );
-                
+
 
                 // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
                 if ( t[e].x < t[e].y && t[e].x < t[e].z ) {
@@ -1018,27 +1049,27 @@ __global__ void isaacRenderKernel (
                     march_length[e] = t[e].z;
                     t[e].z += delta_t[e].z;
                 }
-                
+
             }
             // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
-			if ( result_particle[e] ) {
-				last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
-				
-				// calculate lighting properties for the last hit particle
-				particle_normal[e] = particle_normal[e] / sqrt ( particle_normal[e].x * particle_normal[e].x
-					+ particle_normal[e].y * particle_normal[e].y
-					+ particle_normal[e].z * particle_normal[e].z );
-				
-				isaac_float light_factor = particle_normal[e].x * light_dir[e].x + particle_normal[e].y * light_dir[e].y + particle_normal[e].z * light_dir[e].z;
-				isaac_float3 half_vector = -normalized_dir[e] + light_dir[e];
-				half_vector = half_vector / sqrt ( half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z );
-				isaac_float specular = particle_normal[e].x * half_vector.x + particle_normal[e].y * half_vector.y + particle_normal[e].z * half_vector.z;
-				specular = pow ( specular, 10 );
-				specular *= 0.5f;
-				light_factor = light_factor * 0.5f + 0.5f;
-				
-				/*
-				isaac_for_each_with_mpl_params
+            if ( result_particle[e] ) {
+                last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
+
+                // calculate lighting properties for the last hit particle
+                particle_normal[e] = particle_normal[e] / sqrt ( particle_normal[e].x * particle_normal[e].x
+                                     + particle_normal[e].y * particle_normal[e].y
+                                     + particle_normal[e].z * particle_normal[e].z );
+
+                isaac_float light_factor = particle_normal[e].x * light_dir[e].x + particle_normal[e].y * light_dir[e].y + particle_normal[e].z * light_dir[e].z;
+                isaac_float3 half_vector = -normalized_dir[e] + light_dir[e];
+                half_vector = half_vector / sqrt ( half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z );
+                isaac_float specular = particle_normal[e].x * half_vector.x + particle_normal[e].y * half_vector.y + particle_normal[e].z * half_vector.z;
+                specular = pow ( specular, 10 );
+                specular *= 0.5f;
+                light_factor = light_factor * 0.5f + 0.5f;
+
+                /*
+                isaac_for_each_with_mpl_params
                 (
                     particle_sources,
                     density_particle_iterator
@@ -1047,22 +1078,22 @@ __global__ void isaacRenderKernel (
                     TFilter
                     >
                     (),
-					particle_normal[e],
-					particle_hitposition[e],
+                	particle_normal[e],
+                	particle_hitposition[e],
                     particle_scale,
-					particle_density[e]
+                	particle_density[e]
                 );
-				
-				particle_density[e] = 1.0 - ISAAC_MIN ( particle_density[e] / 2560.0f, 0.7f );
-				// calculate final color
-				particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor + specular) * particle_density[e], 1.0f );
-				particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor + specular) * particle_density[e], 1.0f );
-				particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor + specular) * particle_density[e], 1.0f );
-				*/
-				particle_color[e].x = ISAAC_MIN ( particle_color[e].x * light_factor + specular, 1.0f );
-				particle_color[e].y = ISAAC_MIN ( particle_color[e].y * light_factor + specular, 1.0f );
-				particle_color[e].z = ISAAC_MIN ( particle_color[e].z * light_factor + specular, 1.0f );
-			}
+
+                particle_density[e] = 1.0 - ISAAC_MIN ( particle_density[e] / 2560.0f, 0.7f );
+                // calculate final color
+                particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor + specular) * particle_density[e], 1.0f );
+                particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor + specular) * particle_density[e], 1.0f );
+                particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor + specular) * particle_density[e], 1.0f );
+                */
+                particle_color[e].x = ISAAC_MIN ( particle_color[e].x * light_factor + specular, 1.0f );
+                particle_color[e].y = ISAAC_MIN ( particle_color[e].y * light_factor + specular, 1.0f );
+                particle_color[e].z = ISAAC_MIN ( particle_color[e].z * light_factor + specular, 1.0f );
+            }
         }
 
 
@@ -1131,8 +1162,9 @@ __global__ void isaacRenderKernel (
                     color_add[e].z = oma[e] * value[e].z; // * value.w does merge_source_iterator
                     color_add[e].w = oma[e] * value[e].w;
                     color[e] = color[e] + color_add[e];
-                    if ( color[e].w > isaac_float ( 0.99 ) )
+                    if ( color[e].w > isaac_float ( 0.99 ) ) {
                         break;
+                    }
                 }
             }
             if ( result_particle[e] && !result[e] ) {
@@ -1548,23 +1580,29 @@ __global__ void updateBufferKernel (
             }
         } else
         {
-            if ( coord.x < 0 )
+            if ( coord.x < 0 ) {
                 coord.x = 0;
-            if ( coord.x >= local_size.x )
+            }
+            if ( coord.x >= local_size.x ) {
                 coord.x = local_size.x-1;
-            if ( coord.y < 0 )
+            }
+            if ( coord.y < 0 ) {
                 coord.y = 0;
-            if ( coord.y >= local_size.y )
+            }
+            if ( coord.y >= local_size.y ) {
                 coord.y = local_size.y-1;
+            }
             coord.z = 0;
-            for ( ; dest.z < ISAAC_GUARD_SIZE; dest.z++ )
+            for ( ; dest.z < ISAAC_GUARD_SIZE; dest.z++ ) {
                 ptr[dest.x + dest.y * ( local_size.x + 2 * ISAAC_GUARD_SIZE ) + dest.z * ( ( local_size.x + 2 * ISAAC_GUARD_SIZE ) * ( local_size.y + 2 * ISAAC_GUARD_SIZE ) )] = source[coord];
+            }
             for ( ; dest.z < local_size.z + ISAAC_GUARD_SIZE - 1; dest.z++ ) {
                 ptr[dest.x + dest.y * ( local_size.x + 2 * ISAAC_GUARD_SIZE ) + dest.z * ( ( local_size.x + 2 * ISAAC_GUARD_SIZE ) * ( local_size.y + 2 * ISAAC_GUARD_SIZE ) )] = source[coord];
                 coord.z++;
             }
-            for ( ; dest.z < local_size.z + 2 * ISAAC_GUARD_SIZE; dest.z++ )
+            for ( ; dest.z < local_size.z + 2 * ISAAC_GUARD_SIZE; dest.z++ ) {
                 ptr[dest.x + dest.y * ( local_size.x + 2 * ISAAC_GUARD_SIZE ) + dest.z * ( ( local_size.x + 2 * ISAAC_GUARD_SIZE ) * ( local_size.y + 2 * ISAAC_GUARD_SIZE ) )] = source[coord];
+            }
         }
     }
 #if ISAAC_ALPAKA == 1
@@ -1615,27 +1653,33 @@ __global__ void minMaxKernel (
         for ( ; coord.z < local_size.z; coord.z++ )
         {
             isaac_float_dim < TSource::feature_dim > data;
-            if ( TSource::persistent )
+            if ( TSource::persistent ) {
                 data = source[coord];
-            else {
+            } else {
                 isaac_float_dim < TSource::feature_dim >* ptr = ( isaac_float_dim < TSource::feature_dim >* ) ( pointer );
                 data = ptr[coord.x + ISAAC_GUARD_SIZE + ( coord.y + ISAAC_GUARD_SIZE ) * ( local_size.x + 2 * ISAAC_GUARD_SIZE ) + ( coord.z + ISAAC_GUARD_SIZE ) * ( ( local_size.x + 2 * ISAAC_GUARD_SIZE ) * ( local_size.y + 2 * ISAAC_GUARD_SIZE ) )];
             };
             isaac_float value = isaac_float ( 0 );
 #if ISAAC_ALPAKA == 1 || defined(__CUDA_ARCH__)
-            if ( TSource::feature_dim == 1 )
+            if ( TSource::feature_dim == 1 ) {
                 value = reinterpret_cast<isaac_functor_chain_pointer_1> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<1>* > ( &data ) ), nr );
-            if ( TSource::feature_dim == 2 )
+            }
+            if ( TSource::feature_dim == 2 ) {
                 value = reinterpret_cast<isaac_functor_chain_pointer_2> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<2>* > ( &data ) ), nr );
-            if ( TSource::feature_dim == 3 )
+            }
+            if ( TSource::feature_dim == 3 ) {
                 value = reinterpret_cast<isaac_functor_chain_pointer_3> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<3>* > ( &data ) ), nr );
-            if ( TSource::feature_dim == 4 )
+            }
+            if ( TSource::feature_dim == 4 ) {
                 value = reinterpret_cast<isaac_functor_chain_pointer_4> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<4>* > ( &data ) ), nr );
+            }
 #endif
-            if ( value > max )
+            if ( value > max ) {
                 max = value;
-            if ( value < min )
+            }
+            if ( value < min ) {
                 min = value;
+            }
         }
         result[coord.x +  coord.y * local_size.x].min = min;
         result[coord.x +  coord.y * local_size.x].max = max;
@@ -1694,19 +1738,25 @@ __global__ void minMaxPartikelKernel (
 
                 isaac_float value = isaac_float ( 0 );
 #if ISAAC_ALPAKA == 1 || defined(__CUDA_ARCH__)
-                if ( TParticleSource::feature_dim == 1 )
+                if ( TParticleSource::feature_dim == 1 ) {
                     value = reinterpret_cast<isaac_functor_chain_pointer_1> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<1>* > ( &data ) ), nr );
-                if ( TParticleSource::feature_dim == 2 )
+                }
+                if ( TParticleSource::feature_dim == 2 ) {
                     value = reinterpret_cast<isaac_functor_chain_pointer_2> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<2>* > ( &data ) ), nr );
-                if ( TParticleSource::feature_dim == 3 )
+                }
+                if ( TParticleSource::feature_dim == 3 ) {
                     value = reinterpret_cast<isaac_functor_chain_pointer_3> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<3>* > ( &data ) ), nr );
-                if ( TParticleSource::feature_dim == 4 )
+                }
+                if ( TParticleSource::feature_dim == 4 ) {
                     value = reinterpret_cast<isaac_functor_chain_pointer_4> ( isaac_function_chain_d[ nr ] ) ( * ( reinterpret_cast< isaac_float_dim<4>* > ( &data ) ), nr );
+                }
 #endif
-                if ( value > max )
+                if ( value > max ) {
                     max = value;
-                if ( value < min )
+                }
+                if ( value < min ) {
                     min = value;
+                }
             }
 
         }
@@ -1720,6 +1770,7 @@ __global__ void minMaxPartikelKernel (
 } //namespace isaac;
 
 #pragma GCC diagnostic pop
+
 
 
 
