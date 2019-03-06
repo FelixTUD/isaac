@@ -28,6 +28,7 @@
 #include <pthread.h>
 #include <list>
 #include <vector>
+#include <stdexcept>
 #include <memory>
 #include <mpi.h>
 //Against annoying C++11 warning in mpi.h
@@ -913,7 +914,22 @@ public:
                             }
                             std::string par = parameters.substr ( 0, p_pos );
                             parameters.erase ( 0, p_pos + 1 );
-                            parameter_array[p_elem] = std::stof ( par );
+                            try {
+                                parameter_array[p_elem] = std::stof ( par );
+                            }
+                            catch (const std::invalid_argument& ia) {
+                                std::cerr << "Invalid argument: " << ia.what() << '\n';
+                                functions[i].error_code = -2;
+                                p_elem++;
+                                break;
+                            }
+                            catch (const std::out_of_range& oor) {
+                                std::cerr << "Out of range: " << oor.what() << '\n';
+                                functions[i].error_code = -2;
+                                p_elem++;
+                                break;
+                            }
+                            
                             p_elem++;
                         }
                         for ( ; p_elem < 4; p_elem++ ) {
