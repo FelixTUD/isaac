@@ -35,6 +35,10 @@
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
+#ifndef ISAAC_AMBIENTOCC
+    #define ISAAC_AMBIENTOCC 1
+#endif
+
 namespace isaac
 {
 
@@ -56,6 +60,11 @@ template <typename T>
 ISAAC_DEVICE_INLINE int sgn ( T val )
 {
     return ( T ( 0 ) < val ) - ( val < T ( 0 ) );
+}
+
+template <typename T, typename L>
+ISAAC_DEVICE_INLINE bool isLess3(T val1, L val2) {
+    return val1.x < val2.x && val1.y < val2.y && val1.z < val2.z;
 }
 
 
@@ -280,6 +289,110 @@ ISAAC_HOST_DEVICE_INLINE void check_coord ( isaac_float3& coord, const TLocalSiz
     }
 }
 
+template
+<
+    typename TSource,
+    typename TPosition,
+    typename TDensity
+>
+ISAAC_DEVICE_INLINE void get_interpolated_density(const TSource &source, const TPosition &position, TDensity &density) {
+        //get particle grid cell position
+        isaac_uint3 center_cell = { isaac_uint(position.x), isaac_uint(position.y), isaac_uint(position.z)};
+        //density = TDensity(source.getIterator(center_cell).size);
+        //return;
+
+        //calculate offset of particle in grid cell
+        isaac_float3 position_delta = { 
+            isaac_float(position.x - center_cell.x), 
+            isaac_float(position.y - center_cell.y), 
+            isaac_float(position.z - center_cell.z)
+        };
+
+        isaac_float3 cell_center = {
+            isaac_float(0.5),
+            isaac_float(0.5),
+            isaac_float(0.5)
+        };
+
+        //get particle offset in respect to grid cell center
+        position_delta = position_delta - cell_center;
+
+        isaac_int3 kernel_dir = {0, 0, 0};
+        isaac_float3 kernel_factor = {0.0, 0.0, 0.0};
+
+        //get nearest cell direction and multiplication factor from deltas
+        if(position_delta.x < 0.0) {
+            kernel_dir.x = -1;
+            kernel_factor.x = -position_delta.x;
+        }
+        else if(position_delta.x > 0.0) {
+            kernel_dir.x = 1;
+            kernel_factor.x = position_delta.x;
+        }
+
+        if(position_delta.y < 0.0) {
+            kernel_dir.y = -1;
+            kernel_factor.y = -position_delta.y;
+        }
+        else if(position_delta.y > 0.0) {
+            kernel_dir.y = 1;
+            kernel_factor.y = position_delta.y;
+        }
+
+        if(position_delta.z < 0.0) {
+            kernel_dir.z = -1;
+            kernel_factor.z = -position_delta.z;
+        }
+        else if(position_delta.z > 0.0) {
+            kernel_dir.z = 1;
+            kernel_factor.z = position_delta.z;
+        }
+
+
+        //precalculate neighbor cells
+        isaac_uint3 kernel_cells[8] = {
+            {center_cell.x,                center_cell.y,                center_cell.z                },
+            {center_cell.x + kernel_dir.x, center_cell.y,                center_cell.z                },
+            {center_cell.x,                center_cell.y + kernel_dir.y, center_cell.z                },
+            {center_cell.x + kernel_dir.x, center_cell.y + kernel_dir.y, center_cell.z                },
+            {center_cell.x,                center_cell.y,                center_cell.z + kernel_dir.z },
+            {center_cell.x + kernel_dir.x, center_cell.y,                center_cell.z + kernel_dir.z },
+            {center_cell.x,                center_cell.y + kernel_dir.z, center_cell.z + kernel_dir.z },
+            {center_cell.x + kernel_dir.x, center_cell.y + kernel_dir.y, center_cell.z + kernel_dir.z }
+        };
+
+        TDensity kernel_density[8];
+
+        for(int i = 0; i < 8; i++) {
+            if(!isLess3(kernel_cells[i], isaac_size_d[0].local_particle_size.value)) {
+                kernel_density[i] = 0.0;
+            }
+            else {
+                kernel_density[i] = TDensity(source.getIterator(kernel_cells[i]).size);
+            }
+        }
+
+        //interpolate called "bottom" cells
+        TDensity bottom_density = 
+            ((1.0 - kernel_factor.x) * kernel_density[0] + kernel_factor.x * kernel_density[1]) * (1.0 - kernel_factor.y) +
+            ((1.0 - kernel_factor.x) * kernel_density[2] + kernel_factor.x * kernel_density[3]) * kernel_factor.y; 
+
+        //interpolate called "top" cells
+        TDensity top_density = 
+            ((1.0 - kernel_factor.x) * kernel_density[4] + kernel_factor.x * kernel_density[5]) * (1.0 - kernel_factor.y) +
+            ((1.0 - kernel_factor.x) * kernel_density[6] + kernel_factor.x * kernel_density[7]) * kernel_factor.y;
+
+        //interpolate "top" and "bottom"
+        density = (1.0 - kernel_factor.z) * bottom_density + kernel_factor.z * top_density;
+
+        //get inverse density and divide by maximum particle count in gridcells 
+        //TODO: get maximum particle count in grid cells
+        //density = 1.0 - TDensity(MIN(interpolated_density / 4000.0, 1.0));
+}
+
+
+
+
 template <
     ISAAC_IDX_TYPE Ttransfer_size,
     int TOffset,
@@ -306,20 +419,20 @@ struct merge_particle_iterator {
         >
     ISAAC_HOST_DEVICE_INLINE  void operator() (
         const NR& nr,
-        const TSource& source,
-        TColor& color,
-        TNormal& normal,
-        TPosition& position,
-        const TStart& start,
-        const TDir& dir,
-        const TLightDir& light_dir,
-        const TCellPos& cell_pos,
-        const TTransferArray& transferArray,
-        const TSourceWeight& sourceWeight,
-        TFeedback& feedback,
-        const TParticleScale& particle_scale,
-        const TClippingNormal& clipping_normal,
-        const TClipped& is_clipped
+        const TSource& source, 
+        TColor& color,                          //out particle color
+        TNormal& normal,                        //out particle normal
+        TPosition& position,                    //out particle hit position
+        const TStart& start,                    //ray start location
+        const TDir& dir,                        //ray direction
+        const TLightDir& light_dir,             //light direction
+        const TCellPos& cell_pos,               //current cell in grid
+        const TTransferArray& transferArray,    //mapping to simulation particles
+        const TSourceWeight& sourceWeight,      //particle weight
+        TFeedback& feedback,                    //1 if particle hit
+        const TParticleScale& particle_scale,   //scaling of particle space
+        const TClippingNormal& clipping_normal, //normal which replaces the particle normal if particle is clipped
+        const TClipped& is_clipped              //true if particle is clipped
     ) const
     {
         const int sourceNumber = NR::value + TOffset;
@@ -393,6 +506,12 @@ struct merge_particle_iterator {
     }
 };
 
+/**
+ * @brief Calculate density in normal direction from particle position
+ * 
+ * @tparam TOffset Volume size
+ * @tparam TFilter Filter for Volume (discard or not)
+ */
 template <
     int TOffset,
     typename TFilter
@@ -408,36 +527,59 @@ struct density_particle_iterator {
         typename TDensity
         >
     ISAAC_HOST_DEVICE_INLINE  void operator() (
-        const NR& nr,
-        const TSource& source,
-        const TNormal& normal,
-        const TPosition& position,
-        const TGridScale& pGridScale,
-        TDensity& density
+        const NR& nr,               //particle index
+        const TSource& source,       //particle source
+		const TNormal& normal, //particle normal
+		const TPosition& position, //particle position
+		const TGridScale& pGridScale, //scale of particle grid
+		TDensity& density, //density result
+        const isaac_int totalCellParticles = 750
     ) const
     {
+        //get particle offset  = particle_index + volume_size
         const int sourceNumber = NR::value + TOffset;
-        if ( mpl::at_c< TFilter, sourceNumber>::type::value ) {
-            isaac_uint3 last_cell_pos = {isaac_uint ( position.x / pGridScale.x ), isaac_uint ( position.y / pGridScale.y ), isaac_uint ( position.z / pGridScale.z ) };;
-            for ( int i = 0; i < 10; i++ ) {
-                isaac_float3 cell_posf = ( position + i * normal * 10 ) / pGridScale;
-                isaac_uint3 cell_pos = {isaac_uint ( cell_posf.x ), isaac_uint ( cell_posf.y ), isaac_uint ( cell_posf.z ) };
-                if ( cell_pos.x < isaac_size_d[0].local_particle_size.value.x &&
-                        cell_pos.y < isaac_size_d[0].local_particle_size.value.y &&
-                        cell_pos.z < isaac_size_d[0].local_particle_size.value.z ) {
-                    last_cell_pos = cell_pos;
-                } else {
-                    cell_pos = last_cell_pos;
-                }
-                auto particle_iterator = source.getIterator ( cell_pos );
-                density += particle_iterator.size;
+        //run if particle source is not filtered
+        if ( mpl::at_c< TFilter, sourceNumber>::type::value ) {            
+            const int maxSteps = 2;
 
-            }
+            //const int totalCellParticles = ambientOcclusion.maxCellParticles;
+            //printf("%d -- %d\n", totalCellParticles, ambientOcclusion.maxCellParticles);
+            const int totalParticles = maxSteps * totalCellParticles; //totalCellParticles;
 
-        }
+            const isaac_float kernel[maxSteps] = {1.0, 1.0};
+            for(int i = 1; i <= maxSteps; i++)
+			{
+                //get new cell from particle position + n times normal scaled by 10
+                //divide by grideScale for right proportions
+                isaac_float3 cell_posf = (position + i * normal) / pGridScale;
+
+                //isaac_float3 cell_posf = (scaled_position + i * normal);
+
+                //convert float to uint because grid cells can only be indexed by unsigned integers
+				isaac_uint3 cell_pos = {isaac_uint ( cell_posf.x ), isaac_uint ( cell_posf.y ), isaac_uint ( cell_posf.z ) };
+                //set cell_pos as new old pos if cell is still in particle grid bounds
+                //if pos is less then 0 a bit flip will appear and the cell pos will be resetted to last pos
+                TDensity tempDensity = TDensity(0);
+				if(isLess3(cell_pos, isaac_size_d[0].local_particle_size.value)) {
+                    get_interpolated_density(source, cell_posf, tempDensity);
+                    density += tempDensity * kernel[i - 1];
+				}
+			}
+            //get inverse density and divide by maximum particle count in gridcells 
+            //TODO: get maximum particle count in grid cells
+            density = 1.0 - TDensity(MIN(density / totalParticles, 0.6));
+		}
     }
 };
 
+/**
+ * @brief 
+ * 
+ * @tparam Ttransfer_size 
+ * @tparam TFilter 
+ * @tparam TInterpolation 
+ * @tparam TIsoSurface 
+ */
 template <
     ISAAC_IDX_TYPE Ttransfer_size,
     typename TFilter,
@@ -604,7 +746,9 @@ struct check_no_source_iterator {
     }
 };
 
+
 constexpr auto maxFloat = std::numeric_limits<isaac_float>::max();
+
 template <
     typename TSimDim,
     typename TParticleList,
@@ -626,24 +770,27 @@ struct isaacRenderKernel {
 #else
 __global__ void isaacRenderKernel (
 #endif
-        uint32_t * const pixels,
-        const isaac_size2 framebuffer_size,
-        const isaac_uint2 framebuffer_start,
-        const TParticleList particle_sources,
-        const TSourceList sources,
-        isaac_float step,
-        const isaac_float4 background_color,
-        const TTransferArray transferArray,
-        const TSourceWeight sourceWeight,
+        uint32_t * const pixels,                //ptr to output pixels
+        const isaac_size2 framebuffer_size,     //size of framebuffer
+        const isaac_uint2 framebuffer_start,    //framebuffer offset
+        const TParticleList particle_sources,   //source simulation particles
+        const TSourceList sources,              //source of volumes
+        isaac_float step,                       //ray step length
+        const isaac_float4 background_color,    //color of render background
+        const TTransferArray transferArray,     //mapping to simulation memory
+        const TSourceWeight sourceWeight,       //weights of sources for blending
         const TPointerArray pointerArray,
-        const TScale scale,
-        const clipping_struct input_clipping )
+        const TScale scale,                     //isaac set scaling
+        const clipping_struct input_clipping,   //clipping planes
+        ao_struct ambientOcclusion)       //ambient occlusion params
 #if ISAAC_ALPAKA == 1
     const
 #endif
     {
         isaac_uint2 pixel[ISAAC_VECTOR_ELEM];
         bool finish[ISAAC_VECTOR_ELEM];
+
+        //get pixel values from thread ids
 #if ISAAC_ALPAKA == 1
         auto alpThreadIdx = alpaka::idx::getIdx<alpaka::Grid, alpaka::Threads> ( acc );
         ISAAC_ELEM_ITERATE ( e )
@@ -656,9 +803,11 @@ __global__ void isaacRenderKernel (
             pixel[e].x = isaac_uint ( threadIdx.x + blockIdx.x * blockDim.x ) * isaac_uint ( ISAAC_VECTOR_ELEM ) + e;
             pixel[e].y = isaac_uint ( threadIdx.y + blockIdx.y * blockDim.y );
 #endif
+            //apply framebuffer offset to pixel
+            //stop if pixel position is out of bounds
             finish[e] = false;
             pixel[e] = pixel[e] + framebuffer_start;
-            if ( ISAAC_FOR_EACH_DIM_TWICE ( 2, pixel[e], >= framebuffer_size, || ) 0 ) {
+            if ( ISAAC_FOR_EACH_DIM_TWICE ( 2, pixel[e], >= framebuffer_size, || ) 0) {
                 finish[e] = true;
             }
 
@@ -678,6 +827,7 @@ __global__ void isaacRenderKernel (
         bool at_least_one[ISAAC_VECTOR_ELEM];
         isaac_float4 color[ISAAC_VECTOR_ELEM];
 
+        //set background color
         ISAAC_ELEM_ITERATE ( e )
         {
             color[e] = background_color;
@@ -691,27 +841,29 @@ __global__ void isaacRenderKernel (
         }
         ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
 
-        isaac_float2 pixel_f[ISAAC_VECTOR_ELEM];
-        isaac_float4 start_p[ISAAC_VECTOR_ELEM];
-        isaac_float4 end_p[ISAAC_VECTOR_ELEM];
-        isaac_float3 start[ISAAC_VECTOR_ELEM];
-        isaac_float3 end[ISAAC_VECTOR_ELEM];
-        isaac_int3 move[ISAAC_VECTOR_ELEM];
-        isaac_float3 move_f[ISAAC_VECTOR_ELEM];
-        clipping_struct clipping[ISAAC_VECTOR_ELEM];
-        isaac_float3 vec[ISAAC_VECTOR_ELEM];
-        isaac_float l_scaled[ISAAC_VECTOR_ELEM];
-        isaac_float l[ISAAC_VECTOR_ELEM];
-        isaac_float3 step_vec[ISAAC_VECTOR_ELEM];
-        isaac_float3 count_start[ISAAC_VECTOR_ELEM];
-        isaac_float3 local_size_f[ISAAC_VECTOR_ELEM];
-        isaac_float3 count_end[ISAAC_VECTOR_ELEM];
+        isaac_float2 pixel_f[ISAAC_VECTOR_ELEM];        //relative pixel position in framebuffer [0.0 ... 1.0]
+        isaac_float4 start_p[ISAAC_VECTOR_ELEM];        //ray start position
+        isaac_float4 end_p[ISAAC_VECTOR_ELEM];          //ray end position
+        isaac_float3 start[ISAAC_VECTOR_ELEM];          //ray start position (world space)
+        isaac_float3 end[ISAAC_VECTOR_ELEM];            //ray end position (world space)
+        isaac_int3 move[ISAAC_VECTOR_ELEM];             //offset of subvolume
+        isaac_float3 move_f[ISAAC_VECTOR_ELEM];         //offset of subvolume as float
+        clipping_struct clipping[ISAAC_VECTOR_ELEM];    //clipping planes with transformed positions
+        isaac_float3 vec[ISAAC_VECTOR_ELEM];            //temp storage vector
+        isaac_float l_scaled[ISAAC_VECTOR_ELEM];        //scaled length of ray
+        isaac_float l[ISAAC_VECTOR_ELEM];               //isaac scaled length of ray
+        isaac_float3 step_vec[ISAAC_VECTOR_ELEM];       //ray direction vector scaled by step length
+        isaac_float3 count_start[ISAAC_VECTOR_ELEM];    //start index for ray
+        isaac_float3 local_size_f[ISAAC_VECTOR_ELEM];   //subvolume size as float
+        isaac_float3 count_end[ISAAC_VECTOR_ELEM];      //end index for ray
 
         ISAAC_ELEM_ITERATE ( e )
         {
+            //get normalized pixel position in framebuffer
             pixel_f[e].x = isaac_float ( pixel[e].x ) / ( isaac_float ) framebuffer_size.x*isaac_float ( 2 )-isaac_float ( 1 );
             pixel_f[e].y = isaac_float ( pixel[e].y ) / ( isaac_float ) framebuffer_size.y*isaac_float ( 2 )-isaac_float ( 1 );
 
+            //get ray start/end position
             start_p[e].x = pixel_f[e].x*ISAAC_Z_NEAR;
             start_p[e].y = pixel_f[e].y*ISAAC_Z_NEAR;
             start_p[e].z = -1.0f*ISAAC_Z_NEAR;
@@ -722,6 +874,7 @@ __global__ void isaacRenderKernel (
             end_p[e].z = 1.0f*ISAAC_Z_FAR;
             end_p[e].w = 1.0f*ISAAC_Z_FAR;
 
+            //apply inverse modelview transform to ray start/end and get ray start/end as worldspace
             start[e].x = isaac_inverse_d[ 0] * start_p[e].x + isaac_inverse_d[ 4] * start_p[e].y +  isaac_inverse_d[ 8] * start_p[e].z + isaac_inverse_d[12] * start_p[e].w;
             start[e].y = isaac_inverse_d[ 1] * start_p[e].x + isaac_inverse_d[ 5] * start_p[e].y +  isaac_inverse_d[ 9] * start_p[e].z + isaac_inverse_d[13] * start_p[e].w;
             start[e].z = isaac_inverse_d[ 2] * start_p[e].x + isaac_inverse_d[ 6] * start_p[e].y +  isaac_inverse_d[10] * start_p[e].z + isaac_inverse_d[14] * start_p[e].w;
@@ -735,12 +888,15 @@ __global__ void isaacRenderKernel (
             start[e] = start[e] * max_size;
             end[e] =   end[e] * max_size;
 
+            //set values for clipping planes
+            //scale position to global size
             for ( isaac_int i = 0; i < input_clipping.count; i++ ) {
                 clipping[e].elem[i].position = input_clipping.elem[i].position * max_size;
                 clipping[e].elem[i].normal   = input_clipping.elem[i].normal;
             }
 
             //move to local (scaled) grid
+            //get offset of subvolume in global volume
             move[e].x = isaac_int ( isaac_size_d[0].global_size_scaled.value.x ) / isaac_int ( 2 ) - isaac_int ( isaac_size_d[0].position_scaled.value.x );
             move[e].y = isaac_int ( isaac_size_d[0].global_size_scaled.value.y ) / isaac_int ( 2 ) - isaac_int ( isaac_size_d[0].position_scaled.value.y );
             move[e].z = isaac_int ( isaac_size_d[0].global_size_scaled.value.z ) / isaac_int ( 2 ) - isaac_int ( isaac_size_d[0].position_scaled.value.z );
@@ -749,15 +905,20 @@ __global__ void isaacRenderKernel (
             move_f[e].y = isaac_float ( move[e].y );
             move_f[e].z = isaac_float ( move[e].z );
 
+            //apply subvolume offset to start and end
             start[e] = start[e] + move_f[e];
             end[e] =   end[e] + move_f[e];
+
+            //apply subvolume offset to position checked clipping plane
             for ( isaac_int i = 0; i < input_clipping.count; i++ ) {
                 clipping[e].elem[i].position = clipping[e].elem[i].position + move_f[e];
             }
 
+            //get ray length
             vec[e] = end[e] - start[e];
             l_scaled[e] = sqrt ( vec[e].x * vec[e].x + vec[e].y * vec[e].y + vec[e].z * vec[e].z );
 
+            //apply isaac scaling to start, end and position tested by clipping plane
             start[e].x = start[e].x / scale.x;
             start[e].y = start[e].y / scale.y;
             start[e].z = start[e].z / scale.z;
@@ -770,15 +931,22 @@ __global__ void isaacRenderKernel (
                 clipping[e].elem[i].position.z = clipping[e].elem[i].position.z / scale.z;
             }
 
+            //get ray length (scaled by isaac scaling)
             vec[e] = end[e] - start[e];
             l[e] = sqrt ( vec[e].x * vec[e].x + vec[e].y * vec[e].y + vec[e].z * vec[e].z );
 
+            //get step vector
             step_vec[e] = vec[e] / l[e] * step;
+
+            //start index for ray
             count_start[e] =  - start[e] / step_vec[e];
+
+            //get subvolume size as float
             local_size_f[e].x = isaac_float ( isaac_size_d[0].local_size.value.x );
             local_size_f[e].y = isaac_float ( isaac_size_d[0].local_size.value.y );
             local_size_f[e].z = isaac_float ( isaac_size_d[0].local_size.value.z );
 
+            //end index for ray
             count_end[e] = ( local_size_f[e] - start[e] ) / step_vec[e];
 
             //count_start shall have the smaller values
@@ -797,10 +965,10 @@ __global__ void isaacRenderKernel (
         }
         ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
 
-        isaac_int first[ISAAC_VECTOR_ELEM];
-        isaac_int last[ISAAC_VECTOR_ELEM];
-        isaac_float first_f[ISAAC_VECTOR_ELEM];
-        isaac_float last_f[ISAAC_VECTOR_ELEM];
+        isaac_int first[ISAAC_VECTOR_ELEM];                 //start index of ray
+        isaac_int last[ISAAC_VECTOR_ELEM];                  //end index of ray
+        isaac_float first_f[ISAAC_VECTOR_ELEM];             //start index as float
+        isaac_float last_f[ISAAC_VECTOR_ELEM];              //end index as float
         isaac_float3 pos[ISAAC_VECTOR_ELEM];
         isaac_int3 coord[ISAAC_VECTOR_ELEM];
         isaac_float d[ISAAC_VECTOR_ELEM];
@@ -810,6 +978,7 @@ __global__ void isaacRenderKernel (
 
         ISAAC_ELEM_ITERATE ( e )
         {
+            //set start and end index of ray
             first[e] = isaac_int ( floor ( count_start[e].x ) );
             last[e] = isaac_int ( ceil ( count_end[e].x ) );
 
@@ -885,9 +1054,11 @@ __global__ void isaacRenderKernel (
 
 
         isaac_float4 particle_color[ISAAC_VECTOR_ELEM];
-        isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];
-        isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];
-        //isaac_float particle_density[ISAAC_VECTOR_ELEM];
+		isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];
+		isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];
+#if ISAAC_AMBIENTOCC == 1
+		isaac_float particle_density[ISAAC_VECTOR_ELEM];
+#endif
         isaac_int result_particle[ISAAC_VECTOR_ELEM];
         isaac_float3 local_start[ISAAC_VECTOR_ELEM];
         isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
@@ -901,7 +1072,6 @@ __global__ void isaacRenderKernel (
         isaac_float march_length[ISAAC_VECTOR_ELEM];
         isaac_float3 t[ISAAC_VECTOR_ELEM];
         isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
-
 
 
         isaac_float3 particle_scale = {isaac_size_d[0].local_size_scaled.value.x / isaac_float ( isaac_size_d[0].local_particle_size.value.x ),
@@ -964,13 +1134,15 @@ __global__ void isaacRenderKernel (
                 t[e].z = maxFloat;
             }
 
-
             // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
             while (
                 current_cell[e].x < isaac_size_d[0].local_particle_size.value.x &&
                 current_cell[e].y < isaac_size_d[0].local_particle_size.value.y &&
                 current_cell[e].z < isaac_size_d[0].local_particle_size.value.z &&
                 result_particle[e] == false && march_length[e] <= ray_length[e] ) {
+
+
+
                 /*
                 for ( int x = -1; x < 2; x++ ) {
                     for ( int y = -1; y < 2; y++ ) {
@@ -1008,6 +1180,8 @@ __global__ void isaacRenderKernel (
                     }
                 }
                 */
+
+
                 // calculate particle intersections for each particle source
                 isaac_for_each_with_mpl_params
                 (
@@ -1034,7 +1208,6 @@ __global__ void isaacRenderKernel (
                     is_clipped[e]
                 );
 
-
                 // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
                 if ( t[e].x < t[e].y && t[e].x < t[e].z ) {
                     current_cell[e].x += dir_sign[e].x;
@@ -1052,48 +1225,77 @@ __global__ void isaacRenderKernel (
 
             }
             // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
-            if ( result_particle[e] ) {
-                last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
+			if ( result_particle[e] ) {
+				last[e] = ISAAC_MIN ( last[e], int ( ceil ( first_f[e] + particle_color[e].w / ( step * l_scaled[e] / l[e] ) ) ) );
+				
+				// calculate lighting properties for the last hit particle
+				particle_normal[e] = particle_normal[e] / sqrt ( particle_normal[e].x * particle_normal[e].x
+					+ particle_normal[e].y * particle_normal[e].y
+					+ particle_normal[e].z * particle_normal[e].z );
+				
+				isaac_float light_factor = particle_normal[e].x * light_dir[e].x + particle_normal[e].y * light_dir[e].y + particle_normal[e].z * light_dir[e].z;
+				isaac_float3 half_vector = -normalized_dir[e] + light_dir[e];
+				half_vector = half_vector / sqrt ( half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z );
+				isaac_float specular = particle_normal[e].x * half_vector.x + particle_normal[e].y * half_vector.y + particle_normal[e].z * half_vector.z;
+				specular = pow ( specular, 10 );
+				specular *= 0.5f;
+				light_factor = light_factor * 0.5f + 0.5f;
+#if ISAAC_AMBIENTOCC == 1
+                volatile int particles = ambientOcclusion.maxCellParticles;
+                if(ambientOcclusion.isEnabled) {
+                    isaac_for_each_with_mpl_params
+                    (
+                        particle_sources,
+                        density_particle_iterator
+                        <
+                        mpl::size< TSourceList >::type::value,
+                        TFilter
+                        >
+                        (),
+                        light_dir[e],
+                        particle_hitposition[e],
+                        particle_scale,
+                        particle_density[e],
+                        particles
+                    );	
+                    //printf("+%d\n", am);
 
-                // calculate lighting properties for the last hit particle
-                particle_normal[e] = particle_normal[e] / sqrt ( particle_normal[e].x * particle_normal[e].x
-                                     + particle_normal[e].y * particle_normal[e].y
-                                     + particle_normal[e].z * particle_normal[e].z );
+                    particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor) * particle_density[e], 1.0f );
+				    particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor) * particle_density[e], 1.0f );
+				    particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor) * particle_density[e], 1.0f );
+                	
+                }
+                else {
+                    particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor), 1.0f );
+				    particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor), 1.0f );
+				    particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor), 1.0f );                
+                }
 
-                isaac_float light_factor = particle_normal[e].x * light_dir[e].x + particle_normal[e].y * light_dir[e].y + particle_normal[e].z * light_dir[e].z;
-                isaac_float3 half_vector = -normalized_dir[e] + light_dir[e];
-                half_vector = half_vector / sqrt ( half_vector.x * half_vector.x + half_vector.y * half_vector.y + half_vector.z * half_vector.z );
-                isaac_float specular = particle_normal[e].x * half_vector.x + particle_normal[e].y * half_vector.y + particle_normal[e].z * half_vector.z;
-                specular = pow ( specular, 10 );
-                specular *= 0.5f;
-                light_factor = light_factor * 0.5f + 0.5f;
+				//particle_density[e] = 1.0 - ISAAC_MIN ( particle_density[e] / 2560.0f, 0.7f );
 
-                /*
-                isaac_for_each_with_mpl_params
-                (
-                    particle_sources,
-                    density_particle_iterator
-                    <
-                    mpl::size< TSourceList >::type::value,
-                    TFilter
-                    >
-                    (),
-                	particle_normal[e],
-                	particle_hitposition[e],
-                    particle_scale,
-                	particle_density[e]
-                );
-
-                particle_density[e] = 1.0 - ISAAC_MIN ( particle_density[e] / 2560.0f, 0.7f );
-                // calculate final color
-                particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor + specular) * particle_density[e], 1.0f );
-                particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor + specular) * particle_density[e], 1.0f );
-                particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor + specular) * particle_density[e], 1.0f );
-                */
-                particle_color[e].x = ISAAC_MIN ( particle_color[e].x * light_factor + specular, 1.0f );
-                particle_color[e].y = ISAAC_MIN ( particle_color[e].y * light_factor + specular, 1.0f );
-                particle_color[e].z = ISAAC_MIN ( particle_color[e].z * light_factor + specular, 1.0f );
-            }
+                //particle_density[e] = 1.0 - ISAAC_MIN(ray_density[e] / 10000.0, 0.8);
+                
+				// calculate final color
+				
+                //particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor + specular) * particle_density[e], 1.0f );
+				//particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor + specular) * particle_density[e], 1.0f );
+				//particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor + specular) * particle_density[e], 1.0f );
+/*
+                particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor) * particle_density[e], 1.0f );
+				particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor) * particle_density[e], 1.0f );
+				particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor) * particle_density[e], 1.0f );
+*/                
+/*               
+                particle_color[e].x =  particle_density[e];
+                particle_color[e].y =  particle_density[e];
+                particle_color[e].z =  particle_density[e];
+*/   
+#else
+				particle_color[e].x = ISAAC_MIN ( particle_color[e].x * light_factor + specular, 1.0f );
+				particle_color[e].y = ISAAC_MIN ( particle_color[e].y * light_factor + specular, 1.0f );
+				particle_color[e].z = ISAAC_MIN ( particle_color[e].z * light_factor + specular, 1.0f );
+#endif
+			}
         }
 
 
@@ -1230,7 +1432,8 @@ struct IsaacRenderKernelCaller {
         const isaac_int interpolation,
         const isaac_int iso_surface,
         const TScale& scale,
-        const clipping_struct& clipping
+        const clipping_struct& clipping,
+        ao_struct ambientOcclusion
     )
     {
         if ( sourceWeight.value[ mpl::size< TSourceList >::type::value + mpl::size< TParticleList >::type::value - N] == isaac_float ( 0 ) )
@@ -1272,7 +1475,8 @@ struct IsaacRenderKernelCaller {
                 interpolation,
                 iso_surface,
                 scale,
-                clipping
+                clipping,
+                ambientOcclusion
             );
         else
             IsaacRenderKernelCaller
@@ -1313,7 +1517,8 @@ struct IsaacRenderKernelCaller {
                 interpolation,
                 iso_surface,
                 scale,
-                clipping
+                clipping,
+                ambientOcclusion
             );
     }
 };
@@ -1374,7 +1579,8 @@ struct IsaacRenderKernelCaller
         const isaac_int interpolation,
         const isaac_int iso_surface,
         const TScale& scale,
-        const clipping_struct& clipping
+        const clipping_struct& clipping,
+        ao_struct ambientOcclusion
     )
     {
         isaac_size2 block_size= {
@@ -1432,7 +1638,8 @@ struct IsaacRenderKernelCaller
                         sourceWeight, \
                         pointerArray, \
                         scale, \
-                        clipping \
+                        clipping, \
+                        ambientOcclusion \
                     ) \
                 ); \
                 alpaka::stream::enqueue(stream, instance); \
@@ -1466,7 +1673,8 @@ struct IsaacRenderKernelCaller
                     sourceWeight, \
                     pointerArray, \
                     scale, \
-                    clipping \
+                    clipping, \
+                    ambientOcclusion \
                 );
 
 #endif
@@ -1770,8 +1978,3 @@ __global__ void minMaxPartikelKernel (
 } //namespace isaac;
 
 #pragma GCC diagnostic pop
-
-
-
-
-

@@ -188,15 +188,15 @@ BOOST_PP_REPEAT( 3, ISAAC_DIM_DEF, ~ )
 template < ISAAC_IDX_TYPE simdim >
 struct isaac_size_struct
 {
-    isaac_size_dim < simdim > global_size;
-    ISAAC_IDX_TYPE max_global_size;
-    isaac_size_dim < simdim > position;
-    isaac_size_dim < simdim > local_size;
-    isaac_size_dim < simdim > local_particle_size;
-    isaac_size_dim < simdim > global_size_scaled;
-    ISAAC_IDX_TYPE max_global_size_scaled;
-    isaac_size_dim < simdim > position_scaled;
-    isaac_size_dim < simdim > local_size_scaled;
+    isaac_size_dim < simdim > global_size;         //size of volume
+    ISAAC_IDX_TYPE max_global_size;                //? size if greatest dimension
+    isaac_size_dim < simdim > position;            //local position of subvolume
+    isaac_size_dim < simdim > local_size;          //size of local volume grid
+    isaac_size_dim < simdim > local_particle_size; //size of local particle grid 
+    isaac_size_dim < simdim > global_size_scaled;  //scaled version of global size with cells = scale * cells
+    ISAAC_IDX_TYPE max_global_size_scaled;         //same as global_size_scaled
+    isaac_size_dim < simdim > position_scaled;     //scaled position of local subvolume
+    isaac_size_dim < simdim > local_size_scaled;   //same as global_size_scaled
 };
 
 
@@ -258,7 +258,14 @@ struct clipping_struct
     } elem[ ISAAC_MAX_CLIPPING ];
 };
 
-
+/**
+ * @brief Container for ambient occlusion parameters
+ * 
+ */
+struct ao_struct {
+    isaac_int maxCellParticles = 750;
+    bool isEnabled = false;
+};
 
 typedef enum
 {

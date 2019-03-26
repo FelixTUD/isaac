@@ -28,6 +28,7 @@
 #include <pthread.h>
 #include <list>
 #include <vector>
+#include <stdexcept>
 #include <memory>
 #include <mpi.h>
 //Against annoying C++11 warning in mpi.h
@@ -913,7 +914,22 @@ public:
                             }
                             std::string par = parameters.substr ( 0, p_pos );
                             parameters.erase ( 0, p_pos + 1 );
-                            parameter_array[p_elem] = std::stof ( par );
+                            try {
+                                parameter_array[p_elem] = std::stof ( par );
+                            }
+                            catch (const std::invalid_argument& ia) {
+                                std::cerr << "Invalid argument: " << ia.what() << '\n';
+                                functions[i].error_code = -2;
+                                p_elem++;
+                                break;
+                            }
+                            catch (const std::out_of_range& oor) {
+                                std::cerr << "Out of range: " << oor.what() << '\n';
+                                functions[i].error_code = -2;
+                                p_elem++;
+                                break;
+                            }
+                            
                             p_elem++;
                         }
                         for ( ; p_elem < 4; p_elem++ ) {
@@ -1068,6 +1084,7 @@ public:
         send_clipping = false;
         send_controller = false;
         send_init_json = false;
+        send_ao = false;
 
         //Handle messages
         json_t* message;
@@ -1125,6 +1142,9 @@ public:
                     }
                     if ( strcmp ( target, "init" ) == 0 ) {
                         send_init_json = true;
+                    }
+                    if ( strcmp( target, "ao") == 0 ) {
+                        send_ao = true;
                     }
                 }
                 //Search for scene changes
@@ -1386,6 +1406,17 @@ public:
             );
         }
 
+        if ( js = json_object_get ( message, "ao" ) ) {
+            redraw = true;
+            json_t * isEnabled = json_object_get(js, "isEnabled");
+            json_t * maxCellParticles = json_object_get(js, "maxCellParticles");
+            
+            myself->ambientOcclusion.isEnabled = json_boolean_value ( isEnabled );
+            myself->ambientOcclusion.maxCellParticles = json_number_value ( maxCellParticles );
+            printf("%d\n", myself->ambientOcclusion.maxCellParticles);
+            send_ao = true;
+        }
+
         json_t* metadata = json_object_get ( message, "metadata" );
         if ( metadata ) {
             json_incref ( metadata );
@@ -1546,6 +1577,7 @@ private:
         const IceTInt * readback_viewport,
         IceTImage result )
     {
+        //allocate memory for inverse mvp matrix and simulation size properties
 #if ISAAC_ALPAKA == 1
         alpaka::mem::buf::Buf<THost, isaac_float, TFraDim, ISAAC_IDX_TYPE> inverse_h_buf ( alpaka::mem::buf::alloc<isaac_float, ISAAC_IDX_TYPE> ( myself->host, ISAAC_IDX_TYPE ( 16 ) ) );
         alpaka::mem::buf::Buf<THost, isaac_size_struct< TSimDim::value >, TFraDim, ISAAC_IDX_TYPE> size_h_buf ( alpaka::mem::buf::alloc<isaac_size_struct< TSimDim::value >, ISAAC_IDX_TYPE> ( myself->host, ISAAC_IDX_TYPE ( 1 ) ) );
@@ -1555,12 +1587,14 @@ private:
         isaac_float inverse_h[16];
         isaac_size_struct< TSimDim::value > size_h[1];
 #endif
+        //caluculate inverse mvp matrix for render kernel
         IceTDouble inverse[16];
         calcInverse ( inverse,projection_matrix,modelview_matrix );
         for ( int i = 0; i < 16; i++ ) {
             inverse_h[i] = static_cast<float> ( inverse[i] );
         }
-
+        
+        //set global simulation size
         size_h[0].global_size.value.x = myself->global_size[0];
         size_h[0].global_size.value.y = myself->global_size[1];
         if ( TSimDim::value > 2 ) {
@@ -1571,6 +1605,8 @@ private:
         if ( TSimDim::value > 2 ) {
             size_h[0].position.value.z = myself->position[2];
         }
+
+        //set subvolume size
         size_h[0].local_size.value.x = myself->local_size[0];
         size_h[0].local_size.value.y = myself->local_size[1];
         if ( TSimDim::value > 2 ) {
@@ -1581,13 +1617,18 @@ private:
         if ( TSimDim::value > 2 ) {
             size_h[0].local_particle_size.value.z = myself->local_particle_size[2];
         }
+
+        //get maximum size from biggest dimesnion MAX(x-dim, y-dim, z-dim)
         size_h[0].max_global_size = static_cast<float> ( ISAAC_MAX ( ISAAC_MAX ( uint32_t ( myself->global_size[0] ),uint32_t ( myself->global_size[1] ) ),uint32_t ( myself->global_size[2] ) ) );
 
+        //set global size with cellcount scaled
         size_h[0].global_size_scaled.value.x = myself->global_size_scaled[0];
         size_h[0].global_size_scaled.value.y = myself->global_size_scaled[1];
         if ( TSimDim::value > 2 ) {
             size_h[0].global_size_scaled.value.z = myself->global_size_scaled[2];
         }
+
+        //set position in subvolume (adjusted to cellcount scale)
         size_h[0].position_scaled.value.x = myself->position_scaled[0];
         size_h[0].position_scaled.value.y = myself->position_scaled[1];
         if ( TSimDim::value > 2 ) {
@@ -1598,14 +1639,18 @@ private:
         if ( TSimDim::value > 2 ) {
             size_h[0].local_size_scaled.value.z = myself->local_size_scaled[2];
         }
+
+        //get maximum size from biggest dimesnion after scaling MAX(x-dim, y-dim, z-dim)
         size_h[0].max_global_size_scaled = static_cast<float> ( ISAAC_MAX ( ISAAC_MAX ( uint32_t ( myself->global_size_scaled[0] ),uint32_t ( myself->global_size_scaled[1] ) ),uint32_t ( myself->global_size_scaled[2] ) ) );
 
+        //set volume scale parameters
         isaac_float3 isaac_scale = {
             myself->scale[0],
             myself->scale[1],
             myself->scale[2]
         };
 
+        //copy inverse matrix and simulation size properties to constant memory
 #if ISAAC_ALPAKA == 1
         alpaka::vec::Vec<alpaka::dim::DimInt<1u>, ISAAC_IDX_TYPE> const inverse_d_extent ( ISAAC_IDX_TYPE ( 16 ) );
         auto inverse_d_view ( alpaka::mem::view::createStaticDevMemView ( &isaac_inverse_d[0u],myself->acc,inverse_d_extent ) );
@@ -1618,18 +1663,28 @@ private:
         ISAAC_CUDA_CHECK ( cudaMemcpyToSymbol ( isaac_inverse_d, inverse_h, 16 * sizeof ( float ) ) );
         ISAAC_CUDA_CHECK ( cudaMemcpyToSymbol ( isaac_size_d, size_h, sizeof ( isaac_size_struct< TSimDim::value > ) ) );
 #endif
+
+        //get pixel pointer from image as unsigned byte
         IceTUByte* pixels = icetImageGetColorub ( result );
+
+        //start time for performance measurment
         ISAAC_START_TIME_MEASUREMENT ( kernel, myself->getTicksUs() )
+
+        //set color values for background color
         isaac_float4 bg_color = {
             isaac_float ( background_color[3] ),
             isaac_float ( background_color[2] ),
             isaac_float ( background_color[1] ),
             isaac_float ( background_color[0] )
         };
+
+        //set framebuffer offset calculated from icet
         isaac_uint2 framebuffer_start = {
             isaac_uint ( readback_viewport[0] ),
             isaac_uint ( readback_viewport[1] )
         };
+
+        //call render kernel
 #if ISAAC_ALPAKA == 1
         IsaacRenderKernelCaller
         <
@@ -1665,14 +1720,25 @@ private:
             myself->interpolation,
             myself->iso_surface,
             isaac_scale,
-            myself->clipping
+            myself->clipping,
+            myself->ambientOcclusion
         );
+
+        //wait until render kernel has finished
         alpaka::wait::wait ( myself->stream );
+
+        //stop and restart time for delate calculation
         ISAAC_STOP_TIME_MEASUREMENT ( myself->kernel_time, +=, kernel, myself->getTicksUs() )
         ISAAC_START_TIME_MEASUREMENT ( copy, myself->getTicksUs() )
+
+        //get memory view from IceT pixels on host
         alpaka::mem::view::ViewPlainPtr<THost, uint32_t, TFraDim, ISAAC_IDX_TYPE> result_buffer ( ( uint32_t* ) ( pixels ), myself->host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE> ( myself->framebuffer_prod ) );
+        
+        //copy device framebuffer to result IceT pixel buffer
         alpaka::mem::view::copy ( myself->stream, result_buffer, myself->framebuffer, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE> ( myself->framebuffer_prod ) );
 #else
+
+        //call render kernel
         IsaacRenderKernelCaller
         <
         TSimDim,
@@ -1702,13 +1768,21 @@ private:
             myself->interpolation,
             myself->iso_surface,
             isaac_scale,
-            myself->clipping
+            myself->clipping,
+            myself->ambientOcclusion
         );
+
+        //wait until render kernil has finished
         ISAAC_CUDA_CHECK ( cudaDeviceSynchronize() );
+
+        //stop and restart time for delta calculation
         ISAAC_STOP_TIME_MEASUREMENT ( myself->kernel_time, +=, kernel, myself->getTicksUs() )
         ISAAC_START_TIME_MEASUREMENT ( copy, myself->getTicksUs() )
+
+        //copy filled frambuffer to IceT result buffer
         ISAAC_CUDA_CHECK ( cudaMemcpy ( ( uint32_t* ) ( pixels ), myself->framebuffer, sizeof ( uint32_t ) *myself->framebuffer_prod, cudaMemcpyDeviceToHost ) );
 #endif
+        //stop timer and calculate copy time
         ISAAC_STOP_TIME_MEASUREMENT ( myself->copy_time, +=, copy, myself->getTicksUs() )
     }
 
@@ -1835,6 +1909,25 @@ private:
                     json_array_append_new ( inner, json_real ( myself->clipping_saved_normals[i].y ) );
                     json_array_append_new ( inner, json_real ( myself->clipping_saved_normals[i].z ) );
                 }
+            }
+            if(myself->send_ao) {
+                /*json_t * aoObject = json_object();    
+                json_object_set_new(aoObject, "isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
+                json_object_set_new(aoObject, "maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles));          
+                json_object_set_new ( myself->json_root, "ao", aoObject);
+
+                json_t * init_aoObject = json_object();    
+                json_object_set_new(init_aoObject, "isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
+                json_object_set_new(init_aoObject, "maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles)); 
+                json_object_set_new ( myself->json_init_root, "ao", init_aoObject);*/
+
+
+                json_object_set_new(myself->json_root, "ao isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
+                json_object_set_new(myself->json_root, "ao maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles));          
+                json_object_set_new(myself->json_init_root, "ao isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
+                json_object_set_new(myself->json_init_root, "ao maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles)); 
+
+                myself->send_init_json = true;
             }
             myself->controller.sendFeedback ( myself->json_root, myself->send_controller );
             if ( myself->send_init_json ) {
@@ -1987,6 +2080,9 @@ private:
     TController controller;
     TCompositor compositor;
     IceTImage image[TController::pass_count];
+
+    bool send_ao;
+    ao_struct ambientOcclusion;
 };
 
 #if ISAAC_ALPAKA == 1

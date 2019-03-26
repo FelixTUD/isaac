@@ -66,6 +66,23 @@
 				<input type="button" value="Set" id="interval_change">
 				<input type="checkbox" id="controls_checkbox" onchange="controls_checkbox_click()"> Show controls
 			</form>
+			<div id="ambient_occ_div">
+				<table>
+					<h3>Ambient Occlusion [Test]</h3>
+					<tr>
+						<td>Enabled</td>
+						<td><input type="checkbox" id="ao_checkbox" checked onchange="ao_update()"></td>
+						<td></td>
+					</tr>
+					<tr>
+						<td id="ao_maxCellParticles">Maximum Particles in Cell</td>
+						<td><input type="range" min="1" max="1000" value="500" id="ao_maxCellParticles_range"></td>
+						<td><button onclick="ao_update()">Set</button></td>
+					</tr>
+				</table>
+				
+				<br/>
+			</div>
 			<div id="stereo_div"></div>
 			<div id="functions_div"></div>
 			<div id="weight_div"></div>
@@ -831,6 +848,17 @@ document.getElementById("connect").onclick = function()
 						document.getElementById("step").value = obj["step"];
 						document.getElementById("iso_surface_checkbox").checked = obj["iso surface"];
 
+						//issue when sending objects with janso -> "ao ..." temp workaround
+ 						let ao_object = obj;
+						if(ao_object) {
+							document.getElementById("ao_checkbox").checked = ao_object["ao isEnabeld"];
+							document.getElementById("ao_maxCellParticles_range").value = ao_object["ao maxCellParticles"];
+							document.getElementById("ao_maxCellParticles").innerHTML = "max. " + ao_object["ao maxCellParticles"] + " Particles/Cell";
+						}
+
+						console.log(ao_object);
+						console.log(obj);
+
 						preview.width = obj["framebuffer width"];
 						preview.height = obj["framebuffer height"];
 						video.width = obj["framebuffer width"];
@@ -1498,6 +1526,18 @@ function controls_checkbox_click()
 		document.getElementById("controls").style.display = 'initial';
 	else
 		document.getElementById("controls").style.display = 'none';
+}
+
+function ao_update() {
+	let range = parseInt(document.getElementById("ao_maxCellParticles_range").value);
+	let status = document.getElementById("ao_checkbox").checked;
+
+	let ao_object = {
+		"isEnabled" : status,
+		"maxCellParticles": range
+	};
+	console.log(ao_object);
+	sendFeedback("ao", ao_object);
 }
 
 </script>
