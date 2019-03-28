@@ -1412,8 +1412,9 @@ public:
             json_t * maxCellParticles = json_object_get(js, "maxCellParticles");
             
             myself->ambientOcclusion.isEnabled = json_boolean_value ( isEnabled );
-            myself->ambientOcclusion.maxCellParticles = json_number_value ( maxCellParticles );
-            printf("%d\n", myself->ambientOcclusion.maxCellParticles);
+            myself->ambientOcclusion.maxCellParticles = (isaac_float)json_number_value ( maxCellParticles );
+
+            printf("%f\n", myself->ambientOcclusion.maxCellParticles);
             send_ao = true;
         }
 
@@ -1727,7 +1728,7 @@ private:
         //wait until render kernel has finished
         alpaka::wait::wait ( myself->stream );
 
-        //stop and restart time for delate calculation
+        //stop and restart time for delta calculation
         ISAAC_STOP_TIME_MEASUREMENT ( myself->kernel_time, +=, kernel, myself->getTicksUs() )
         ISAAC_START_TIME_MEASUREMENT ( copy, myself->getTicksUs() )
 
@@ -1772,14 +1773,14 @@ private:
             myself->ambientOcclusion
         );
 
-        //wait until render kernil has finished
+        //wait until render kernel has finished
         ISAAC_CUDA_CHECK ( cudaDeviceSynchronize() );
 
         //stop and restart time for delta calculation
         ISAAC_STOP_TIME_MEASUREMENT ( myself->kernel_time, +=, kernel, myself->getTicksUs() )
         ISAAC_START_TIME_MEASUREMENT ( copy, myself->getTicksUs() )
 
-        //copy filled frambuffer to IceT result buffer
+        //copy filled framebuffer to IceT result buffer
         ISAAC_CUDA_CHECK ( cudaMemcpy ( ( uint32_t* ) ( pixels ), myself->framebuffer, sizeof ( uint32_t ) *myself->framebuffer_prod, cudaMemcpyDeviceToHost ) );
 #endif
         //stop timer and calculate copy time
@@ -1911,21 +1912,10 @@ private:
                 }
             }
             if(myself->send_ao) {
-                /*json_t * aoObject = json_object();    
-                json_object_set_new(aoObject, "isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
-                json_object_set_new(aoObject, "maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles));          
-                json_object_set_new ( myself->json_root, "ao", aoObject);
-
-                json_t * init_aoObject = json_object();    
-                json_object_set_new(init_aoObject, "isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
-                json_object_set_new(init_aoObject, "maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles)); 
-                json_object_set_new ( myself->json_init_root, "ao", init_aoObject);*/
-
-
                 json_object_set_new(myself->json_root, "ao isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
                 json_object_set_new(myself->json_root, "ao maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles));          
                 json_object_set_new(myself->json_init_root, "ao isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
-                json_object_set_new(myself->json_init_root, "ao maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles)); 
+                json_object_set_new(myself->json_init_root, "ao maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles));
 
                 myself->send_init_json = true;
             }

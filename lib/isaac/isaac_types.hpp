@@ -263,8 +263,14 @@ struct clipping_struct
  * 
  */
 struct ao_struct {
-    isaac_int maxCellParticles = 750;
-    bool isEnabled = false;
+    ISAAC_HOST_DEVICE_INLINE ao_struct() {}
+
+    //!BUG
+    //Potential uint->float conversion bug in density kernel.
+    //float will fix this bug but their should be further investigation
+    isaac_float maxCellParticles; //Maximum particles per cell estimate
+
+    bool isEnabled; //true if pseudo ambient occlusion should be visible
 };
 
 typedef enum

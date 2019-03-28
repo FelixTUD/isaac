@@ -524,7 +524,8 @@ struct density_particle_iterator {
         typename TNormal,
         typename TPosition,
         typename TGridScale,
-        typename TDensity
+        typename TDensity,
+        typename TAOCC
         >
     ISAAC_HOST_DEVICE_INLINE  void operator() (
         const NR& nr,               //particle index
@@ -533,18 +534,20 @@ struct density_particle_iterator {
 		const TPosition& position, //particle position
 		const TGridScale& pGridScale, //scale of particle grid
 		TDensity& density, //density result
-        const isaac_int totalCellParticles = 750
+        const TAOCC& ambientOcclusion
     ) const
     {
         //get particle offset  = particle_index + volume_size
         const int sourceNumber = NR::value + TOffset;
         //run if particle source is not filtered
+
+        density = TDensity(1.0);
         if ( mpl::at_c< TFilter, sourceNumber>::type::value ) {            
             const int maxSteps = 2;
 
             //const int totalCellParticles = ambientOcclusion.maxCellParticles;
             //printf("%d -- %d\n", totalCellParticles, ambientOcclusion.maxCellParticles);
-            const int totalParticles = maxSteps * totalCellParticles; //totalCellParticles;
+            const TDensity totalParticles = maxSteps * ambientOcclusion.maxCellParticles; //totalCellParticles;
 
             const isaac_float kernel[maxSteps] = {1.0, 1.0};
             for(int i = 1; i <= maxSteps; i++)
@@ -567,7 +570,7 @@ struct density_particle_iterator {
 			}
             //get inverse density and divide by maximum particle count in gridcells 
             //TODO: get maximum particle count in grid cells
-            density = 1.0 - TDensity(MIN(density / totalParticles, 0.6));
+            density = 1.0 - MIN(density / totalParticles, 0.6);
 		}
     }
 };
@@ -782,7 +785,9 @@ __global__ void isaacRenderKernel (
         const TPointerArray pointerArray,
         const TScale scale,                     //isaac set scaling
         const clipping_struct input_clipping,   //clipping planes
-        ao_struct ambientOcclusion)       //ambient occlusion params
+        const ao_struct ambientOcclusion        //ambient occlusion params
+
+        )
 #if ISAAC_ALPAKA == 1
     const
 #endif
@@ -856,6 +861,7 @@ __global__ void isaacRenderKernel (
         isaac_float3 count_start[ISAAC_VECTOR_ELEM];    //start index for ray
         isaac_float3 local_size_f[ISAAC_VECTOR_ELEM];   //subvolume size as float
         isaac_float3 count_end[ISAAC_VECTOR_ELEM];      //end index for ray
+
 
         ISAAC_ELEM_ITERATE ( e )
         {
@@ -1241,7 +1247,7 @@ __global__ void isaacRenderKernel (
 				specular *= 0.5f;
 				light_factor = light_factor * 0.5f + 0.5f;
 #if ISAAC_AMBIENTOCC == 1
-                volatile int particles = ambientOcclusion.maxCellParticles;
+                
                 if(ambientOcclusion.isEnabled) {
                     isaac_for_each_with_mpl_params
                     (
@@ -1256,9 +1262,10 @@ __global__ void isaacRenderKernel (
                         particle_hitposition[e],
                         particle_scale,
                         particle_density[e],
-                        particles
+                        ambientOcclusion
                     );	
                     //printf("+%d\n", am);
+                    //particle_density[e] = isaac_float(ambientOcclusion.maxCellParticles) /  isaac_float(1000);
 
                     particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor) * particle_density[e], 1.0f );
 				    particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor) * particle_density[e], 1.0f );
@@ -1433,7 +1440,7 @@ struct IsaacRenderKernelCaller {
         const isaac_int iso_surface,
         const TScale& scale,
         const clipping_struct& clipping,
-        ao_struct ambientOcclusion
+        const ao_struct& ambientOcclusion
     )
     {
         if ( sourceWeight.value[ mpl::size< TSourceList >::type::value + mpl::size< TParticleList >::type::value - N] == isaac_float ( 0 ) )
@@ -1580,7 +1587,7 @@ struct IsaacRenderKernelCaller
         const isaac_int iso_surface,
         const TScale& scale,
         const clipping_struct& clipping,
-        ao_struct ambientOcclusion
+        const ao_struct& ambientOcclusion
     )
     {
         isaac_size2 block_size= {
