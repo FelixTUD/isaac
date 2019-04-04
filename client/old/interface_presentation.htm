@@ -849,14 +849,7 @@ document.getElementById("connect").onclick = function()
 						document.getElementById("iso_surface_checkbox").checked = obj["iso surface"];
 
 						//issue when sending objects with janso -> "ao ..." temp workaround
- 						let ao_object = obj;
-						if(ao_object) {
-							document.getElementById("ao_checkbox").checked = ao_object["ao isEnabeld"];
-							document.getElementById("ao_maxCellParticles_range").value = ao_object["ao maxCellParticles"];
-							document.getElementById("ao_maxCellParticles").innerHTML = "max. " + ao_object["ao maxCellParticles"] + " Particles/Cell";
-						}
-
-						console.log(ao_object);
+ 						ao_set_values(obj);
 						console.log(obj);
 
 						preview.width = obj["framebuffer width"];
@@ -906,6 +899,8 @@ document.getElementById("connect").onclick = function()
 							document.getElementById("step").checked = obj["step"];
 						if (obj.hasOwnProperty("iso surface"))
 							document.getElementById("iso_surface_checkbox").checked = obj["iso surface"];
+						
+						ao_set_values(obj);
 					}
 					if (obj.hasOwnProperty("functions"))
 					{
@@ -1538,6 +1533,16 @@ function ao_update() {
 	};
 	console.log(ao_object);
 	sendFeedback("ao", ao_object);
+}
+
+function ao_set_values(json_object) {
+	let ao_object = json_object;
+	console.log(ao_object);
+	if(ao_object) {
+		document.getElementById("ao_checkbox").checked = ao_object["ao isEnabeld"];
+		document.getElementById("ao_maxCellParticles_range").value = ao_object["ao maxCellParticles"];
+		document.getElementById("ao_maxCellParticles").innerHTML = "max. " + ao_object["ao maxCellParticles"] + " Particles/Cell";
+	}
 }
 
 </script>
