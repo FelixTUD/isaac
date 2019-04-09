@@ -308,7 +308,7 @@ public:
                         local_size_array
                     )
                 );
-                        alpaka::queue::enqueue(stream, instance);
+                alpaka::stream::enqueue(stream, instance);
                 alpaka::wait::wait ( stream );
 #else
                 dim3 block ( block_size.x, block_size.y );
@@ -385,7 +385,7 @@ public:
                         pointer_array.pointer[ I ]
                     )
                 );
-                    alpaka::queue::enqueue(stream, instance);
+                alpaka::stream::enqueue(stream, instance);
                 alpaka::wait::wait ( stream );
                 alpaka::mem::view::ViewPlainPtr<THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer ( local_minmax_array_h, host, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE> ( ISAAC_IDX_TYPE ( local_size_array.x * local_size_array.y ) ) );
                 alpaka::mem::view::copy ( stream, minmax_buffer, local_minmax, alpaka::vec::Vec<TFraDim, ISAAC_IDX_TYPE> ( ISAAC_IDX_TYPE ( local_size_array.x * local_size_array.y ) ) );
@@ -627,7 +627,7 @@ public:
                 alpaka::mem::view::getPtrNative ( functor_chain_d )
             )
         );
-                alpaka::queue::enqueue(stream, instance);
+        alpaka::stream::enqueue(stream, instance);
         alpaka::wait::wait ( stream );
 #else
         dim3 grid ( 1 );
@@ -988,7 +988,7 @@ public:
                 dest
             )
         );
-                alpaka::queue::enqueue(stream, instance);
+        alpaka::stream::enqueue(stream, instance);
         alpaka::wait::wait ( stream );
 
         alpaka::vec::Vec<alpaka::dim::DimInt<1u>, ISAAC_IDX_TYPE> const function_chain_d_extent ( ISAAC_IDX_TYPE ( ISAAC_MAX_SOURCES ) );

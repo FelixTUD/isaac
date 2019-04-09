@@ -1536,7 +1536,7 @@ struct IsaacRenderKernelCaller
                         clipping \
                     ) \
                 ); \
-                alpaka::queue::enqueue(stream, instance); \
+                alpaka::stream::enqueue(stream, instance); \
             }
 #else
         dim3 block ( block_size.x, block_size.y );

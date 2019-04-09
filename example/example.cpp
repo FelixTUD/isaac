@@ -284,9 +284,9 @@ int main ( int argc, char **argv )
     using DatDim = alpaka::dim::DimInt<1>;
 
     //using Acc = alpaka::acc::AccGpuCudaRt<AccDim, ISAAC_IDX_TYPE>;
-		//using Stream  = alpaka::queue::QueueCudaRtSync;
+    //using Stream  = alpaka::stream::StreamCudaRtSync;
     using Acc = alpaka::acc::AccCpuOmp2Blocks<AccDim, ISAAC_IDX_TYPE>;
-		using Stream  = alpaka::queue::QueueCpuSync;
+    using Stream  = alpaka::stream::StreamCpuSync;
     //using Acc = alpaka::acc::AccCpuOmp2Threads<AccDim, ISAAC_IDX_TYPE>;
     //using Stream  = alpaka::stream::StreamCpuSync;
 
