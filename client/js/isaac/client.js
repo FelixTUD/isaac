@@ -10,6 +10,7 @@ const IsaacResponseTypes = {
 
 const IsaacRequestTypes = {
     observe: "observe",
+    stopObserve: "stop",
     exit: "exit"
 }
 
@@ -17,10 +18,15 @@ const IsaacExitRequest = {
     type: IsaacRequestTypes.exit
 };
 
-var IsaacObserveRequest = {
+const IsaacObserveRequest = {
     "type": IsaacRequestTypes.observe,
     "stream": 0,
     "dropable": undefined,
+    "observer id": 0
+};
+
+const IsaacStopObserveRequest = {
+    "type": IsaacRequestTypes.stopObserve,
     "observer id": 0
 };
 
@@ -141,6 +147,16 @@ class IsaacClient {
         request.stream = stream_id;
         request.dropable = dropable;
         request["observe id"] = observe_id;
+        this.socket.send(JSON.stringify(request));
+    }
+
+    /**
+     * send a stop observe request
+     * @param {*} observe_id 
+     */
+    requestStopObserve(observe_id) {
+        let request = IsaacStopObserveRequest;
+        request["observer id"] = observe_id;
         this.socket.send(JSON.stringify(request));
     }
 

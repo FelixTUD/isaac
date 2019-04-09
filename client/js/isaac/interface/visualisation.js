@@ -172,18 +172,14 @@ function mouseMoveHandler(e) {
 function stopObserverSimulation() {
 	if (observe_id < 0)
 		return;
-	var response =
-	{
-		"type": "stop",
-		"observe id": observe_id
-	};
-	socket.send(JSON.stringify(response));
+	
+	client.requestStopObserve(observe_id);
 	observe_id = -1;
 	var transfer_form = document.getElementById("transfer_form");
 	while (transfer_form.firstChild) {
 		transfer_form.removeChild(transfer_form.firstChild);
 	}
-	stream_img.src = default_image_src;
+	renderer.setStreamImage(default_image_src);
 }
 
 function observeSimulation(id) {
