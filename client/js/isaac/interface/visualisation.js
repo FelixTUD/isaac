@@ -481,7 +481,7 @@ function onClientMessage(response) {
 			document.getElementById("iso_surface_checkbox").checked = response["iso surface"];
 
 			//issue when sending objects with janso -> "ao ..." temp workaround
-			ao_set_values(response);
+			aoSetValues(response);
 
 			preview.width = response["framebuffer width"];
 			preview.height = response["framebuffer height"];
@@ -528,7 +528,7 @@ function onClientMessage(response) {
 			if (response.hasOwnProperty("iso surface"))
 				document.getElementById("iso_surface_checkbox").checked = response["iso surface"];
 
-			ao_set_values(response);
+			aoSetValues(response);
 
 			renderer.update();
 		}
@@ -1118,7 +1118,7 @@ function controls_checkbox_click() {
 }
 
 function ao_update() {
-	let range = parseInt(document.getElementById("ao_maxCellParticles_range").value);
+	let range = parseInt(document.getElementById("aoMaxCellParticlesRange").value);
 	let status = document.getElementById("ao_checkbox").checked;
 
 	let ao_object = {
@@ -1138,13 +1138,51 @@ function updateWireframe() {
 	renderer.setWireframe(enabled, color);
 }
 
-function ao_set_values(json_object) {
-	let ao_object = json_object;
-	if (json_object.hasOwnProperty("ao checkbox")) {
-		document.getElementById("ao_checkbox").checked = ao_object["ao isEnabeld"];
+/**
+ * 
+ * @param {IsaacResponse} response 
+ */
+function aoSetValues(response) {
+	if (response.hasOwnProperty("ao isEnabled")) {
+		document.getElementById("ao_checkbox").checked = response["ao isEnabled"];
+		lastIsaacState["ao isEnabled"] = response["ao isEnabled"];
 	}
-	if (json_object.hasOwnProperty("ao maxCellParticles")) {
-		document.getElementById("ao_maxCellParticles_range").value = ao_object["ao maxCellParticles"];
-		document.getElementById("ao_maxCellParticles").innerHTML = "max. " + ao_object["ao maxCellParticles"] + " Particles/Cell";
+	if (response.hasOwnProperty("ao maxCellParticles")) {
+		let rangeEl = document.getElementById("aoMaxCellParticlesRange");
+		let rangeMax = document.getElementById("aoRangeMaxParticles");
+		let rangeMin = document.getElementById("aoRangeMinParticles");
+		let particles = response["ao maxCellParticles"];
+
+		if(rangeMax.value < particles) {
+			rangeMax.value = particles;
+		}
+		if(rangeMin.value > particles) {
+			rangeMin.value = particles;
+		}
+		rangeEl.max = rangeMax.value;
+		rangeEl.min = rangeMin.value;
+		rangeEl.value = particles;
+
+		document.getElementById("aoMaxCellParticles").innerHTML = rangeEl.value;
+		lastIsaacState["ao maxCellParticles"] = particles;
 	}
+}
+
+function aoRangeChange() {
+	let rangeMin = document.getElementById("aoRangeMinParticles");
+	let rangeMax = document.getElementById("aoRangeMaxParticles");
+	let rangeEl = document.getElementById("aoMaxCellParticlesRange");
+
+	let rangeMinValue = parseInt(rangeMin.value);
+	let rangeMaxValue = parseInt(rangeMax.value);
+
+	if(rangeMinValue > rangeMaxValue) {
+		rangeMax.value = rangeMinValue;
+		rangeMin.value = rangeMaxValue;
+	}
+
+	rangeEl.max = rangeMax.value;
+	rangeEl.min = rangeMin.value;	
+
+	document.getElementById("aoMaxCellParticles").innerHTML = lastIsaacState["ao maxCellParticles"] + " &rarr; " + rangeEl.value;
 }
