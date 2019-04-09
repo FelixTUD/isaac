@@ -18,7 +18,6 @@
 #include "isaac_macros.hpp"
 #include "isaac_fusion_extension.hpp"
 #include "isaac_functors.hpp"
-#include "isaac_iterator.hpp"
 
 #include <boost/mpl/at.hpp>
 #include <boost/mpl/vector.hpp>
