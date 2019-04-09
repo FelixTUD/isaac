@@ -54,6 +54,19 @@ var last_feedback_send = 0;
 var sources = null;
 
 
+/**
+ * Cycle for drawing
+ */
+onRender = function(timestep) {
+	if(client.getOberserID() != -1) {
+		renderer.draw(); 
+	}
+	requestAnimationFrame(onRender);
+}
+
+requestAnimationFrame(onRender);
+
+
 onload = function () {
 	renderer.setStreamImage(default_image_src);
 	renderer.setWireframe(document.getElementById("wireframe_checkbox").checked, "#ffffff");
@@ -80,11 +93,9 @@ function sendFeedback(name, feedback) {
 }
 
 function zoom(delta) {
-	//redraw(preview, position, rotation, distance, stream_img, particles, wireframe, one_window, lastIsaacState.metadata);
 	renderer.setDistance(renderer.getDistance() + delta);
 	renderer.update();
 
-	renderer.draw();
 	p_ctx.fillText("Delta: " + delta, 1, 10);
 	sendFeedback("distance relative", delta);
 }
@@ -127,7 +138,6 @@ function move(add) {
 
 	renderer.setPosition(position);
 	renderer.update();
-	renderer.draw();
 }
 
 function rotate(dx, dy, dz) {
@@ -149,8 +159,6 @@ function rotate(dx, dy, dz) {
 		renderer.update();
 
 		sendFeedback("rotation axis", [dy, dx, dz, l / 2]);
-
-		renderer.draw();
 	}
 }
 
@@ -484,14 +492,11 @@ function onClientMessage(response) {
 			video.width = response["framebuffer width"];
 			video.height = response["framebuffer height"];
 			observeSimulation(response["id"]);
-			//redraw(preview, position, rotation, distance, stream_img, particles, wireframe, one_window, lastIsaacState.metadata);
-			renderer.draw();
 		};
 		observeCell.appendChild(button);
 	}
 	if (response["type"] == IsaacResponseTypes.period || response["type"] == IsaacResponseTypes.update) {
 		if (response.hasOwnProperty("payload")) {
-			//stream_img.src = response["payload"];
 			renderer.setStreamImage(response["payload"]);
 		}
 		if (response.hasOwnProperty("metadata")) {
@@ -543,9 +548,6 @@ function onClientMessage(response) {
 		processClipping(response);
 
 		processBackground(response);
-
-		//redraw(preview, position, rotation, distance, stream_img, particles, wireframe, one_window, lastIsaacState.metadata);
-		renderer.draw();
 	}
 	if (response["type"] == IsaacResponseTypes.exit) {
 		var table = document.getElementById("list_table");
@@ -974,14 +976,10 @@ function one_window_checkbox_click() {
 	if (one_window) {
 		var node = document.getElementById("preview_div");
 		document.getElementById("video_container_div").appendChild(node);
-		//redraw(preview, position, rotation, distance, stream_img, particles, wireframe, one_window, lastIsaacState.metadata);
-		renderer.draw();
 	}
 	else {
 		var node = document.getElementById("preview_div");
 		document.getElementById("preview_container_div").appendChild(node);
-		//redraw(preview, position, rotation, distance, stream_img, particles, wireframe, one_window, lastIsaacState.metadata);
-		renderer.draw();
 	}
 };
 
@@ -1121,7 +1119,6 @@ function ao_update() {
 		"isEnabled": status,
 		"maxCellParticles": range
 	};
-	console.log(ao_object);
 	sendFeedback("ao", ao_object);
 }
 

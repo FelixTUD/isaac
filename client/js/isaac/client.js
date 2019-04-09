@@ -94,6 +94,7 @@ class IsaacClient {
         this.onCloseCallback   = undefined;
         this.onMessageCallback = undefined;
         this.onErrorCallback   = undefined;
+        this.observerId = -1;
     }
 
 
@@ -148,6 +149,7 @@ class IsaacClient {
         request.dropable = dropable;
         request["observe id"] = observe_id;
         this.socket.send(JSON.stringify(request));
+        this.observerId = observe_id;
     }
 
     /**
@@ -158,6 +160,11 @@ class IsaacClient {
         let request = IsaacStopObserveRequest;
         request["observer id"] = observe_id;
         this.socket.send(JSON.stringify(request));
+        this.observerId = -1;
+    }
+
+    getOberserID() {
+        return this.observerId;
     }
 
     /**
