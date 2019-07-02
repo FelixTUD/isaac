@@ -1616,41 +1616,26 @@ __global__ void isaacSSAOKernel (
         pixel = pixel + framebuffer_start;
         isaac_float depth = gAOBuffer[pixel.x + pixel.y * framebuffer_size.x];
         
-
-        /*isaac_float occlusion = 0.0f;
-        isaac_float ref_depth = gDepth[pixel.x + pixel.y * framebuffer_size.x].z;
-        for(int i = -3; i <= 3; i++) {
-            for(int j = -3; j <= 3; j++) {
-                isaac_int x = MAX(MIN(pixel.x + i * radius, framebuffer_start.x + framebuffer_size.x), framebuffer_start.x);
-                isaac_int y = MAX(MIN(pixel.y + j * radius, framebuffer_start.y + framebuffer_size.y), framebuffer_start.y);
-                isaac_float depth_sample = gDepth[x + y * framebuffer_size.x].z;
-                if(depth_sample > ref_depth) {
-                    occlusion += 1.0f;
-                }
-            }
-        }*/
-        uint32_t color = gColor[pixel.x + pixel.y + framebuffer_size.x];
-        isaac_uint4 color_values = {
-            isaac_uint(color),
-            isaac_uint(color << 8),
-            isaac_uint(color << 16),
-            isaac_uint(color << 24),
-        };
-
-        //printf("(%u,%u,%u,%u)\n", color_values.x, color_values.y, color_values.z, color_values.w);
+        uint32_t color = gColor[pixel.x + pixel.y * framebuffer_size.x];
+        isaac_float4 color_values = {
+            ((color >>  0) & 0xff) / 255.0f,
+            ((color >>  8) & 0xff) / 255.0f,
+            ((color >> 16) & 0xff) / 255.0f,
+            ((color >> 24) & 0xff) / 255.0f
+        };        
 
         isaac_float4 final_color = { 
-            depth, 
-            depth, 
-            depth, 
-            1.0f 
+            (depth + 0.3) * color_values.x, 
+            (depth + 0.3) * color_values.y, 
+            (depth + 0.3) * color_values.z, 
+            1.0f  * color_values.w
         };
 
         if(depth == 0.0f) { 
-            final_color = { depth, depth, depth, 0.0f };
+            final_color = { 0, 0, 0, 0 };
         }
-
         ISAAC_SET_COLOR(gColor[pixel.x + pixel.y * framebuffer_size.x], final_color);
+        
     }
 #if ISAAC_ALPAKA == 1
 };
