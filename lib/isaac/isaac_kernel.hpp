@@ -35,10 +35,6 @@
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-#ifndef ISAAC_AMBIENTOCC
-    #define ISAAC_AMBIENTOCC 1
-#endif
-
 namespace isaac
 {
 
@@ -59,6 +55,7 @@ ISAAC_CONSTANT isaac_float4 isaac_parameter_d[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCT
 ISAAC_CONSTANT isaac_functor_chain_pointer_N isaac_function_chain_d[ ISAAC_MAX_SOURCES ];
 
 //ssao
+//kernels for ssao calculation
 ISAAC_CONSTANT isaac_float3 ssao_kernel_d[64];
 ISAAC_CONSTANT isaac_float3 ssao_noise_d[16];
 
@@ -67,12 +64,6 @@ ISAAC_DEVICE_INLINE int sgn ( T val )
 {
     return ( T ( 0 ) < val ) - ( val < T ( 0 ) );
 }
-
-template <typename T, typename L>
-ISAAC_DEVICE_INLINE bool isLess3(T val1, L val2) {
-    return val1.x < val2.x && val1.y < val2.y && val1.z < val2.z;
-}
-
 
 template
 <
@@ -295,108 +286,6 @@ ISAAC_HOST_DEVICE_INLINE void check_coord ( isaac_float3& coord, const TLocalSiz
     }
 }
 
-template
-<
-    typename TSource,
-    typename TPosition,
-    typename TDensity
->
-ISAAC_DEVICE_INLINE void get_interpolated_density(const TSource &source, const TPosition &position, TDensity &density) {
-        //get particle grid cell position
-        isaac_uint3 center_cell = { isaac_uint(position.x), isaac_uint(position.y), isaac_uint(position.z)};
-        //density = TDensity(source.getIterator(center_cell).size);
-        //return;
-
-        //calculate offset of particle in grid cell
-        isaac_float3 position_delta = { 
-            isaac_float(position.x - center_cell.x), 
-            isaac_float(position.y - center_cell.y), 
-            isaac_float(position.z - center_cell.z)
-        };
-
-        isaac_float3 cell_center = {
-            isaac_float(0.5),
-            isaac_float(0.5),
-            isaac_float(0.5)
-        };
-
-        //get particle offset in respect to grid cell center
-        position_delta = position_delta - cell_center;
-
-        isaac_int3 kernel_dir = {0, 0, 0};
-        isaac_float3 kernel_factor = {0.0, 0.0, 0.0};
-
-        //get nearest cell direction and multiplication factor from deltas
-        if(position_delta.x < 0.0) {
-            kernel_dir.x = -1;
-            kernel_factor.x = -position_delta.x;
-        }
-        else if(position_delta.x > 0.0) {
-            kernel_dir.x = 1;
-            kernel_factor.x = position_delta.x;
-        }
-
-        if(position_delta.y < 0.0) {
-            kernel_dir.y = -1;
-            kernel_factor.y = -position_delta.y;
-        }
-        else if(position_delta.y > 0.0) {
-            kernel_dir.y = 1;
-            kernel_factor.y = position_delta.y;
-        }
-
-        if(position_delta.z < 0.0) {
-            kernel_dir.z = -1;
-            kernel_factor.z = -position_delta.z;
-        }
-        else if(position_delta.z > 0.0) {
-            kernel_dir.z = 1;
-            kernel_factor.z = position_delta.z;
-        }
-
-
-        //precalculate neighbor cells
-        isaac_uint3 kernel_cells[8] = {
-            {center_cell.x,                center_cell.y,                center_cell.z                },
-            {center_cell.x + kernel_dir.x, center_cell.y,                center_cell.z                },
-            {center_cell.x,                center_cell.y + kernel_dir.y, center_cell.z                },
-            {center_cell.x + kernel_dir.x, center_cell.y + kernel_dir.y, center_cell.z                },
-            {center_cell.x,                center_cell.y,                center_cell.z + kernel_dir.z },
-            {center_cell.x + kernel_dir.x, center_cell.y,                center_cell.z + kernel_dir.z },
-            {center_cell.x,                center_cell.y + kernel_dir.z, center_cell.z + kernel_dir.z },
-            {center_cell.x + kernel_dir.x, center_cell.y + kernel_dir.y, center_cell.z + kernel_dir.z }
-        };
-
-        TDensity kernel_density[8];
-
-        for(int i = 0; i < 8; i++) {
-            if(!isLess3(kernel_cells[i], isaac_size_d[0].local_particle_size.value)) {
-                kernel_density[i] = 0.0;
-            }
-            else {
-                kernel_density[i] = TDensity(source.getIterator(kernel_cells[i]).size);
-            }
-        }
-
-        //interpolate called "bottom" cells
-        TDensity bottom_density = 
-            ((1.0 - kernel_factor.x) * kernel_density[0] + kernel_factor.x * kernel_density[1]) * (1.0 - kernel_factor.y) +
-            ((1.0 - kernel_factor.x) * kernel_density[2] + kernel_factor.x * kernel_density[3]) * kernel_factor.y; 
-
-        //interpolate called "top" cells
-        TDensity top_density = 
-            ((1.0 - kernel_factor.x) * kernel_density[4] + kernel_factor.x * kernel_density[5]) * (1.0 - kernel_factor.y) +
-            ((1.0 - kernel_factor.x) * kernel_density[6] + kernel_factor.x * kernel_density[7]) * kernel_factor.y;
-
-        //interpolate "top" and "bottom"
-        density = (1.0 - kernel_factor.z) * bottom_density + kernel_factor.z * top_density;
-
-        //get inverse density and divide by maximum particle count in gridcells 
-        //TODO: get maximum particle count in grid cells
-        //density = 1.0 - TDensity(MIN(interpolated_density / 4000.0, 1.0));
-}
-
-
 
 
 template <
@@ -512,74 +401,6 @@ struct merge_particle_iterator {
     }
 };
 
-/**
- * @brief Calculate density in normal direction from particle position
- * 
- * @tparam TOffset Volume size
- * @tparam TFilter Filter for Volume (discard or not)
- */
-template <
-    int TOffset,
-    typename TFilter
-    >
-struct density_particle_iterator {
-    template
-    <
-        typename NR,
-        typename TSource,
-        typename TNormal,
-        typename TPosition,
-        typename TGridScale,
-        typename TDensity,
-        typename TAOCC
-        >
-    ISAAC_HOST_DEVICE_INLINE  void operator() (
-        const NR& nr,               //particle index
-        const TSource& source,       //particle source
-		const TNormal& normal, //particle normal
-		const TPosition& position, //particle position
-		const TGridScale& pGridScale, //scale of particle grid
-		TDensity& density, //density result
-        const TAOCC& ambientOcclusion
-    ) const
-    {
-        //get particle offset  = particle_index + volume_size
-        const int sourceNumber = NR::value + TOffset;
-        //run if particle source is not filtered
-
-        density = TDensity(1.0);
-        if ( mpl::at_c< TFilter, sourceNumber>::type::value ) {            
-            const int maxSteps = 2;
-
-            //const int totalCellParticles = ambientOcclusion.maxCellParticles;
-            //printf("%d -- %d\n", totalCellParticles, ambientOcclusion.maxCellParticles);
-            const TDensity totalParticles = maxSteps * ambientOcclusion.maxCellParticles; //totalCellParticles;
-
-            const isaac_float kernel[maxSteps] = {1.0, 1.0};
-            for(int i = 1; i <= maxSteps; i++)
-			{
-                //get new cell from particle position + n times normal scaled by 10
-                //divide by grideScale for right proportions
-                isaac_float3 cell_posf = (position + i * normal) / pGridScale;
-
-                //isaac_float3 cell_posf = (scaled_position + i * normal);
-
-                //convert float to uint because grid cells can only be indexed by unsigned integers
-				isaac_uint3 cell_pos = {isaac_uint ( cell_posf.x ), isaac_uint ( cell_posf.y ), isaac_uint ( cell_posf.z ) };
-                //set cell_pos as new old pos if cell is still in particle grid bounds
-                //if pos is less then 0 a bit flip will appear and the cell pos will be resetted to last pos
-                TDensity tempDensity = TDensity(0);
-				if(isLess3(cell_pos, isaac_size_d[0].local_particle_size.value)) {
-                    get_interpolated_density(source, cell_posf, tempDensity);
-                    density += tempDensity * kernel[i - 1];
-				}
-			}
-            //get inverse density and divide by maximum particle count in gridcells 
-            //TODO: get maximum particle count in grid cells
-            density = 1.0 - MIN(density / totalParticles, 0.6);
-		}
-    }
-};
 
 /**
  * @brief 
@@ -842,7 +663,7 @@ __global__ void isaacRenderKernel (
 
         //gNormalBuffer default value
         isaac_float3 default_normal = {0.0, 0.0, 0.0};
-        isaac_float3 default_depth = {0.0, 0.0, 0.0};
+        isaac_float3 default_depth = {1.0, 1.0, 1.0};
 
         //set background color
         ISAAC_ELEM_ITERATE ( e )
@@ -851,11 +672,14 @@ __global__ void isaacRenderKernel (
             at_least_one[e] = true;
             isaac_for_each_with_mpl_params ( sources, check_no_source_iterator<TFilter>(), at_least_one[e] );
             if ( !at_least_one[e] ) {
-                if ( !finish[e] )
+                if ( !finish[e] ) {
+                    //if no source is found set all values to their defaults
+                    //color = background, ...
                     ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
                     gNormal[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_normal;
                     gDepth[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_depth;
                     finish[e] = true;
+                }
             }
         }
         ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
@@ -978,11 +802,17 @@ __global__ void isaacRenderKernel (
             count_start[e].x = ISAAC_MAX ( ISAAC_MAX ( count_start[e].x, count_start[e].y ), count_start[e].z );
             count_end[e].x = ISAAC_MIN ( ISAAC_MIN ( count_end[e].x,   count_end[e].y ),   count_end[e].z );
             if ( count_start[e].x > count_end[e].x ) {
-                if ( !finish[e] )
+                if ( !finish[e] ) {
+                    //TODO undertsnad the superplanes stuff...
                     ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
+
+                    //this function aborts drawing and therfore wont set any normal or depth values
+                    //defaults will be applied for clean images
                     gNormal[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_normal;
                     gDepth[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_depth;
+
                     finish[e] = true;
+                }
             }
         }
         ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
@@ -1082,10 +912,7 @@ __global__ void isaacRenderKernel (
         isaac_float4 particle_color[ISAAC_VECTOR_ELEM];          //color at particle hist position
 		isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];         //normal at particle hit position
 		isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];    //hist position of particle
-        //isaac_float3 particle_hitposition_mv[ISAAC_VECTOR_ELEM]; //hitposition with modelview applied
-#if ISAAC_AMBIENTOCC == 1
-		isaac_float particle_density[ISAAC_VECTOR_ELEM];
-#endif
+
         isaac_int result_particle[ISAAC_VECTOR_ELEM];
         isaac_float3 local_start[ISAAC_VECTOR_ELEM];
         isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
@@ -1094,7 +921,6 @@ __global__ void isaacRenderKernel (
         isaac_int3 dir_sign[ISAAC_VECTOR_ELEM];
         isaac_float3 current_pos[ISAAC_VECTOR_ELEM];
         isaac_uint3 current_cell[ISAAC_VECTOR_ELEM];
-        //isaac_uint3 surrounding_cell[ISAAC_VECTOR_ELEM];
         isaac_float ray_length[ISAAC_VECTOR_ELEM];
         isaac_float march_length[ISAAC_VECTOR_ELEM];
         isaac_float3 t[ISAAC_VECTOR_ELEM];
@@ -1269,62 +1095,10 @@ __global__ void isaacRenderKernel (
 				specular = pow ( specular, 10 );
 				specular *= 0.5f;
 				light_factor = light_factor * 0.5f + 0.5f;
-#if ISAAC_AMBIENTOCC == 1
-                
-                if(ambientOcclusion.isEnabled) {
-                    isaac_for_each_with_mpl_params
-                    (
-                        particle_sources,
-                        density_particle_iterator
-                        <
-                        mpl::size< TSourceList >::type::value,
-                        TFilter
-                        >
-                        (),
-                        light_dir[e],
-                        particle_hitposition[e],
-                        particle_scale,
-                        particle_density[e],
-                        ambientOcclusion
-                    );	
-                    //printf("+%d\n", am);
-                    //particle_density[e] = isaac_float(ambientOcclusion.maxCellParticles) /  isaac_float(1000);
 
-                    particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor) * particle_density[e], 1.0f );
-				    particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor) * particle_density[e], 1.0f );
-				    particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor) * particle_density[e], 1.0f );
-                	
-                }
-                else {
-                    particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor), 1.0f );
-				    particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor), 1.0f );
-				    particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor), 1.0f );                
-                }
-
-				//particle_density[e] = 1.0 - ISAAC_MIN ( particle_density[e] / 2560.0f, 0.7f );
-
-                //particle_density[e] = 1.0 - ISAAC_MIN(ray_density[e] / 10000.0, 0.8);
-                
-				// calculate final color
-				
-                //particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor + specular) * particle_density[e], 1.0f );
-				//particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor + specular) * particle_density[e], 1.0f );
-				//particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor + specular) * particle_density[e], 1.0f );
-/*
-                particle_color[e].x = ISAAC_MIN ( (particle_color[e].x * light_factor) * particle_density[e], 1.0f );
-				particle_color[e].y = ISAAC_MIN ( (particle_color[e].y * light_factor) * particle_density[e], 1.0f );
-				particle_color[e].z = ISAAC_MIN ( (particle_color[e].z * light_factor) * particle_density[e], 1.0f );
-*/                
-/*               
-                particle_color[e].x =  particle_density[e];
-                particle_color[e].y =  particle_density[e];
-                particle_color[e].z =  particle_density[e];
-*/   
-#else
 				particle_color[e].x = ISAAC_MIN ( particle_color[e].x * light_factor + specular, 1.0f );
 				particle_color[e].y = ISAAC_MIN ( particle_color[e].y * light_factor + specular, 1.0f );
 				particle_color[e].z = ISAAC_MIN ( particle_color[e].z * light_factor + specular, 1.0f );
-#endif
 			}
         }
 
@@ -1400,6 +1174,8 @@ __global__ void isaacRenderKernel (
                 }
             }
             if ( result_particle[e] && !result[e] ) {
+                //extracting real particle depth and override block march length
+                march_length[e] = particle_color[e].w;
                 particle_color[e].w = 1;
                 color[e] = color[e] + particle_color[e] * ( 1 - color[e].w );
             }
@@ -1416,21 +1192,25 @@ __global__ void isaacRenderKernel (
 #endif
 
 
-            if ( !finish[e] )
+            if ( !finish[e] ) {
                 ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
+                //save the particle normal in the normal g buffer
                 gNormal[pixel[e].x + pixel[e].y * framebuffer_size.x] = particle_normal[e];
+                
+                //save the cell depth in our g buffer (depth)
+                //march_length takes the old particle_color w component 
+                //the w component stores the particle depth and will be replaced later by new alpha values and 
+                //is therefore stored in march_length
+                //LINE 1169
+                isaac_float3 depth_value = {
+                    0.0f,
+                    0.0f,
+                    march_length[e];
+                };                
 
-                isaac_float3 modelview_position = {
-                      isaac_modelview_d[0] * particle_hitposition[e].x + isaac_modelview_d[4] * particle_hitposition[e].y + isaac_modelview_d[8 ] * particle_hitposition[e].z + isaac_modelview_d[12] * 1.0f
-                    , isaac_modelview_d[1] * particle_hitposition[e].x + isaac_modelview_d[5] * particle_hitposition[e].y + isaac_modelview_d[9 ] * particle_hitposition[e].z + isaac_modelview_d[13] * 1.0f
-                    , isaac_modelview_d[2] * particle_hitposition[e].x + isaac_modelview_d[6] * particle_hitposition[e].y + isaac_modelview_d[10] * particle_hitposition[e].z + isaac_modelview_d[14] * 1.0f
-                    //, isaac_modelview_d[3] * particle_hitposition[e].x + isaac_modelview_d[7] * particle_hitposition[e].y + isaac_modelview_d[11] * particle_hitposition[e].z + isaac_modelview_d[15] * 1.0f
-                };
-
-                modelview_position.z = march_length[e];
-
-                gDepth[pixel[e].x + pixel[e].y * framebuffer_size.x] = modelview_position;
+                gDepth[pixel[e].x + pixel[e].y * framebuffer_size.x] = depth_value;
             }
+        }
     }
 #if ISAAC_ALPAKA == 1
 };
@@ -1476,20 +1256,35 @@ __global__ void isaacSSAOKernel (
                 pixel.y = isaac_uint ( threadIdx.y + blockIdx.y * blockDim.y );
         #endif
 
-        pixel = pixel + framebuffer_start;
+        pixel = pixel + framebuffer_start;    
+
+        
+
+
+        /*
+         * TODO
+         * 
+         * Old standart ssao by crytech 
+         * 
+         * First implemntation failed and the source code is below
+         * Possible errors could be mv or proj matrix
+         */
+
+        /*
+        //isaac_float3 origin = gDepth[pixel.x + pixel.y * framebuffer_size.x];
 
         isaac_int radius = 10;
 
-        //isaac_float3 origin = gDepth[pixel.x + pixel.y * framebuffer_size.x];
+        //get the normal value from the gbuffer
         isaac_float3 normal = gNormal[pixel.x + pixel.y * framebuffer_size.x];
 
-        //normalize
+        //normalize the normal
         isaac_float len = sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
         if(len == 0) {
             gAOBuffer[pixel.x + pixel.y * framebuffer_size.x] = 0.0f;
             return;
         }
-        /*
+
         normal = normal / len;
         
         
@@ -1556,13 +1351,27 @@ __global__ void isaacSSAOKernel (
             occlusion += (sampleDepth - sample.z ? 1.0f : 0.0f);
         }*/
         
+
+        /* 
+         * 1. compare all neighbour (+-2 pixel) depth values with the current one and increase the counter if the neighbour is
+         *    closer to the camera
+         * 
+         * 2. get average value by dividing the counter by the cell count (7x7=49)       * 
+         *
+         */
+        //closer to the camera
         isaac_float occlusion = 0.0f;
         isaac_float ref_depth = gDepth[pixel.x + pixel.y * framebuffer_size.x].z;
         for(int i = -3; i <= 3; i++) {
             for(int j = -3; j <= 3; j++) {
+                //avoid out of bounds by simple min max
                 isaac_int x = MAX(MIN(pixel.x + i * radius, framebuffer_start.x + framebuffer_size.x), framebuffer_start.x);
                 isaac_int y = MAX(MIN(pixel.y + j * radius, framebuffer_start.y + framebuffer_size.y), framebuffer_start.y);
+
+                //get the neighbour depth value
                 isaac_float depth_sample = gDepth[x + y * framebuffer_size.x].z;
+
+                //only increase the counter if the neighbour depth is closer to the camera
                 if(depth_sample > ref_depth) {
                     occlusion += 1.0f;
                 }
@@ -1570,6 +1379,7 @@ __global__ void isaacSSAOKernel (
         }
         isaac_float depth = (occlusion / 49.0f);
 
+        //save the depth value in our ao buffer
         gAOBuffer[pixel.x + pixel.y * framebuffer_size.x] = depth;
     }
 #if ISAAC_ALPAKA == 1
@@ -1577,7 +1387,7 @@ __global__ void isaacSSAOKernel (
 #endif
 
 /**
- * @brief Filter SSAO artifacts
+ * @brief Filter SSAO artifacts and return the color with depth simulation
  * 
  * Requires Color Buffer      (dim 4)
  * Requires AO Values Buffer  (dim 1)
@@ -1613,9 +1423,18 @@ __global__ void isaacSSAOKernel (
                 pixel.y = isaac_uint ( threadIdx.y + blockIdx.y * blockDim.y );
         #endif
 
+        //get real pixel coordinate by offset
         pixel = pixel + framebuffer_start;
+
+        /* TODO
+         * Normally the depth values are smoothed
+         * in this case the smooting filter is not applied for simplicity
+         * 
+         * If the real ssao algorithm is implemented, a real filter will be necessary
+         */
         isaac_float depth = gAOBuffer[pixel.x + pixel.y * framebuffer_size.x];
         
+        //convert uint32 back to 4x 1 Byte color values
         uint32_t color = gColor[pixel.x + pixel.y * framebuffer_size.x];
         isaac_float4 color_values = {
             ((color >>  0) & 0xff) / 255.0f,
@@ -1624,16 +1443,22 @@ __global__ void isaacSSAOKernel (
             ((color >> 24) & 0xff) / 255.0f
         };        
 
+        //read the weight from the global ao settings and merge them with the color value
+        isaac_float weight = ao_properties.weight;
         isaac_float4 final_color = { 
-            (depth + 0.3) * color_values.x, 
-            (depth + 0.3) * color_values.y, 
-            (depth + 0.3) * color_values.z, 
+            ((1.0f - weight) + weight * depth) * color_values.x, 
+            ((1.0f - weight) + weight * depth) * color_values.y, 
+            ((1.0f - weight) + weight * depth) * color_values.z, 
             1.0f  * color_values.w
         };
-
+    
+        //if the depth value is 0 the ssao kernel found a background value and the color
+        //merging is therefore removed
         if(depth == 0.0f) { 
             final_color = { 0, 0, 0, 0 };
         }
+
+        //finally replace the old color value with the new ssao filtered color value
         ISAAC_SET_COLOR(gColor[pixel.x + pixel.y * framebuffer_size.x], final_color);
         
     }

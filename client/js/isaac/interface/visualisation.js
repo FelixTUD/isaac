@@ -1111,17 +1111,6 @@ function controls_checkbox_click() {
 		document.getElementById("controls").style.display = 'none';
 }
 
-function ao_update() {
-	let range = parseInt(document.getElementById("aoMaxCellParticlesRange").value);
-	let status = document.getElementById("ao_checkbox").checked;
-
-	let ao_object = {
-		"isEnabled": status,
-		"maxCellParticles": range
-	};
-	sendFeedback("ao", ao_object);
-}
-
 function updateWireframe() {
 	let color = RGB2HTML(
 		255 - parseInt(background_color.jscolor.rgb[0]),
@@ -1136,46 +1125,32 @@ function updateWireframe() {
  * @param {IsaacResponse} response 
  */
 function aoSetValues(response) {
+	
 	if (response.hasOwnProperty("ao isEnabled")) {
+		console.log(response);
 		document.getElementById("ao_checkbox").checked = response["ao isEnabled"];
 		lastIsaacState["ao isEnabled"] = response["ao isEnabled"];
 	}
-	if (response.hasOwnProperty("ao maxCellParticles")) {
-		let rangeEl = document.getElementById("aoMaxCellParticlesRange");
-		let rangeMax = document.getElementById("aoRangeMaxParticles");
-		let rangeMin = document.getElementById("aoRangeMinParticles");
-		let particles = response["ao maxCellParticles"];
+	if (response.hasOwnProperty("ao weight")) {
+		console.log(response);
+		let weightEl = document.getElementById("ao_weight");
 
-		if(rangeMax.value < particles) {
-			rangeMax.value = particles;
-		}
-		if(rangeMin.value > particles) {
-			rangeMin.value = particles;
-		}
-		rangeEl.max = rangeMax.value;
-		rangeEl.min = rangeMin.value;
-		rangeEl.value = particles;
-
-		document.getElementById("aoMaxCellParticles").innerHTML = rangeEl.value;
-		lastIsaacState["ao maxCellParticles"] = particles;
+		document.getElementById("ao_weight").innerHTML = weightEl.value;
+		lastIsaacState["ao_weight"] = response["ao weight"];;
 	}
 }
 
-function aoRangeChange() {
-	let rangeMin = document.getElementById("aoRangeMinParticles");
-	let rangeMax = document.getElementById("aoRangeMaxParticles");
-	let rangeEl = document.getElementById("aoMaxCellParticlesRange");
+/**
+ * called when wheight value is set or isEnabled is changed
+ */
+function aoUpdate() {
+	let weight = parseFloat(document.getElementById("ao_weight").value);
+	let status = document.getElementById("ao_checkbox").checked;
 
-	let rangeMinValue = parseInt(rangeMin.value);
-	let rangeMaxValue = parseInt(rangeMax.value);
-
-	if(rangeMinValue > rangeMaxValue) {
-		rangeMax.value = rangeMinValue;
-		rangeMin.value = rangeMaxValue;
-	}
-
-	rangeEl.max = rangeMax.value;
-	rangeEl.min = rangeMin.value;	
-
-	document.getElementById("aoMaxCellParticles").innerHTML = lastIsaacState["ao maxCellParticles"] + " &rarr; " + rangeEl.value;
+	let ao_object = {
+		"isEnabled": status,
+		"weight": weight
+	};
+	console.log(ao_object);
+	sendFeedback("ao", ao_object);
 }

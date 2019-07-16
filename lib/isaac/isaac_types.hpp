@@ -265,12 +265,12 @@ struct clipping_struct
 struct ao_struct {
     ISAAC_HOST_DEVICE_INLINE ao_struct() {}
 
-    //!BUG
-    //Potential uint->float conversion bug in density kernel.
-    //float will fix this bug but their should be further investigation
-    isaac_float maxCellParticles; //Maximum particles per cell estimate
+    //weight value (0.0-1.0) for mixing color with depth component (darken) 
+    //1.0 = 100% depth component 0.0 = 0% depth component  
+    isaac_float weight; 
 
-    bool isEnabled; //true if pseudo ambient occlusion should be visible
+    //true if pseudo ambient occlusion should be visible
+    bool isEnabled; 
 };
 
 typedef enum

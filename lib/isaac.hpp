@@ -1468,12 +1468,12 @@ public:
         if ( js = json_object_get ( message, "ao" ) ) {
             redraw = true;
             json_t * isEnabled = json_object_get(js, "isEnabled");
-            json_t * maxCellParticles = json_object_get(js, "maxCellParticles");
+            json_t * weight = json_object_get(js, "weight");
             
             myself->ambientOcclusion.isEnabled = json_boolean_value ( isEnabled );
-            myself->ambientOcclusion.maxCellParticles = (isaac_float)json_number_value ( maxCellParticles );
+            myself->ambientOcclusion.weight = (isaac_float)json_number_value ( weight );
 
-            printf("%f\n", myself->ambientOcclusion.maxCellParticles);
+            printf("%f\n", myself->ambientOcclusion.weight);
             send_ao = true;
         }
 
@@ -1811,52 +1811,55 @@ private:
             myself->ambientOcclusion
         );
 
+        
         //wait until render kernel has finished
         alpaka::wait::wait ( myself->stream );
 
-        IsaacSSAOKernelCaller
-        <
-        alpaka::mem::buf::Buf<TDevAcc, isaac_float, TFraDim, ISAAC_IDX_TYPE>,
-        alpaka::mem::buf::Buf<TDevAcc, isaac_float3, TFraDim, ISAAC_IDX_TYPE>,
-        alpaka::mem::buf::Buf<TDevAcc, isaac_float3, TFraDim, ISAAC_IDX_TYPE>,
-        TAccDim,
-        TAcc,
-        TStream
-        >
-        ::call (
-            myself->stream,
-            myself->framebufferAO,
-            myself->framebufferDepth,
-            myself->framebufferNormal,
-            myself->framebuffer_size,
-            framebuffer_start,
-            readback_viewport,
-            myself->ambientOcclusion
-        );
+        if(myself->ambientOcclusion.isEnabled) {
+            IsaacSSAOKernelCaller
+            <
+            alpaka::mem::buf::Buf<TDevAcc, isaac_float, TFraDim, ISAAC_IDX_TYPE>,
+            alpaka::mem::buf::Buf<TDevAcc, isaac_float3, TFraDim, ISAAC_IDX_TYPE>,
+            alpaka::mem::buf::Buf<TDevAcc, isaac_float3, TFraDim, ISAAC_IDX_TYPE>,
+            TAccDim,
+            TAcc,
+            TStream
+            >
+            ::call (
+                myself->stream,
+                myself->framebufferAO,
+                myself->framebufferDepth,
+                myself->framebufferNormal,
+                myself->framebuffer_size,
+                framebuffer_start,
+                readback_viewport,
+                myself->ambientOcclusion
+            );
 
-        //wait until render kernel has finished
-        alpaka::wait::wait ( myself->stream );
+            //wait until render kernel has finished
+            alpaka::wait::wait ( myself->stream );
 
-        IsaacSSAOFilterKernelCaller
-        <
-        alpaka::mem::buf::Buf<TDevAcc, uint32_t, TFraDim, ISAAC_IDX_TYPE>,
-        alpaka::mem::buf::Buf<TDevAcc, isaac_float, TFraDim, ISAAC_IDX_TYPE>,
-        TAccDim,
-        TAcc,
-        TStream
-        >
-        ::call (
-            myself->stream,
-            myself->framebuffer,
-            myself->framebufferAO,
-            myself->framebuffer_size,
-            framebuffer_start,
-            readback_viewport,
-            myself->ambientOcclusion
-        );
+            IsaacSSAOFilterKernelCaller
+            <
+            alpaka::mem::buf::Buf<TDevAcc, uint32_t, TFraDim, ISAAC_IDX_TYPE>,
+            alpaka::mem::buf::Buf<TDevAcc, isaac_float, TFraDim, ISAAC_IDX_TYPE>,
+            TAccDim,
+            TAcc,
+            TStream
+            >
+            ::call (
+                myself->stream,
+                myself->framebuffer,
+                myself->framebufferAO,
+                myself->framebuffer_size,
+                framebuffer_start,
+                readback_viewport,
+                myself->ambientOcclusion
+            );
 
-        //wait until render kernel has finished
-        alpaka::wait::wait ( myself->stream );
+            //wait until render kernel has finished
+            alpaka::wait::wait ( myself->stream );
+        }
 
         //stop and restart time for delta calculation
         ISAAC_STOP_TIME_MEASUREMENT ( myself->kernel_time, +=, kernel, myself->getTicksUs() )
@@ -1910,43 +1913,46 @@ private:
         //wait until render kernel has finished
         ISAAC_CUDA_CHECK ( cudaDeviceSynchronize() );
 
-                //call render kernel
-        IsaacSSAOKernelCaller
-        <
-        isaac_float*,
-        isaac_float3*,
-        isaac_float3*
-        >
-        ::call (
-            myself->framebufferAO,
-            myself->framebufferDepth,
-            myself->framebufferNormal,
-            myself->framebuffer_size,
-            framebuffer_start,
-            readback_viewport,
-            myself->ambientOcclusion
-        );
+        
+        if(myself->ambientOcclusion.weight) {
+            //call render kernel
+            IsaacSSAOKernelCaller
+            <
+            isaac_float*,
+            isaac_float3*,
+            isaac_float3*
+            >
+            ::call (
+                myself->framebufferAO,
+                myself->framebufferDepth,
+                myself->framebufferNormal,
+                myself->framebuffer_size,
+                framebuffer_start,
+                readback_viewport,
+                myself->ambientOcclusion
+            );
 
-        //wait until render kernel has finished
-        ISAAC_CUDA_CHECK ( cudaDeviceSynchronize() );
+            //wait until render kernel has finished
+            ISAAC_CUDA_CHECK ( cudaDeviceSynchronize() );
 
-        //call render kernel
-        IsaacSSAOFilterKernelCaller
-        <
-        uint32_t*,
-        isaac_float*
-        >
-        ::call (
-            myself->framebuffer,
-            myself->framebufferAO,
-            myself->framebuffer_size,
-            framebuffer_start,
-            readback_viewport,
-            myself->ambientOcclusion
-        );
+            //call render kernel
+            IsaacSSAOFilterKernelCaller
+            <
+            uint32_t*,
+            isaac_float*
+            >
+            ::call (
+                myself->framebuffer,
+                myself->framebufferAO,
+                myself->framebuffer_size,
+                framebuffer_start,
+                readback_viewport,
+                myself->ambientOcclusion
+            );
 
-        //wait until render kernel has finished
-        ISAAC_CUDA_CHECK ( cudaDeviceSynchronize() );
+            //wait until render kernel has finished
+            ISAAC_CUDA_CHECK ( cudaDeviceSynchronize() );
+        }
 
         //stop and restart time for delta calculation
         ISAAC_STOP_TIME_MEASUREMENT ( myself->kernel_time, +=, kernel, myself->getTicksUs() )
@@ -2086,9 +2092,9 @@ private:
             }
             if(myself->send_ao) {
                 json_object_set_new(myself->json_root, "ao isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
-                json_object_set_new(myself->json_root, "ao maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles));          
+                json_object_set_new(myself->json_root, "ao weight", json_integer(myself->ambientOcclusion.weight));          
                 json_object_set_new(myself->json_init_root, "ao isEnabled", json_boolean(myself->ambientOcclusion.isEnabled));
-                json_object_set_new(myself->json_init_root, "ao maxCellParticles", json_integer(myself->ambientOcclusion.maxCellParticles));
+                json_object_set_new(myself->json_init_root, "ao weight", json_integer(myself->ambientOcclusion.weight));
 
                 myself->send_init_json = true;
             }
