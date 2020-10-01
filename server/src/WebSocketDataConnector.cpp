@@ -138,6 +138,13 @@ static int callback_isaac(
 					char* buffer = json_dumps( message->json_root, 0 );
 					pthread_mutex_unlock(&MessageContainer::deep_copy_mutex);
 					n = strlen(buffer);
+					if(n > ISAAC_MAX_RECEIVE)
+					{
+						fprintf(stderr, "WebSocketDataConnector: Message overflows reserved buffer and maximum json size of 4 MB\n");
+						fflush(stderr);
+						pss->client->clientSendMessage(new MessageContainer(CLOSED));
+						return -1;
+					}
 					sprintf(p,"%s",buffer);
 					m = lws_write(wsi, (unsigned char*)p, n, LWS_WRITE_TEXT);
 					free(buffer);
