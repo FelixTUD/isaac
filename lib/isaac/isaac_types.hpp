@@ -19,6 +19,9 @@
 
 #include "isaac_defines.hpp"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 namespace isaac
 {
 
@@ -37,9 +40,10 @@ typedef uint32_t isaac_uint;
 #define ISAAC_COMPONENTS_SEQ_0 (x)
 
 #ifndef ISAAC_IDX_TYPE
-    #define ISAAC_IDX_TYPE size_t
+    #define ISAAC_IDX_TYPE unsigned int
 #endif
 
+/*
 #ifndef __CUDACC__
     //isaac_float4, isaac_float3, isaac_float2
     #define ISAAC_FLOAT_DEF(Z, I, unused) \
@@ -75,9 +79,9 @@ typedef uint32_t isaac_uint;
     #undef ISAAC_CUDA_DEF
 #endif
 
-//isaac_size4, isaac_size3, isaac_size2, isaac_size1
+//isaac_uint4, isaac_uint3, isaac_uint2, isaac_uint1
 #define ISAAC_SIZE_DEF(Z, I, unused) \
-    struct BOOST_PP_CAT(isaac_size, BOOST_PP_INC(I) ) \
+    struct BOOST_PP_CAT(isaac_uint, BOOST_PP_INC(I) ) \
     { \
         ISAAC_IDX_TYPE BOOST_PP_SEQ_ENUM( BOOST_PP_CAT( ISAAC_COMPONENTS_SEQ_ , I ) ); \
     };
@@ -190,6 +194,39 @@ BOOST_PP_REPEAT( 3, ISAAC_DIM_DEF, ~ )
 #undef ISAAC_DIM_TYPES
 #undef ISAAC_DIM_TYPES_DIM
 
+*/
+
+//isaac_float4, isaac_float3, isaac_float2
+#define ISAAC_GLM_DEF(Z, I, unused) \
+    typedef BOOST_PP_CAT(glm::vec, BOOST_PP_INC(I) ) BOOST_PP_CAT(isaac_float, BOOST_PP_INC(I) ); \
+    typedef BOOST_PP_CAT(glm::uvec, BOOST_PP_INC(I) ) BOOST_PP_CAT(isaac_uint, BOOST_PP_INC(I) ); \
+    typedef BOOST_PP_CAT(glm::ivec, BOOST_PP_INC(I) ) BOOST_PP_CAT(isaac_int, BOOST_PP_INC(I) );
+BOOST_PP_REPEAT(4, ISAAC_GLM_DEF, ~)
+#undef ISAAC_CUDA_DEF
+
+//isaac_uint4, isaac_uint3, isaac_uint2, isaac_uint1
+#define ISAAC_SIZE_DEF(Z, I, unused) \
+    typedef BOOST_PP_CAT(glm::uvec, BOOST_PP_INC(I) ) BOOST_PP_CAT(isaac_uint, BOOST_PP_INC(I) );
+BOOST_PP_REPEAT(4, ISAAC_SIZE_DEF, ~)
+#undef ISAAC_SIZE_DEF
+
+#define ISAAC_DIM_TYPES ( 3, ( glm::uint, float, int ) )
+#define ISAAC_DIM_TYPES_DIM ( 3, ( size_dim, float_dim, int_dim ) )
+
+#define ISAAC_DIM_DEF(Z, I, unused) \
+    template <ISAAC_IDX_TYPE T> \
+    using BOOST_PP_CAT( isaac_ , BOOST_PP_ARRAY_ELEM( I, ISAAC_DIM_TYPES_DIM ) ) = glm::vec<T, BOOST_PP_ARRAY_ELEM( I, ISAAC_DIM_TYPES ), glm::defaultp>;
+
+BOOST_PP_REPEAT( 3, ISAAC_DIM_DEF, ~ )
+
+
+
+#undef ISAAC_DIM_SUBDEF
+#undef ISAAC_DIM_DEF
+#undef ISAAC_DIM_TYPES
+#undef ISAAC_DIM_TYPES_DIM
+
+
 /**
  * @brief Container for all simulation sizes
  * 
@@ -198,15 +235,15 @@ BOOST_PP_REPEAT( 3, ISAAC_DIM_DEF, ~ )
 template < ISAAC_IDX_TYPE simdim >
 struct isaac_size_struct
 {
-    isaac_size_dim < simdim > global_size;         //size of volume
+    isaac_uint_dim < simdim > global_size;         //size of volume
     ISAAC_IDX_TYPE max_global_size;                //each dimension has a size and this value contains the value of the greatest dimension
-    isaac_size_dim < simdim > position;            //local position of subvolume
-    isaac_size_dim < simdim > local_size;          //size of local volume grid
-    isaac_size_dim < simdim > local_particle_size; //size of local particle grid 
-    isaac_size_dim < simdim > global_size_scaled;  //scaled version of global size with cells = scale * cells
+    isaac_uint_dim < simdim > position;            //local position of subvolume
+    isaac_uint_dim < simdim > local_size;          //size of local volume grid
+    isaac_uint_dim < simdim > local_particle_size; //size of local particle grid 
+    isaac_uint_dim < simdim > global_size_scaled;  //scaled version of global size with cells = scale * cells
     ISAAC_IDX_TYPE max_global_size_scaled;         //same as global_size_scaled
-    isaac_size_dim < simdim > position_scaled;     //scaled position of local subvolume
-    isaac_size_dim < simdim > local_size_scaled;   //same as global_size_scaled
+    isaac_uint_dim < simdim > position_scaled;     //scaled position of local subvolume
+    isaac_uint_dim < simdim > local_size_scaled;   //same as global_size_scaled
 };
 
 

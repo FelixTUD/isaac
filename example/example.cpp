@@ -27,9 +27,9 @@ using namespace isaac;
 #define VOLUME_Y 64
 #define VOLUME_Z 64
 
-#define PARTICLE_VOLUME_X 64
-#define PARTICLE_VOLUME_Y 64
-#define PARTICLE_VOLUME_Z 64
+#define PARTICLE_VOLUME_X 256
+#define PARTICLE_VOLUME_Y 256
+#define PARTICLE_VOLUME_Z 256
 
 #define PARTICLE_COUNT 64
 
@@ -80,7 +80,7 @@ public:
         isaac_float3 value = ptr[nIndex.x + nIndex.y * VOLUME_X
                                  + nIndex.z * VOLUME_X * VOLUME_Y];
         isaac_float_dim< 3 > result;
-        result.value = value;
+        result = value;
         return result;
     }
 };
@@ -136,8 +136,7 @@ public:
         isaac_float value = ptr[nIndex.x + nIndex.y * VOLUME_X
                                 + nIndex.z * VOLUME_X * VOLUME_Y];
         isaac_float_dim< 1 > result;
-        result.value
-            .x = value;
+        result.x = value;
         return result;
     }
 };

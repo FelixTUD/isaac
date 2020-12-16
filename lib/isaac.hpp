@@ -3299,55 +3299,31 @@ namespace isaac
             }
 
             //set global simulation size
-            size_h[0].global_size
-                .value
-                .x = myself->global_size[0];
-            size_h[0].global_size
-                .value
-                .y = myself->global_size[1];
+            size_h[0].global_size.x = myself->global_size[0];
+            size_h[0].global_size.y = myself->global_size[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].global_size
-                    .value
-                    .z = myself->global_size[2];
+                size_h[0].global_size.z = myself->global_size[2];
             }
-            size_h[0].position
-                .value
-                .x = myself->position[0];
-            size_h[0].position
-                .value
-                .y = myself->position[1];
+            size_h[0].position .x = myself->position[0];
+            size_h[0].position.y = myself->position[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].position
-                    .value
-                    .z = myself->position[2];
+                size_h[0].position.z = myself->position[2];
             }
 
             //set subvolume size
-            size_h[0].local_size
-                .value
-                .x = myself->local_size[0];
-            size_h[0].local_size
-                .value
-                .y = myself->local_size[1];
+            size_h[0].local_size.x = myself->local_size[0];
+            size_h[0].local_size.y = myself->local_size[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].local_size
-                    .value
-                    .z = myself->local_size[2];
+                size_h[0].local_size.z = myself->local_size[2];
             }
-            size_h[0].local_particle_size
-                .value
-                .x = myself->local_particle_size[0];
-            size_h[0].local_particle_size
-                .value
-                .y = myself->local_particle_size[1];
+            size_h[0].local_particle_size.x = myself->local_particle_size[0];
+            size_h[0].local_particle_size.y = myself->local_particle_size[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].local_particle_size
-                    .value
-                    .z = myself->local_particle_size[2];
+                size_h[0].local_particle_size.z = myself->local_particle_size[2];
             }
             
             //get maximum size from biggest dimesnion MAX(x-dim, y-dim, z-dim)
@@ -3360,43 +3336,25 @@ namespace isaac
             ) );
 
             //set global size with cellcount scaled
-            size_h[0].global_size_scaled
-                .value
-                .x = myself->global_size_scaled[0];
-            size_h[0].global_size_scaled
-                .value
-                .y = myself->global_size_scaled[1];
+            size_h[0].global_size_scaled.x = myself->global_size_scaled[0];
+            size_h[0].global_size_scaled.y = myself->global_size_scaled[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].global_size_scaled
-                    .value
-                    .z = myself->global_size_scaled[2];
+                size_h[0].global_size_scaled.z = myself->global_size_scaled[2];
             }
 
             //set position in subvolume (adjusted to cellcount scale)
-            size_h[0].position_scaled
-                .value
-                .x = myself->position_scaled[0];
-            size_h[0].position_scaled
-                .value
-                .y = myself->position_scaled[1];
+            size_h[0].position_scaled.x = myself->position_scaled[0];
+            size_h[0].position_scaled.y = myself->position_scaled[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].position_scaled
-                    .value
-                    .z = myself->position_scaled[2];
+                size_h[0].position_scaled.z = myself->position_scaled[2];
             }
-            size_h[0].local_size_scaled
-                .value
-                .x = myself->local_size_scaled[0];
-            size_h[0].local_size_scaled
-                .value
-                .y = myself->local_size_scaled[1];
+            size_h[0].local_size_scaled.x = myself->local_size_scaled[0];
+            size_h[0].local_size_scaled.y = myself->local_size_scaled[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].local_size_scaled
-                    .value
-                    .z = myself->local_size_scaled[2];
+                size_h[0].local_size_scaled.z = myself->local_size_scaled[2];
             }
 
             //get maximum size from biggest dimesnion after scaling MAX(x-dim, y-dim, z-dim)

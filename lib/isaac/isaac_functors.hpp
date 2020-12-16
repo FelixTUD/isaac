@@ -92,46 +92,25 @@ struct IsaacFunctorLength
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<4> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result =
-        {
-            sqrt(
-            v.value.x * v.value.x +
-            v.value.y * v.value.y +
-            v.value.z * v.value.z +
-            v.value.w * v.value.w
-            )
-        };
+        isaac_float_dim<1> result(glm::length(v));
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<3> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result =
-        {
-            sqrt(
-            v.value.x * v.value.x +
-            v.value.y * v.value.y +
-            v.value.z * v.value.z
-            )
-        };
+        isaac_float_dim<1> result(glm::length(v));
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<2> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result =
-        {
-            sqrt(
-            v.value.x * v.value.x +
-            v.value.y * v.value.y
-            )
-        };
+        isaac_float_dim<1> result(glm::length(v));
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result = { fabs( v.value.x ) };
+        isaac_float_dim<1> result(glm::length(v));
         return result;
     }
 
@@ -159,34 +138,32 @@ struct IsaacFunctorMul
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<4> call( const isaac_float_dim<4> v, const isaac_float4& p)
     {
-        isaac_float_dim<4> result = { v.value * p };
+        isaac_float_dim<4> result( v * p );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<3> call( const isaac_float_dim<3> v, const isaac_float4& p)
     {
-        isaac_float_dim<3> result =
-        {
-            v.value.x * p.x,
-            v.value.y * p.y,
-            v.value.z * p.z
-        };
+        isaac_float_dim<3> result(
+            v.x * p.x,
+            v.y * p.y,
+            v.z * p.z
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<2> call( const isaac_float_dim<2> v, const isaac_float4& p)
     {
-        isaac_float_dim<2> result =
-        {
-            v.value.x * p.x,
-            v.value.y * p.y
-        };
+        isaac_float_dim<2> result(
+            v.x * p.x,
+            v.y * p.y
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result = { v.value.x * p.x };
+        isaac_float_dim<1> result( v.x * p.x );
         return result;
     }
     ISAAC_HOST_INLINE
@@ -211,34 +188,32 @@ struct IsaacFunctorAdd
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<4> call( const isaac_float_dim<4> v, const isaac_float4& p)
     {
-        isaac_float_dim<4> result = { v.value + p };
+        isaac_float_dim<4> result( v + p );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<3> call( const isaac_float_dim<3> v, const isaac_float4& p)
     {
-        isaac_float_dim<3> result =
-        {
-            v.value.x + p.x,
-            v.value.y + p.y,
-            v.value.z + p.z
-        };
+        isaac_float_dim<3> result(
+            v.x + p.x,
+            v.y + p.y,
+            v.z + p.z
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<2> call( const isaac_float_dim<2> v, const isaac_float4& p)
     {
-        isaac_float_dim<2> result =
-        {
-            v.value.x + p.x,
-            v.value.y + p.y
-        };
+        isaac_float_dim<2> result(
+            v.x + p.x,
+            v.y + p.y
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result = { v.value.x + p.x };
+        isaac_float_dim<1> result( v.x + p.x );
         return result;
     }
     ISAAC_HOST_INLINE
@@ -263,40 +238,37 @@ struct IsaacFunctorPow
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<4> call( const isaac_float_dim<4> v, const isaac_float4& p)
     {
-        isaac_float_dim<4> result =
-        {
-            pow( v.value.x, p.x ),
-            pow( v.value.y, p.y ),
-            pow( v.value.z, p.z ),
-            pow( v.value.w, p.w )
-        };
+        isaac_float_dim<4> result(
+            pow( v.x, p.x ),
+            pow( v.y, p.y ),
+            pow( v.z, p.z ),
+            pow( v.w, p.w )
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<3> call( const isaac_float_dim<3> v, const isaac_float4& p)
     {
-        isaac_float_dim<3> result =
-        {
-            pow( v.value.x, p.x ),
-            pow( v.value.y, p.y ),
-            pow( v.value.z, p.z )
-        };
+        isaac_float_dim<3> result(
+            pow( v.x, p.x ),
+            pow( v.y, p.y ),
+            pow( v.z, p.z )
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<2> call( const isaac_float_dim<2> v, const isaac_float4& p)
     {
-        isaac_float_dim<2> result =
-        {
-            pow( v.value.x, p.x ),
-            pow( v.value.y, p.y )
-        };
+        isaac_float_dim<2> result(
+            pow( v.x, p.x ),
+            pow( v.y, p.y )
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result = { pow( v.value.x, p.x ) };
+        isaac_float_dim<1> result( pow( v.x, p.x ) );
         return result;
     }
     ISAAC_HOST_INLINE
@@ -321,40 +293,37 @@ struct IsaacFunctorSum
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<4> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result =
-        {
-            v.value.x +
-            v.value.y +
-            v.value.z +
-            v.value.w
-        };
+        isaac_float_dim<1> result(
+            v.x +
+            v.y +
+            v.z +
+            v.w
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<3> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result =
-        {
-            v.value.x +
-            v.value.y +
-            v.value.z
-        };
+        isaac_float_dim<1> result(
+            v.x +
+            v.y +
+            v.z
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<2> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result =
-        {
-            v.value.x +
-            v.value.y
-        };
+        isaac_float_dim<1> result(
+            v.x +
+            v.y
+        );
         return result;
     }
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
     {
-        isaac_float_dim<1> result = { v.value.x };
+        isaac_float_dim<1> result( v.x );
         return result;
     }
     ISAAC_HOST_INLINE

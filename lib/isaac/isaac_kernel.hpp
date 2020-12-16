@@ -162,8 +162,7 @@ namespace isaac
         // expands to: funcN( ... func1( func0( data, p[0] ), p[1] ) ... p[N] );
         return ISAAC_LEFT
         value
-        ISAAC_RIGHT.value
-            .x;
+        ISAAC_RIGHT.x;
 #undef ISAAC_LEFT_DEF
 #undef ISAAC_LEFT
 #undef ISAAC_RIGHT_DEF
@@ -278,30 +277,17 @@ namespace isaac
         )( pointerArray.pointer[NR::value] );
         if( TInterpolation == 0 )
         {
-            isaac_int3 coord = {
-                isaac_int( pos.x ),
-                isaac_int( pos.y ),
-                isaac_int( pos.z )
-            };
+            isaac_int3 coord = pos;
             if( TSource::persistent )
             {
                 data = source[coord];
             }
             else
             {
-                data = ptr[coord.x + ISAAC_GUARD_SIZE
-                           + ( coord.y + ISAAC_GUARD_SIZE ) * (
-                               local_size.value
-                                   .x + 2 * ISAAC_GUARD_SIZE
-                           ) + ( coord.z + ISAAC_GUARD_SIZE ) * (
-                    (
-                        local_size.value
-                            .x + 2 * ISAAC_GUARD_SIZE
-                    ) * (
-                        local_size.value
-                            .y + 2 * ISAAC_GUARD_SIZE
-                    )
-                )];
+                data = ptr[coord.x + ISAAC_GUARD_SIZE + ( coord.y + ISAAC_GUARD_SIZE ) 
+                            * ( local_size.x + 2 * ISAAC_GUARD_SIZE ) + ( coord.z + ISAAC_GUARD_SIZE ) 
+                            * ( ( local_size.x + 2 * ISAAC_GUARD_SIZE ) 
+                            * ( local_size.y + 2 * ISAAC_GUARD_SIZE ) )];
             }
         }
         else
@@ -314,35 +300,33 @@ namespace isaac
                 {
                     for( int z = 0; z < 2; z++ )
                     {
-                        coord.x =
-                            isaac_int( x ? ceil( pos.x ) : floor( pos.x ) );
-                        coord.y =
-                            isaac_int( y ? ceil( pos.y ) : floor( pos.y ) );
-                        coord.z =
-                            isaac_int( z ? ceil( pos.z ) : floor( pos.z ) );
+                        coord = pos + isaac_float3( x, y, z ) - 1.0f;
+                        //coord.x = isaac_int( x ? ceil( pos.x ) : floor( pos.x ) );
+                        //coord.y = isaac_int( y ? ceil( pos.y ) : floor( pos.y ) );
+                        //coord.z = isaac_int( z ? ceil( pos.z ) : floor( pos.z ) );
                         if( !TSource::has_guard && TSource::persistent )
                         {
-                            if( isaac_uint( coord.x ) >= local_size.value
-                                .x )
+                            coord = glm::clamp( coord, isaac_int3( 0 ), isaac_int3( local_size ) - 1 );
+                            /*
+                            if( isaac_uint( coord.x ) >= local_size.x )
                             {
                                 coord.x = isaac_int(
                                     x ? floor( pos.x ) : ceil( pos.x )
                                 );
                             }
-                            if( isaac_uint( coord.y ) >= local_size.value
-                                .y )
+                            if( isaac_uint( coord.y ) >= local_size.y )
                             {
                                 coord.y = isaac_int(
                                     y ? floor( pos.y ) : ceil( pos.y )
                                 );
                             }
-                            if( isaac_uint( coord.z ) >= local_size.value
-                                .z )
+                            if( isaac_uint( coord.z ) >= local_size.z )
                             {
                                 coord.z = isaac_int(
                                     z ? floor( pos.z ) : ceil( pos.z )
                                 );
                             }
+                            */
                         }
                         if( TSource::persistent )
                         {
@@ -353,19 +337,16 @@ namespace isaac
                             data8[x][y][z] = ptr[coord.x + ISAAC_GUARD_SIZE +
                                                  ( coord.y + ISAAC_GUARD_SIZE )
                                                  * (
-                                                     local_size.value
-                                                         .x
+                                                     local_size.x
                                                      + 2 * ISAAC_GUARD_SIZE
                                                  ) +
                                                  ( coord.z + ISAAC_GUARD_SIZE )
                                                  * (
                                                      (
-                                                         local_size.value
-                                                             .x
+                                                         local_size.x
                                                          + 2 * ISAAC_GUARD_SIZE
                                                      ) * (
-                                                         local_size.value
-                                                             .y
+                                                         local_size.y
                                                          + 2 * ISAAC_GUARD_SIZE
                                                      )
                                                  )];
@@ -378,11 +359,7 @@ namespace isaac
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnarrowing"
 #endif
-            isaac_float_dim< 3 > pos_in_cube = {
-                pos.x - floor( pos.x ),
-                pos.y - floor( pos.y ),
-                pos.z - floor( pos.z )
-            };
+            isaac_float_dim< 3 > pos_in_cube = pos - glm::floor( pos );
 #if __CUDACC_VER_MAJOR__ > 7
 #pragma GCC diagnostic pop
 #endif
@@ -391,32 +368,26 @@ namespace isaac
             {
                 for( int y = 0; y < 2; y++ )
                 {
-                    data4[x][y].value = data8[x][y][0].value * (
-                        isaac_float( 1 ) - pos_in_cube.value
-                            .z
-                    ) + data8[x][y][1].value * (
-                        pos_in_cube.value
-                            .z
+                    data4[x][y] = data8[x][y][0] * (
+                        isaac_float( 1 ) - pos_in_cube.z
+                    ) + data8[x][y][1] * (
+                        pos_in_cube.z
                     );
                 }
             }
             isaac_float_dim <TSource::feature_dim> data2[2];
             for( int x = 0; x < 2; x++ )
             {
-                data2[x].value = data4[x][0].value * (
-                    isaac_float( 1 ) - pos_in_cube.value
-                        .y
-                ) + data4[x][1].value * (
-                    pos_in_cube.value
-                        .y
+                data2[x] = data4[x][0] * (
+                    isaac_float( 1 ) - pos_in_cube.y
+                ) + data4[x][1] * (
+                    pos_in_cube.y
                 );
             }
-            data.value = data2[0].value * (
-                isaac_float( 1 ) - pos_in_cube.value
-                    .x
-            ) + data2[1].value * (
-                pos_in_cube.value
-                    .x
+            data = data2[0] * (
+                isaac_float( 1 ) - pos_in_cube.x
+            ) + data2[1] * (
+                pos_in_cube.x
             );
         }
         isaac_float result = isaac_float( 0 );
@@ -475,50 +446,46 @@ namespace isaac
         const TLocalSize local_size
     )
     {
-        constexpr auto extra_border = static_cast<decltype( local_size.value
-            .x )>(TInterpolation);
-        if( coord.x < isaac_float( 0 ) )
-        {
-            coord.x = isaac_float( 0 );
-        }
-        if( coord.y < isaac_float( 0 ) )
-        {
-            coord.y = isaac_float( 0 );
-        }
-        if( coord.z < isaac_float( 0 ) )
-        {
-            coord.z = isaac_float( 0 );
-        }
-        if( coord.x >= isaac_float(
-            local_size.value
-                .x - extra_border
-        ) )
-        {
-            coord.x = isaac_float(
-                local_size.value
-                    .x - extra_border
-            ) - FLT_MIN;
-        }
-        if( coord.y >= isaac_float(
-            local_size.value
-                .y - extra_border
-        ) )
-        {
-            coord.y = isaac_float(
-                local_size.value
-                    .y - extra_border
-            ) - FLT_MIN;
-        }
-        if( coord.z >= isaac_float(
-            local_size.value
-                .z - extra_border
-        ) )
-        {
-            coord.z = isaac_float(
-                local_size.value
-                    .z - extra_border
-            ) - FLT_MIN;
-        }
+        constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
+
+        coord = glm::clamp(coord, isaac_float3(0.0f), isaac_float3( local_size - extra_border ) - FLT_MIN );
+
+        //if( coord.x < isaac_float( 0 ) )
+        //{
+        //    coord.x = isaac_float( 0 );
+        //}
+        //if( coord.y < isaac_float( 0 ) )
+        //{
+        //    coord.y = isaac_float( 0 );
+        //}
+        //if( coord.z < isaac_float( 0 ) )
+        //{
+        //    coord.z = isaac_float( 0 );
+        //}
+        //if( coord.x >= isaac_float(
+        //    local_size.x - extra_border
+        //) )
+        //{
+        //    coord.x = isaac_float(
+        //        local_size.x - extra_border
+        //    ) - FLT_MIN;
+        //}
+        //if( coord.y >= isaac_float(
+        //    local_size.y - extra_border
+        //) )
+        //{
+        //    coord.y = isaac_float(
+        //        local_size.y - extra_border
+        //    ) - FLT_MIN;
+        //}
+        //if( coord.z >= isaac_float(
+        //    local_size.z - extra_border
+        //) )
+        //{
+        //    coord.z = isaac_float(
+        //        local_size.z - extra_border
+        //    ) - FLT_MIN;
+        //}
     }
 
     /**
@@ -540,8 +507,7 @@ namespace isaac
         const TLocalSize local_size
     )
     {
-        constexpr auto extra_border = static_cast<decltype( local_size.value
-            .x )>(TInterpolation);
+        constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
         if( coord.x < isaac_float( -ISAAC_GUARD_SIZE ) )
         {
             coord.x = isaac_float( -ISAAC_GUARD_SIZE );
@@ -555,33 +521,27 @@ namespace isaac
             coord.z = isaac_float( -ISAAC_GUARD_SIZE );
         }
         if( coord.x >= isaac_float(
-            local_size.value
-                .x + ISAAC_GUARD_SIZE - extra_border
+            local_size.x + ISAAC_GUARD_SIZE - extra_border
         ) )
         {
             coord.x = isaac_float(
-                local_size.value
-                    .x + ISAAC_GUARD_SIZE - extra_border
+                local_size.x + ISAAC_GUARD_SIZE - extra_border
             ) - FLT_MIN;
         }
         if( coord.y >= isaac_float(
-            local_size.value
-                .y + ISAAC_GUARD_SIZE - extra_border
+            local_size.y + ISAAC_GUARD_SIZE - extra_border
         ) )
         {
             coord.y = isaac_float(
-                local_size.value
-                    .y + ISAAC_GUARD_SIZE - extra_border
+                local_size.y + ISAAC_GUARD_SIZE - extra_border
             ) - FLT_MIN;
         }
         if( coord.z >= isaac_float(
-            local_size.value
-                .z + ISAAC_GUARD_SIZE - extra_border
+            local_size.z + ISAAC_GUARD_SIZE - extra_border
         ) )
         {
             coord.z = isaac_float(
-                local_size.value
-                    .z + ISAAC_GUARD_SIZE - extra_border
+                local_size.z + ISAAC_GUARD_SIZE - extra_border
             ) - FLT_MIN;
         }
     }
@@ -644,26 +604,20 @@ namespace isaac
             >::type::value )
             {
                 auto particle_iterator = source.getIterator( cell_pos );
-                isaac_float3 cell_pos_f = {
-                    isaac_float( cell_pos.x ),
-                    isaac_float( cell_pos.y ),
-                    isaac_float( cell_pos.z )
-                };
+
                 // iterate over all particles in current cell
                 for( int i = 0; i < particle_iterator.size; i++ )
                 {
                     // ray sphere intersection
                     isaac_float3 particle_pos =
-                        ( particle_iterator.getPosition( ) + cell_pos_f )
+                        ( particle_iterator.getPosition( ) + isaac_float3( cell_pos ) )
                         * particle_scale;
                     isaac_float3 L = particle_pos - start;
                     isaac_float radius = particle_iterator.getRadius( )
-                                         * sourceWeight.value[NR::value
-                                                              + TOffset];
+                                         * sourceWeight.value[NR::value + TOffset];
                     isaac_float radius2 = radius * radius;
-                    isaac_float tca = L.x * dir.x + L.y * dir.y + L.z * dir.z;
-                    isaac_float
-                        d2 = ( L.x * L.x + L.y * L.y + L.z * L.z ) - tca * tca;
+                    isaac_float tca = glm::dot( L, dir );
+                    isaac_float d2 = ( L.x * L.x + L.y * L.y + L.z * L.z ) - tca * tca;
                     if( d2 > radius2 )
                     {
                         particle_iterator.next( );
@@ -727,8 +681,7 @@ namespace isaac
                         {
                             lookup_value = Ttransfer_size - 1;
                         }
-                        isaac_float4 value = transferArray.pointer[NR::value
-                                                                   + TOffset][lookup_value];
+                        isaac_float4 value = transferArray.pointer[NR::value + TOffset][lookup_value];
 
                         // check if the alpha value is greater or equal than 0.5
                         if( value.w >= 0.5f )
@@ -1044,14 +997,9 @@ namespace isaac
                         };
                         if( first )
                         {
-                            gradient.x = start_normal.x;
-                            gradient.y = start_normal.y;
-                            gradient.z = start_normal.z;
+                            gradient = start_normal;
                         }
-                        isaac_float l = sqrt(
-                            gradient.x * gradient.x + gradient.y * gradient.y
-                            + gradient.z * gradient.z
-                        );
+                        isaac_float l = glm::length( gradient );
                         if( l == isaac_float( 0 ) )
                         {
                             color = value;
@@ -1060,18 +1008,11 @@ namespace isaac
                         {
                             gradient = gradient / l;
                             isaac_float3 light = step / stepLength;
-                            isaac_float ac = fabs(
-                                gradient.x * light.x + gradient.y * light.y
-                                + gradient.z * light.z
-                            );
+                            isaac_float ac = fabs( glm::dot( gradient, light ) );
 #if ISAAC_SPECULAR == 1
-                            color.x = value.x * ac + ac * ac * ac * ac;
-                            color.y = value.y * ac + ac * ac * ac * ac;
-                            color.z = value.z * ac + ac * ac * ac * ac;
+                            color = value * ac + ac * ac * ac * ac;
 #else
-                            color.x = value.x * ac;
-                            color.y = value.y * ac;
-                            color.z = value.z * ac;
+                            color = value * ac;
 #endif
                         }
                         color.w = isaac_float( 1 );
@@ -1163,9 +1104,7 @@ namespace isaac
             >( acc );
             ISAAC_ELEM_ITERATE ( e )
             {
-                pixel[e].x = isaac_uint( alpThreadIdx[2] )
-                             * isaac_uint( ISAAC_VECTOR_ELEM ) + e;
-                pixel[e].y = isaac_uint( alpThreadIdx[1] );
+                pixel[e] = isaac_uint2(alpThreadIdx[2] * ISAAC_VECTOR_ELEM + e, alpThreadIdx[1] );
                 //apply framebuffer offset to pixel
                 //stop if pixel position is out of bounds
                 finish[e] = false;
@@ -1236,12 +1175,7 @@ namespace isaac
                 global_front[e] = false;
 
                 //get normalized pixel position in framebuffer
-                pixel_f[e].x = isaac_float( pixel[e].x )
-                               / ( isaac_float ) framebuffer_size.x
-                               * isaac_float( 2 ) - isaac_float( 1 );
-                pixel_f[e].y = isaac_float( pixel[e].y )
-                               / ( isaac_float ) framebuffer_size.y
-                               * isaac_float( 2 ) - isaac_float( 1 );
+                pixel_f[e] = isaac_float2( pixel[e] ) / isaac_float2( framebuffer_size ) * 2.0f - 1.0f;
                 
                 //get ray start/end position
                 start_p[e].x = pixel_f[e].x * ISAAC_Z_NEAR;
@@ -1280,8 +1214,8 @@ namespace isaac
                            + isaac_inverse_d[6] * end_p[e].y
                            + isaac_inverse_d[10] * end_p[e].z
                            + isaac_inverse_d[14] * end_p[e].w;
-                isaac_float
-                    max_size = isaac_size_d[0].max_global_size_scaled / 2.0f;
+
+                isaac_float max_size = isaac_size_d[0].max_global_size_scaled / 2.0f;
 
                 //scale to globale grid size
                 start[e] = start[e] * max_size;
@@ -1298,37 +1232,9 @@ namespace isaac
 
                 //move to local (scaled) grid
                 //get offset of subvolume in global volume
-                move[e].x = isaac_int(
-                    isaac_size_d[0].global_size_scaled
-                        .value
-                        .x
-                ) / isaac_int( 2 ) - isaac_int(
-                    isaac_size_d[0].position_scaled
-                        .value
-                        .x
-                );
-                move[e].y = isaac_int(
-                    isaac_size_d[0].global_size_scaled
-                        .value
-                        .y
-                ) / isaac_int( 2 ) - isaac_int(
-                    isaac_size_d[0].position_scaled
-                        .value
-                        .y
-                );
-                move[e].z = isaac_int(
-                    isaac_size_d[0].global_size_scaled
-                        .value
-                        .z
-                ) / isaac_int( 2 ) - isaac_int(
-                    isaac_size_d[0].position_scaled
-                        .value
-                        .z
-                );
+                move[e] = isaac_int3( isaac_size_d[0].global_size_scaled ) / 2 - isaac_int3( isaac_size_d[0].position_scaled );
 
-                move_f[e].x = isaac_float( move[e].x );
-                move_f[e].y = isaac_float( move[e].y );
-                move_f[e].z = isaac_float( move[e].z );
+                move_f[e] = isaac_float3( move[e] );
 
                 //apply subvolume offset to start and end
                 start[e] = start[e] + move_f[e];
@@ -1343,37 +1249,20 @@ namespace isaac
 
                 //get ray length
                 vec[e] = end[e] - start[e];
-                l_scaled[e] = sqrt(
-                    vec[e].x * vec[e].x + vec[e].y * vec[e].y
-                    + vec[e].z * vec[e].z
-                );
+                l_scaled[e] = glm::length(vec[e]);
 
                 //apply isaac scaling to start, end and position tested by clipping plane
-                start[e].x = start[e].x / scale.x;
-                start[e].y = start[e].y / scale.y;
-                start[e].z = start[e].z / scale.z;
-                end[e].x = end[e].x / scale.x;
-                end[e].y = end[e].y / scale.y;
-                end[e].z = end[e].z / scale.z;
+                start[e] = start[e] / scale;
+                end[e] = end[e] / scale;
+
                 for( isaac_int i = 0; i < input_clipping.count; i++ )
                 {
-                    clipping[e].elem[i].position
-                        .x = clipping[e].elem[i].position
-                                 .x / scale.x;
-                    clipping[e].elem[i].position
-                        .y = clipping[e].elem[i].position
-                                 .y / scale.y;
-                    clipping[e].elem[i].position
-                        .z = clipping[e].elem[i].position
-                                 .z / scale.z;
+                    clipping[e].elem[i].position = clipping[e].elem[i].position / scale;
                 }
 
                 //get ray length (scaled by isaac scaling)
                 vec[e] = end[e] - start[e];
-                l[e] = sqrt(
-                    vec[e].x * vec[e].x + vec[e].y * vec[e].y
-                    + vec[e].z * vec[e].z
-                );
+                l[e] = glm::length(vec[e]);
 
                 //get step vector
                 step_vec[e] = vec[e] / l[e] * step;
@@ -1382,21 +1271,7 @@ namespace isaac
                 count_start[e] = -start[e] / step_vec[e];
 
                 //get subvolume size as float
-                local_size_f[e].x = isaac_float(
-                    isaac_size_d[0].local_size
-                        .value
-                        .x
-                );
-                local_size_f[e].y = isaac_float(
-                    isaac_size_d[0].local_size
-                        .value
-                        .y
-                );
-                local_size_f[e].z = isaac_float(
-                    isaac_size_d[0].local_size
-                        .value
-                        .z
-                );
+                local_size_f[e] = isaac_float3(isaac_size_d[0].local_size);
 
                 //end index for ray
                 count_end[e] = ( local_size_f[e] - start[e] ) / step_vec[e];
@@ -1421,9 +1296,7 @@ namespace isaac
                 {
                     if( step_vec[e].x > 0.0f )
                     {
-                        if( isaac_size_d[0].position
-                                .value
-                                .x == 0 )
+                        if( isaac_size_d[0].position.x == 0 )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1435,13 +1308,7 @@ namespace isaac
                     }
                     else
                     {
-                        if( isaac_size_d[0].position
-                                .value
-                                .x == isaac_size_d[0].global_size
-                                          .value
-                                          .x - isaac_size_d[0].local_size
-                                          .value
-                                          .x )
+                        if( isaac_size_d[0].position.x == isaac_size_d[0].global_size.x - isaac_size_d[0].local_size.x )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1456,9 +1323,7 @@ namespace isaac
                 {
                     if( step_vec[e].y > 0.0f )
                     {
-                        if( isaac_size_d[0].position
-                                .value
-                                .y == 0 )
+                        if( isaac_size_d[0].position.y == 0 )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1470,13 +1335,7 @@ namespace isaac
                     }
                     else
                     {
-                        if( isaac_size_d[0].position
-                                .value
-                                .y == isaac_size_d[0].global_size
-                                          .value
-                                          .y - isaac_size_d[0].local_size
-                                          .value
-                                          .y )
+                        if( isaac_size_d[0].position.y == isaac_size_d[0].global_size.y - isaac_size_d[0].local_size.y )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1491,9 +1350,7 @@ namespace isaac
                 {
                     if( step_vec[e].z > 0.0f )
                     {
-                        if( isaac_size_d[0].position
-                                .value
-                                .z == 0 )
+                        if( isaac_size_d[0].position.z == 0 )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1505,13 +1362,7 @@ namespace isaac
                     }
                     else
                     {
-                        if( isaac_size_d[0].position
-                                .value
-                                .z == isaac_size_d[0].global_size
-                                          .value
-                                          .z - isaac_size_d[0].local_size
-                                          .value
-                                          .z )
+                        if( isaac_size_d[0].position.z == isaac_size_d[0].global_size.z - isaac_size_d[0].local_size.z )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1569,13 +1420,11 @@ namespace isaac
 
                 //Moving last and first until their points are valid
                 pos[e] = start[e] + step_vec[e] * isaac_float( last[e] );
-                coord[e].x = isaac_int( floor( pos[e].x ) );
-                coord[e].y = isaac_int( floor( pos[e].y ) );
-                coord[e].z = isaac_int( floor( pos[e].z ) );
+                coord[e] = isaac_int3( glm::floor( pos[e] ) );
                 while( (
                     ISAAC_FOR_EACH_DIM_TWICE ( 3,
                         coord[e],
-                        >= isaac_size_d[0].local_size.value,
+                        >= isaac_size_d[0].local_size,
                         || )
                     ISAAC_FOR_EACH_DIM ( 3,
                         coord[e],
@@ -1584,18 +1433,14 @@ namespace isaac
                 {
                     last[e]--;
                     pos[e] = start[e] + step_vec[e] * isaac_float( last[e] );
-                    coord[e].x = isaac_int( floor( pos[e].x ) );
-                    coord[e].y = isaac_int( floor( pos[e].y ) );
-                    coord[e].z = isaac_int( floor( pos[e].z ) );
+                    coord[e] = isaac_int3( glm::floor( pos[e] ) );
                 }
                 pos[e] = start[e] + step_vec[e] * isaac_float( first[e] );
-                coord[e].x = isaac_int( floor( pos[e].x ) );
-                coord[e].y = isaac_int( floor( pos[e].y ) );
-                coord[e].z = isaac_int( floor( pos[e].z ) );
+                coord[e] = isaac_int3( glm::floor( pos[e] ) );
                 while( (
                     ISAAC_FOR_EACH_DIM_TWICE ( 3,
                         coord[e],
-                        >= isaac_size_d[0].local_size.value,
+                        >= isaac_size_d[0].local_size,
                         || )
                     ISAAC_FOR_EACH_DIM ( 3,
                         coord[e],
@@ -1604,9 +1449,7 @@ namespace isaac
                 {
                     first[e]++;
                     pos[e] = start[e] + step_vec[e] * isaac_float( first[e] );
-                    coord[e].x = isaac_int( floor( pos[e].x ) );
-                    coord[e].y = isaac_int( floor( pos[e].y ) );
-                    coord[e].z = isaac_int( floor( pos[e].z ) );
+                    coord[e] = isaac_int3( glm::floor( pos[e] ) );
                 }
                 first[e] = ISAAC_MAX(
                     first[e],
@@ -1620,39 +1463,22 @@ namespace isaac
                 //Extra clipping
                 for( isaac_int i = 0; i < input_clipping.count; i++ )
                 {
-                    d[e] = step_vec[e].x * clipping[e].elem[i].normal
-                        .x + step_vec[e].y * clipping[e].elem[i].normal
-                        .y + step_vec[e].z * clipping[e].elem[i].normal
-                        .z;
-                    intersection_step[e] = (
-                                               clipping[e].elem[i].position
-                                                   .x
-                                               * clipping[e].elem[i].normal
-                                                   .x +
-                                               clipping[e].elem[i].position
-                                                   .y
-                                               * clipping[e].elem[i].normal
-                                                   .y +
-                                               clipping[e].elem[i].position
-                                                   .z
-                                               * clipping[e].elem[i].normal
-                                                   .z - start[e].x
-                                                        * clipping[e].elem[i].normal
-                                                            .x - start[e].y
-                                                                 * clipping[e].elem[i].normal
-                                                                     .y
-                                               - start[e].z
-                                                 * clipping[e].elem[i].normal
-                                                     .z
-                                           ) / d[e];
+                    d[e] = step_vec[e].x * clipping[e].elem[i].normal.x 
+                        + step_vec[e].y * clipping[e].elem[i].normal.y 
+                        + step_vec[e].z * clipping[e].elem[i].normal.z;
+
+                    intersection_step[e] = ( clipping[e].elem[i].position.x * clipping[e].elem[i].normal.x 
+                                            + clipping[e].elem[i].position.y * clipping[e].elem[i].normal.y 
+                                            + clipping[e].elem[i].position.z * clipping[e].elem[i].normal.z 
+                                            - start[e].x * clipping[e].elem[i].normal.x 
+                                            - start[e].y * clipping[e].elem[i].normal.y 
+                                            - start[e].z * clipping[e].elem[i].normal.z ) / d[e];
                     if( d[e] > 0 )
                     {
                         if( last_f[e] < intersection_step[e] )
                         {
                             if( !finish[e] )
-                            ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y
-                                                                  * framebuffer_size.x],
-                                color[e] )
+                            ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
                             finish[e] = true;
                         }
                         if( first_f[e] <= intersection_step[e] )
@@ -1662,12 +1488,7 @@ namespace isaac
                             clipping_normal[e] = clipping[e].elem[i].normal;
                             is_clipped[e] = true;
                             global_front[e] = true;
-                            start_normal[e].x = clipping[e].elem[i].normal
-                                .x;
-                            start_normal[e].y = clipping[e].elem[i].normal
-                                .y;
-                            start_normal[e].z = clipping[e].elem[i].normal
-                                .z;
+                            start_normal[e] = clipping[e].elem[i].normal;
                         }
                     }
                     else
@@ -1675,9 +1496,7 @@ namespace isaac
                         if( first_f[e] > intersection_step[e] )
                         {
                             if( !finish[e] )
-                            ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y
-                                                                  * framebuffer_size.x],
-                                color[e] )
+                            ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
                             finish[e] = true;
                         }
                         if( last_f[e] > intersection_step[e] )
@@ -1709,30 +1528,7 @@ namespace isaac
             isaac_float3 t[ISAAC_VECTOR_ELEM];
             isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
 
-
-            isaac_float3 particle_scale = {
-                isaac_size_d[0].local_size_scaled
-                    .value
-                    .x / isaac_float(
-                    isaac_size_d[0].local_particle_size
-                        .value
-                        .x
-                ),
-                isaac_size_d[0].local_size_scaled
-                    .value
-                    .y / isaac_float(
-                    isaac_size_d[0].local_particle_size
-                        .value
-                        .y
-                ),
-                isaac_size_d[0].local_size_scaled
-                    .value
-                    .z / isaac_float(
-                    isaac_size_d[0].local_particle_size
-                        .value
-                        .z
-                )
-            };
+            isaac_float3 particle_scale = isaac_float3( isaac_size_d[0].local_size_scaled ) / isaac_float3( isaac_size_d[0].local_particle_size );
             ISAAC_ELEM_ITERATE ( e )
             {
                 // set distance check in alpha channel on scaled max distance
@@ -1741,21 +1537,14 @@ namespace isaac
                 local_start[e] =
                     ( start[e] + step_vec[e] * first_f[e] ) * scale;
                 result_particle[e] = 0;
-                normalized_dir[e] = step_vec[e] * scale / step;
-                normalized_dir[e] = normalized_dir[e] / sqrt(
-                    normalized_dir[e].x * normalized_dir[e].x
-                    + normalized_dir[e].y * normalized_dir[e].y
-                    + normalized_dir[e].z * normalized_dir[e].z
-                );
+                normalized_dir[e] = glm::normalize( step_vec[e] * scale / step );
                 // light direction is camera direction
                 light_dir[e] = -normalized_dir[e];
 
                 /* RAYMARCH */
 
                 // get the signs of the direction for the raymarch
-                dir_sign[e].x = sgn( normalized_dir[e].x );
-                dir_sign[e].y = sgn( normalized_dir[e].y );
-                dir_sign[e].z = sgn( normalized_dir[e].z );
+                dir_sign[e] = glm::sign( normalized_dir[e] );
 
                 //TODO: alternative for constant 0.001f
                 // calculate current position in scaled object space
@@ -1779,38 +1568,12 @@ namespace isaac
 
 
                 // calculate next intersection with each dimension
-                t[e].x = (
-                             (
-                                 current_cell[e].x + ISAAC_MAX(
-                                     dir_sign[e].x,
-                                     0
-                                 )
-                             ) * particle_scale.x - current_pos[e].x
-                         ) / normalized_dir[e].x;
-                t[e].y = (
-                             (
-                                 current_cell[e].y + ISAAC_MAX(
-                                     dir_sign[e].y,
-                                     0
-                                 )
-                             ) * particle_scale.y - current_pos[e].y
-                         ) / normalized_dir[e].y;
-                t[e].z = (
-                             (
-                                 current_cell[e].z + ISAAC_MAX(
-                                     dir_sign[e].z,
-                                     0
-                                 )
-                             ) * particle_scale.z - current_pos[e].z
-                         ) / normalized_dir[e].z;
+                t[e] = ( ( isaac_float3( current_cell[e] ) + isaac_float3( glm::max( dir_sign[e], 0 ) ) ) 
+                        * particle_scale - current_pos[e] ) / normalized_dir[e];
 
                 // calculate delta length to next intersection in the same dimension
-                delta_t[e].x =
-                    particle_scale.x / normalized_dir[e].x * dir_sign[e].x;
-                delta_t[e].y =
-                    particle_scale.y / normalized_dir[e].y * dir_sign[e].y;
-                delta_t[e].z =
-                    particle_scale.z / normalized_dir[e].z * dir_sign[e].z;
+
+                delta_t[e] = particle_scale / normalized_dir[e] * isaac_float3( dir_sign[e] );
 
                 particle_hitposition[e] = {
                     0.0,
@@ -1834,16 +1597,11 @@ namespace isaac
 
 
                 // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
-                while( current_cell[e].x < isaac_size_d[0].local_particle_size
-                    .value
-                    .x && current_cell[e].y
-                          < isaac_size_d[0].local_particle_size
-                              .value
-                              .y && current_cell[e].z
-                                    < isaac_size_d[0].local_particle_size
-                                        .value
-                                        .z && result_particle[e] == false
-                       && march_length[e] <= ray_length[e] )
+                while( current_cell[e].x < isaac_size_d[0].local_particle_size.x 
+                    && current_cell[e].y < isaac_size_d[0].local_particle_size.y 
+                    && current_cell[e].z < isaac_size_d[0].local_particle_size.z 
+                    && result_particle[e] == false
+                    && march_length[e] <= ray_length[e] )
                 {
 
                     // calculate particle intersections for each particle source
@@ -1905,47 +1663,20 @@ namespace isaac
                     );
 
                     // calculate lighting properties for the last hit particle
-                    particle_normal[e] = particle_normal[e] / sqrt(
-                        particle_normal[e].x * particle_normal[e].x
-                        + particle_normal[e].y * particle_normal[e].y
-                        + particle_normal[e].z * particle_normal[e].z
-                    );
+                    particle_normal[e] = glm::normalize( particle_normal[e] );
 
-                    isaac_float light_factor =
-                        particle_normal[e].x * light_dir[e].x
-                        + particle_normal[e].y * light_dir[e].y
-                        + particle_normal[e].z * light_dir[e].z;
-                    isaac_float3
-                        half_vector = -normalized_dir[e] + light_dir[e];
-                    half_vector = half_vector / sqrt(
-                        half_vector.x * half_vector.x
-                        + half_vector.y * half_vector.y
-                        + half_vector.z * half_vector.z
-                    );
-                    isaac_float specular = particle_normal[e].x * half_vector.x
-                                           + particle_normal[e].y
-                                             * half_vector.y
-                                           + particle_normal[e].z
-                                             * half_vector.z;
-                    specular = pow(
-                        specular,
-                        10
-                    );
+                    isaac_float light_factor = glm::dot( particle_normal[e], light_dir[e] );
+
+                    isaac_float3 half_vector = glm::normalize( -normalized_dir[e] + light_dir[e] );
+
+                    isaac_float specular = glm::dot( particle_normal[e], half_vector );
+
+                    specular = pow( specular, 10 );
                     specular *= 0.5f;
                     light_factor = light_factor * 0.5f + 0.5f;
 
-                    particle_color[e].x = ISAAC_MIN(
-                        particle_color[e].x * light_factor + specular,
-                        1.0f
-                    );
-                    particle_color[e].y = ISAAC_MIN(
-                        particle_color[e].y * light_factor + specular,
-                        1.0f
-                    );
-                    particle_color[e].z = ISAAC_MIN(
-                        particle_color[e].z * light_factor + specular,
-                        1.0f
-                    );
+
+                    particle_color[e] = glm::min( particle_color[e] * light_factor + specular, 1.0f );
                 }
             }
 
@@ -1964,37 +1695,25 @@ namespace isaac
                 //Starting the main loop
                 min_size[e] = ISAAC_MIN(
                     int(
-                        isaac_size_d[0].global_size
-                            .value
-                            .x
+                        isaac_size_d[0].global_size.x
                     ),
                     ISAAC_MIN(
                         int(
-                            isaac_size_d[0].global_size
-                                .value
-                                .y
+                            isaac_size_d[0].global_size.y
                         ),
                         int(
-                            isaac_size_d[0].global_size
-                                .value
-                                .z
+                            isaac_size_d[0].global_size.z
                         )
                     )
                 );
-                factor[e] = step / min_size[e] * isaac_float( 2 );
-                value[e].x = 0;
-                value[e].y = 0;
-                value[e].z = 0;
-                value[e].w = 0;
+                factor[e] = step / min_size[e] * 2.0f;
+                value[e] = isaac_float4(0);
                 result[e] = 0;
 
                 for( isaac_int i = first[e]; i <= last[e]; i++ )
                 {
                     pos[e] = start[e] + step_vec[e] * isaac_float( i );
-                    value[e].x = 0;
-                    value[e].y = 0;
-                    value[e].z = 0;
-                    value[e].w = 0;
+                    value[e] = isaac_float4(0);
                     result[e] = 0;
                     bool firstRound = ( global_front[e] && i == first[e] );
                     isaac_for_each_with_mpl_params(
@@ -2029,15 +1748,9 @@ namespace isaac
                     else
                     {
                         oma[e] = isaac_float( 1 ) - color[e].w;
-                        value[e] = value[e] * factor[e];
-                        color_add[e].x = oma[e]
-                                         * value[e].x; // * value.w does merge_source_iterator
-                        color_add[e].y = oma[e]
-                                         * value[e].y; // * value.w does merge_source_iterator
-                        color_add[e].z = oma[e]
-                                         * value[e].z; // * value.w does merge_source_iterator
-                        color_add[e].w = oma[e] * value[e].w;
-                        color[e] = color[e] + color_add[e];
+                        value[e] *= factor[e];
+                        color_add[e] = oma[e] * value[e];
+                        color[e] += color_add[e];
                         if( color[e].w > isaac_float( 0.99 ) )
                         {
                             break;
@@ -2052,8 +1765,7 @@ namespace isaac
 
                     particle_color[e].w = 1;
                     
-                    color[e] =
-                        color[e] + particle_color[e] * ( 1 - color[e].w );
+                    color[e] = color[e] + particle_color[e] * ( 1 - color[e].w );
                     
                 }
 
@@ -2064,7 +1776,7 @@ namespace isaac
                     color_add[e].y = 0;
                     color_add[e].z = 0;
                     color_add[e].w = oma[e] * factor[e] * isaac_float ( 10 );
-                    color[e] = color[e] + color_add[e];
+                    color[e] += color_add[e];
                 }
 #endif
 
