@@ -300,14 +300,11 @@ namespace isaac
                 {
                     for( int z = 0; z < 2; z++ )
                     {
-                        coord = pos + isaac_float3( x, y, z ) - 1.0f;
-                        //coord.x = isaac_int( x ? ceil( pos.x ) : floor( pos.x ) );
-                        //coord.y = isaac_int( y ? ceil( pos.y ) : floor( pos.y ) );
-                        //coord.z = isaac_int( z ? ceil( pos.z ) : floor( pos.z ) );
+                        coord.x = isaac_int( x ? ceil( pos.x ) : floor( pos.x ) );
+                        coord.y = isaac_int( y ? ceil( pos.y ) : floor( pos.y ) );
+                        coord.z = isaac_int( z ? ceil( pos.z ) : floor( pos.z ) );
                         if( !TSource::has_guard && TSource::persistent )
                         {
-                            coord = glm::clamp( coord, isaac_int3( 0 ), isaac_int3( local_size ) - 1 );
-                            /*
                             if( isaac_uint( coord.x ) >= local_size.x )
                             {
                                 coord.x = isaac_int(
@@ -326,7 +323,7 @@ namespace isaac
                                     z ? floor( pos.z ) : ceil( pos.z )
                                 );
                             }
-                            */
+                            
                         }
                         if( TSource::persistent )
                         {
@@ -334,22 +331,10 @@ namespace isaac
                         }
                         else
                         {
-                            data8[x][y][z] = ptr[coord.x + ISAAC_GUARD_SIZE +
-                                                 ( coord.y + ISAAC_GUARD_SIZE )
-                                                 * (
-                                                     local_size.x
-                                                     + 2 * ISAAC_GUARD_SIZE
-                                                 ) +
-                                                 ( coord.z + ISAAC_GUARD_SIZE )
-                                                 * (
-                                                     (
-                                                         local_size.x
-                                                         + 2 * ISAAC_GUARD_SIZE
-                                                     ) * (
-                                                         local_size.y
-                                                         + 2 * ISAAC_GUARD_SIZE
-                                                     )
-                                                 )];
+                            data8[x][y][z] = ptr[coord.x + ISAAC_GUARD_SIZE + ( coord.y + ISAAC_GUARD_SIZE ) 
+                                                    * ( local_size.x + 2 * ISAAC_GUARD_SIZE ) + ( coord.z + ISAAC_GUARD_SIZE ) 
+                                                    * ( ( local_size.x + 2 * ISAAC_GUARD_SIZE ) 
+                                                    * ( local_size.y + 2 * ISAAC_GUARD_SIZE ) )];
                         }
                     }
                 }
@@ -449,43 +434,6 @@ namespace isaac
         constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
 
         coord = glm::clamp(coord, isaac_float3(0.0f), isaac_float3( local_size - extra_border ) - FLT_MIN );
-
-        //if( coord.x < isaac_float( 0 ) )
-        //{
-        //    coord.x = isaac_float( 0 );
-        //}
-        //if( coord.y < isaac_float( 0 ) )
-        //{
-        //    coord.y = isaac_float( 0 );
-        //}
-        //if( coord.z < isaac_float( 0 ) )
-        //{
-        //    coord.z = isaac_float( 0 );
-        //}
-        //if( coord.x >= isaac_float(
-        //    local_size.x - extra_border
-        //) )
-        //{
-        //    coord.x = isaac_float(
-        //        local_size.x - extra_border
-        //    ) - FLT_MIN;
-        //}
-        //if( coord.y >= isaac_float(
-        //    local_size.y - extra_border
-        //) )
-        //{
-        //    coord.y = isaac_float(
-        //        local_size.y - extra_border
-        //    ) - FLT_MIN;
-        //}
-        //if( coord.z >= isaac_float(
-        //    local_size.z - extra_border
-        //) )
-        //{
-        //    coord.z = isaac_float(
-        //        local_size.z - extra_border
-        //    ) - FLT_MIN;
-        //}
     }
 
     /**
@@ -508,42 +456,8 @@ namespace isaac
     )
     {
         constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
-        if( coord.x < isaac_float( -ISAAC_GUARD_SIZE ) )
-        {
-            coord.x = isaac_float( -ISAAC_GUARD_SIZE );
-        }
-        if( coord.y < isaac_float( -ISAAC_GUARD_SIZE ) )
-        {
-            coord.y = isaac_float( -ISAAC_GUARD_SIZE );
-        }
-        if( coord.z < isaac_float( -ISAAC_GUARD_SIZE ) )
-        {
-            coord.z = isaac_float( -ISAAC_GUARD_SIZE );
-        }
-        if( coord.x >= isaac_float(
-            local_size.x + ISAAC_GUARD_SIZE - extra_border
-        ) )
-        {
-            coord.x = isaac_float(
-                local_size.x + ISAAC_GUARD_SIZE - extra_border
-            ) - FLT_MIN;
-        }
-        if( coord.y >= isaac_float(
-            local_size.y + ISAAC_GUARD_SIZE - extra_border
-        ) )
-        {
-            coord.y = isaac_float(
-                local_size.y + ISAAC_GUARD_SIZE - extra_border
-            ) - FLT_MIN;
-        }
-        if( coord.z >= isaac_float(
-            local_size.z + ISAAC_GUARD_SIZE - extra_border
-        ) )
-        {
-            coord.z = isaac_float(
-                local_size.z + ISAAC_GUARD_SIZE - extra_border
-            ) - FLT_MIN;
-        }
+
+        coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), isaac_float3( local_size + ISAAC_GUARD_SIZE - extra_border ) - FLT_MIN );
     }
 
     /**
@@ -565,36 +479,26 @@ namespace isaac
         template<
             typename NR,
             typename TSource,
-            typename TColor,
-            typename TNormal,
-            typename TPosition,
-            typename TStart,
-            typename TDir,
-            typename TLightDir,
-            typename TCellPos,
             typename TTransferArray,
             typename TSourceWeight,
-            typename TFeedback,
-            typename TParticleScale,
-            typename TClippingNormal,
-            typename TClipped
+            typename TParticleScale
         >
         ISAAC_HOST_DEVICE_INLINE void operator()(
             const NR & nr,
-            const TSource & source,                     //particle source
-            TColor & color,                             //particle color
-            TNormal & normal,                           //particle normal
-            TPosition & position,                       //particle hit position
-            const TStart & start,
-            const TDir & dir,
-            const TLightDir & light_dir,                //direction of incoming light
-            const TCellPos & cell_pos,
-            const TTransferArray & transferArray,
-            const TSourceWeight & sourceWeight,
-            TFeedback & feedback,                       //true or false if particle has been hit or not
-            const TParticleScale & particle_scale,
-            const TClippingNormal & clipping_normal,
-            const TClipped & is_clipped
+            const TSource & source,                   //particle source
+            const isaac_float3 & start,               //ray start position in local volume
+            const isaac_float3 & dir,
+            const isaac_float3 & light_dir,           //direction of incoming light
+            const isaac_uint3 & cell_pos,             //cell to test in local volume
+            const TTransferArray & transferArray,     //transfer function
+            const TSourceWeight & sourceWeight,       //weight of this particle source for radius
+            const TParticleScale & particle_scale,    //scale of volume to prevent stretched particles
+            const isaac_float3 & clipping_normal,     //normal of the intersecting clipping plane
+            const bool & is_clipped,
+            isaac_float4 & out_color,                 //resulting particle color
+            isaac_float3 & out_normal,                //resulting particle normal
+            isaac_float3 & out_position,              //resulting particle hit position
+            bool & out_particle_hit                   //true or false if particle has been hit or not
         ) const
         {
             const int sourceNumber = NR::value + TOffset;
@@ -628,7 +532,7 @@ namespace isaac
                     isaac_float t1 = tca + thc;
 
                     // if the ray hits the sphere
-                    if( t1 >= 0 && t0 < color.w )
+                    if( t1 >= 0 && t0 < out_color.w )
                     {
                         isaac_float_dim <TSource::feature_dim>
                             data = particle_iterator.getAttribute( );
@@ -686,17 +590,17 @@ namespace isaac
                         // check if the alpha value is greater or equal than 0.5
                         if( value.w >= 0.5f )
                         {
-                            color = value;
-                            color.w = t0;
-                            feedback = 1;
-                            position = particle_pos;
-                            normal = start + t0 * dir - particle_pos;
+                            out_color = value;
+                            out_color.w = t0;
+                            out_particle_hit = 1;
+                            out_position = particle_pos;
+                            out_normal = start + t0 * dir - particle_pos;
                             if( t0 < 0 && is_clipped )
                             {
                                 #if ISAAC_AO_BUG_FIX == 1
-                                   color.w = 0;
+                                   out_color.w = 0;
                                 #endif
-                                normal = -clipping_normal;
+                                out_normal = -clipping_normal;
                             }
                         }
                     }
@@ -718,34 +622,28 @@ namespace isaac
         template<
             typename NR,
             typename TSource,
-            typename TColor,
-            typename TPos,
             typename TLocalSize,
             typename TTransferArray,
             typename TSourceWeight,
             typename TPointerArray,
             typename TFeedback,
-            typename TStep,
-            typename TStepLength,
-            typename TScale,
-            typename TFirst,
-            typename TStartNormal
+            typename TScale
         >
         ISAAC_HOST_DEVICE_INLINE void operator()(
             const NR & nr,
             const TSource & source,
-            TColor & color,
-            const TPos & pos,
+            isaac_float4 & color,
+            const isaac_float3 & pos,
             const TLocalSize & local_size,
             const TTransferArray & transferArray,
             const TSourceWeight & sourceWeight,
             const TPointerArray & pointerArray,
             TFeedback & feedback,
-            const TStep & step,
-            const TStepLength & stepLength,
+            const isaac_float3 & step,
+            const isaac_float & stepLength,
             const TScale & scale,
-            const TFirst & first,
-            const TStartNormal & start_normal
+            const bool & first,
+            const isaac_float3 & start_normal
         ) const
         {
             if( mpl::at_c<
@@ -1515,7 +1413,7 @@ namespace isaac
             isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];         //normal at particle hit position
             isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];    //hit position of particle
             
-            isaac_int result_particle[ISAAC_VECTOR_ELEM];
+            bool particle_hit[ISAAC_VECTOR_ELEM];
             isaac_float3 local_start[ISAAC_VECTOR_ELEM];
             isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
             isaac_float3 normalized_dir[ISAAC_VECTOR_ELEM];
@@ -1536,7 +1434,7 @@ namespace isaac
                     ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
                 local_start[e] =
                     ( start[e] + step_vec[e] * first_f[e] ) * scale;
-                result_particle[e] = 0;
+                particle_hit[e] = false;
                 normalized_dir[e] = glm::normalize( step_vec[e] * scale / step );
                 // light direction is camera direction
                 light_dir[e] = -normalized_dir[e];
@@ -1548,22 +1446,13 @@ namespace isaac
 
                 //TODO: alternative for constant 0.001f
                 // calculate current position in scaled object space
-                current_pos[e] = (
-                                     start[e] + step_vec[e] * (
-                                         ISAAC_MAX(
-                                             first_f[e],
-                                             0.0f
-                                         ) + 0.001f * particle_scale
-                                     )
-                                 ) * scale;
+                current_pos[e] = ( start[e] + step_vec[e] * ( ISAAC_MAX( first_f[e], 0.0f ) 
+                                    + 0.001f * particle_scale ) ) * scale;
 
                 // calculate current local cell coordinates
-                current_cell[e].x = int( current_pos[e].x / particle_scale.x );
-                current_cell[e].y = int( current_pos[e].y / particle_scale.y );
-                current_cell[e].z = int( current_pos[e].z / particle_scale.z );
+                current_cell[e] = isaac_uint3( current_pos[e] / particle_scale );
 
-                ray_length[e] =
-                    ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
+                ray_length[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
                 march_length[e] = 0;
 
 
@@ -1600,7 +1489,7 @@ namespace isaac
                 while( current_cell[e].x < isaac_size_d[0].local_particle_size.x 
                     && current_cell[e].y < isaac_size_d[0].local_particle_size.y 
                     && current_cell[e].z < isaac_size_d[0].local_particle_size.z 
-                    && result_particle[e] == false
+                    && particle_hit[e] == false
                     && march_length[e] <= ray_length[e] )
                 {
 
@@ -1612,19 +1501,19 @@ namespace isaac
                             mpl::size< TSourceList >::type::value,
                             TFilter
                         >( ),
-                        particle_color[e],
-                        particle_normal[e],
-                        particle_hitposition[e],
                         local_start[e],
                         normalized_dir[e],
                         light_dir[e],
                         current_cell[e],
                         transferArray,
                         sourceWeight,
-                        result_particle[e],
                         particle_scale,
                         clipping_normal[e],
-                        is_clipped[e]
+                        is_clipped[e],
+                        particle_color[e],
+                        particle_normal[e],
+                        particle_hitposition[e],
+                        particle_hit[e]
                     );
 
 
@@ -1650,7 +1539,7 @@ namespace isaac
 
                 }
                 // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
-                if( result_particle[e] )
+                if( particle_hit[e] )
                 {
                     last[e] = ISAAC_MIN(
                         last[e],
@@ -1757,7 +1646,7 @@ namespace isaac
                         }
                     }
                 }
-                if( result_particle[e] && !result[e] )
+                if( particle_hit[e] && !result[e] )
                 {
                     //extracting real particle depth and override block march length
                     march_length[e] = particle_color[e].w;
