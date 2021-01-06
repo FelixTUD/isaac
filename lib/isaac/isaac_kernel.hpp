@@ -521,86 +521,77 @@ namespace isaac
                                          * sourceWeight.value[NR::value + TOffset];
                     isaac_float radius2 = radius * radius;
                     isaac_float tca = glm::dot( L, dir );
-                    isaac_float d2 = ( L.x * L.x + L.y * L.y + L.z * L.z ) - tca * tca;
-                    if( d2 > radius2 )
+                    isaac_float d2 = glm::dot( L, L ) - tca * tca;
+                    if( d2 <= radius2 )
                     {
-                        particle_iterator.next( );
-                        continue;
-                    }
-                    isaac_float thc = sqrt( radius2 - d2 );
-                    isaac_float t0 = tca - thc;
-                    isaac_float t1 = tca + thc;
+                        isaac_float thc = sqrt( radius2 - d2 );
+                        isaac_float t0 = tca - thc;
+                        isaac_float t1 = tca + thc;
 
-                    // if the ray hits the sphere
-                    if( t1 >= 0 && t0 < out_color.w )
-                    {
-                        isaac_float_dim <TSource::feature_dim>
-                            data = particle_iterator.getAttribute( );
+                        // if the ray hits the sphere
+                        if( t1 >= 0 && t0 < out_color.w )
+                        {
+                            isaac_float_dim <TSource::feature_dim>
+                                data = particle_iterator.getAttribute( );
 
-                        isaac_float result = isaac_float( 0 );
+                            isaac_float result = isaac_float( 0 );
 
-                        // apply functorchain
-                        if( TSource::feature_dim == 1 )
-                        {
-                            result =
-                                reinterpret_cast<isaac_functor_chain_pointer_1> ( isaac_function_chain_d[sourceNumber] )(
-                                    *( reinterpret_cast< isaac_float_dim< 1 > * > ( &data ) ),
-                                    sourceNumber
-                                );
-                        }
-                        if( TSource::feature_dim == 2 )
-                        {
-                            result =
-                                reinterpret_cast<isaac_functor_chain_pointer_2> ( isaac_function_chain_d[sourceNumber] )(
-                                    *( reinterpret_cast< isaac_float_dim< 2 > * > ( &data ) ),
-                                    sourceNumber
-                                );
-                        }
-                        if( TSource::feature_dim == 3 )
-                        {
-                            result =
-                                reinterpret_cast<isaac_functor_chain_pointer_3> ( isaac_function_chain_d[sourceNumber] )(
-                                    *( reinterpret_cast< isaac_float_dim< 3 > * > ( &data ) ),
-                                    sourceNumber
-                                );
-                        }
-                        if( TSource::feature_dim == 4 )
-                        {
-                            result =
-                                reinterpret_cast<isaac_functor_chain_pointer_4> ( isaac_function_chain_d[sourceNumber] )(
-                                    *( reinterpret_cast< isaac_float_dim< 4 > * > ( &data ) ),
-                                    sourceNumber
-                                );
-                        }
-
-                        // apply transferfunction
-                        isaac_int lookup_value = isaac_int(
-                            round( result * isaac_float( Ttransfer_size ) )
-                        );
-                        if( lookup_value < 0 )
-                        {
-                            lookup_value = 0;
-                        }
-                        if( lookup_value >= Ttransfer_size )
-                        {
-                            lookup_value = Ttransfer_size - 1;
-                        }
-                        isaac_float4 value = transferArray.pointer[NR::value + TOffset][lookup_value];
-
-                        // check if the alpha value is greater or equal than 0.5
-                        if( value.w >= 0.5f )
-                        {
-                            out_color = value;
-                            out_color.w = t0;
-                            out_particle_hit = 1;
-                            out_position = particle_pos;
-                            out_normal = start + t0 * dir - particle_pos;
-                            if( t0 < 0 && is_clipped )
+                            // apply functorchain
+                            if( TSource::feature_dim == 1 )
                             {
-                                #if ISAAC_AO_BUG_FIX == 1
-                                   out_color.w = 0;
-                                #endif
-                                out_normal = -clipping_normal;
+                                result =
+                                    reinterpret_cast<isaac_functor_chain_pointer_1> ( isaac_function_chain_d[sourceNumber] )(
+                                        *( reinterpret_cast< isaac_float_dim< 1 > * > ( &data ) ),
+                                        sourceNumber
+                                    );
+                            }
+                            if( TSource::feature_dim == 2 )
+                            {
+                                result =
+                                    reinterpret_cast<isaac_functor_chain_pointer_2> ( isaac_function_chain_d[sourceNumber] )(
+                                        *( reinterpret_cast< isaac_float_dim< 2 > * > ( &data ) ),
+                                        sourceNumber
+                                    );
+                            }
+                            if( TSource::feature_dim == 3 )
+                            {
+                                result =
+                                    reinterpret_cast<isaac_functor_chain_pointer_3> ( isaac_function_chain_d[sourceNumber] )(
+                                        *( reinterpret_cast< isaac_float_dim< 3 > * > ( &data ) ),
+                                        sourceNumber
+                                    );
+                            }
+                            if( TSource::feature_dim == 4 )
+                            {
+                                result =
+                                    reinterpret_cast<isaac_functor_chain_pointer_4> ( isaac_function_chain_d[sourceNumber] )(
+                                        *( reinterpret_cast< isaac_float_dim< 4 > * > ( &data ) ),
+                                        sourceNumber
+                                    );
+                            }
+
+                            // apply transferfunction
+                            isaac_int lookup_value = isaac_int(
+                                glm::round( result * isaac_float( Ttransfer_size ) )
+                            );
+                            lookup_value = glm::clamp(lookup_value, 0, Ttransfer_size - 1);
+                            isaac_float4 value = transferArray.pointer[NR::value + TOffset][lookup_value];
+
+                            // check if the alpha value is greater or equal than 0.5
+                            if( value.w >= 0.5f )
+                            {
+                                out_color = value;
+                                out_color.w = t0;
+                                out_particle_hit = 1;
+                                out_position = particle_pos;
+                                out_normal = start + t0 * dir - particle_pos;
+                                if( t0 < 0 && is_clipped )
+                                {
+                                    #if ISAAC_AO_BUG_FIX == 1
+                                    out_color.w = 0;
+                                    #endif
+                                    out_normal = -clipping_normal;
+                                }
                             }
                         }
                     }
@@ -662,18 +653,10 @@ namespace isaac
                     scale
                 );
                 isaac_int lookup_value = isaac_int(
-                    round( result * isaac_float( Ttransfer_size ) )
+                    glm::round( result * isaac_float( Ttransfer_size ) )
                 );
-                if( lookup_value < 0 )
-                {
-                    lookup_value = 0;
-                }
-                if( lookup_value >= Ttransfer_size )
-                {
-                    lookup_value = Ttransfer_size - 1;
-                }
-                isaac_float4
-                    value = transferArray.pointer[NR::value][lookup_value];
+                lookup_value = glm::clamp(lookup_value, 0, Ttransfer_size - 1);
+                isaac_float4 value = transferArray.pointer[NR::value][lookup_value];
                 if( TIsoSurface )
                 {
                     if( value.w >= isaac_float( 0.5 ) )
@@ -1833,8 +1816,8 @@ namespace isaac
             for(int i = -3; i <= 3; i++) {
                 for(int j = -3; j <= 3; j++) {
                     //avoid out of bounds by simple min max
-                    isaac_int x = ISAAC_MAX(ISAAC_MIN(pixel.x + i * radius, framebuffer_start.x + framebuffer_size.x), framebuffer_start.x);
-                    isaac_int y = ISAAC_MAX(ISAAC_MIN(pixel.y + j * radius, framebuffer_start.y + framebuffer_size.y), framebuffer_start.y);
+                    isaac_int x = glm::clamp(pixel.x + i * radius, framebuffer_start.x, framebuffer_start.x + framebuffer_size.x);
+                    isaac_int y = glm::clamp(pixel.y + j * radius, framebuffer_start.y, framebuffer_start.y + framebuffer_size.y);
 
                     //get the neighbour depth value
                     isaac_float depth_sample = gDepth[x + y * framebuffer_size.x].z;
