@@ -46,23 +46,10 @@ struct IsaacFunctorIdem
     static const bool uses_parameter = false;
     static const std::string name;
     static const std::string description;
+    
+    template<ISAAC_IDX_TYPE N>
     ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<4> call( const isaac_float_dim<4> v, const isaac_float4& p)
-    {
-        return v;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<3> call( const isaac_float_dim<3> v, const isaac_float4& p)
-    {
-        return v;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<2> call( const isaac_float_dim<2> v, const isaac_float4& p)
-    {
-        return v;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
+    static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
         return v;
     }
@@ -85,37 +72,12 @@ struct IsaacFunctorLength
     static const std::string name;
     static const std::string description;
 
-    //Against annoying double->float casting warning with gcc5
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wnarrowing"
-
+    template<ISAAC_IDX_TYPE N>
     ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<4> v, const isaac_float4& p)
+    static isaac_float_dim<1> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
-        isaac_float_dim<1> result(glm::length(v));
-        return result;
+        return isaac_float_dim<1>( glm::length( v ) );
     }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<3> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result(glm::length(v));
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<2> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result(glm::length(v));
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result(glm::length(v));
-        return result;
-    }
-
-    #pragma GCC diagnostic pop
-
     ISAAC_HOST_INLINE
     static std::string getName()
     {
@@ -135,36 +97,12 @@ struct IsaacFunctorMul
     static const bool uses_parameter = true;
     static const std::string name;
     static const std::string description;
+
+    template<ISAAC_IDX_TYPE N>
     ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<4> call( const isaac_float_dim<4> v, const isaac_float4& p)
+    static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
-        isaac_float_dim<4> result( v * p );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<3> call( const isaac_float_dim<3> v, const isaac_float4& p)
-    {
-        isaac_float_dim<3> result(
-            v.x * p.x,
-            v.y * p.y,
-            v.z * p.z
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<2> call( const isaac_float_dim<2> v, const isaac_float4& p)
-    {
-        isaac_float_dim<2> result(
-            v.x * p.x,
-            v.y * p.y
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result( v.x * p.x );
-        return result;
+        return v * isaac_float_dim<N>( p );
     }
     ISAAC_HOST_INLINE
     static std::string getName()
@@ -185,36 +123,12 @@ struct IsaacFunctorAdd
     static const bool uses_parameter = true;
     static const std::string name;
     static const std::string description;
+
+    template<ISAAC_IDX_TYPE N>
     ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<4> call( const isaac_float_dim<4> v, const isaac_float4& p)
+    static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
-        isaac_float_dim<4> result( v + p );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<3> call( const isaac_float_dim<3> v, const isaac_float4& p)
-    {
-        isaac_float_dim<3> result(
-            v.x + p.x,
-            v.y + p.y,
-            v.z + p.z
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<2> call( const isaac_float_dim<2> v, const isaac_float4& p)
-    {
-        isaac_float_dim<2> result(
-            v.x + p.x,
-            v.y + p.y
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result( v.x + p.x );
-        return result;
+        return v + isaac_float_dim<N>( p );
     }
     ISAAC_HOST_INLINE
     static std::string getName()
@@ -235,41 +149,12 @@ struct IsaacFunctorPow
     static const bool uses_parameter = true;
     static const std::string name;
     static const std::string description;
+
+    template<ISAAC_IDX_TYPE N>
     ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<4> call( const isaac_float_dim<4> v, const isaac_float4& p)
+    static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
-        isaac_float_dim<4> result(
-            pow( v.x, p.x ),
-            pow( v.y, p.y ),
-            pow( v.z, p.z ),
-            pow( v.w, p.w )
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<3> call( const isaac_float_dim<3> v, const isaac_float4& p)
-    {
-        isaac_float_dim<3> result(
-            pow( v.x, p.x ),
-            pow( v.y, p.y ),
-            pow( v.z, p.z )
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<2> call( const isaac_float_dim<2> v, const isaac_float4& p)
-    {
-        isaac_float_dim<2> result(
-            pow( v.x, p.x ),
-            pow( v.y, p.y )
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result( pow( v.x, p.x ) );
-        return result;
+        return glm::pow( v, isaac_float_dim<N>( p ) );
     }
     ISAAC_HOST_INLINE
     static std::string getName()
@@ -290,40 +175,17 @@ struct IsaacFunctorSum
     static const bool uses_parameter = false;
     static const std::string name;
     static const std::string description;
+
+    template<ISAAC_IDX_TYPE N>
     ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<4> v, const isaac_float4& p)
+    static isaac_float_dim<1> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
-        isaac_float_dim<1> result(
-            v.x +
-            v.y +
-            v.z +
-            v.w
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<3> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result(
-            v.x +
-            v.y +
-            v.z
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<2> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result(
-            v.x +
-            v.y
-        );
-        return result;
-    }
-    ISAAC_HOST_DEVICE_INLINE
-    static isaac_float_dim<1> call( const isaac_float_dim<1> v, const isaac_float4& p)
-    {
-        isaac_float_dim<1> result( v.x );
+        isaac_float_dim<1> result;
+
+        for(ISAAC_IDX_TYPE i = 0; i < N; ++i)
+        {
+            result += v[i];
+        }
         return result;
     }
     ISAAC_HOST_INLINE
