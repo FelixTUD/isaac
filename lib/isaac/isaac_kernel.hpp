@@ -1166,7 +1166,7 @@ namespace isaac
                     count_start[e].z )
 
                 //calc intersection of all three super planes and save in [count_start.x ; count_end.x]
-                float max_start = ISAAC_MAX(
+                isaac_float max_start = ISAAC_MAX(
                     ISAAC_MAX(
                         count_start[e].x,
                         count_start[e].y
@@ -1975,7 +1975,7 @@ namespace isaac
                     TAcc,
                     TStream,
                     TFunctionChain,
-N - 1
+                    N - 1
                 >::call(
                     stream,
                     framebuffer,
@@ -2020,7 +2020,7 @@ N - 1
                     TAcc,
                     TStream,
                     TFunctionChain,
-N - 1
+                    N - 1
                 >::call(
                     stream,
                     framebuffer,
