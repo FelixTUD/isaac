@@ -167,11 +167,8 @@ set(ISAAC_LIBRARIES ${ISAAC_LIBRARIES} "alpaka::alpaka")
 ################################################################################
 # GLM LIB
 ################################################################################
-find_package(GLM QUIET)
-if (NOT GLM_FOUND)
-    set(ISAAC_DEPENDENCY_HINTS ${ISAAC_DEPENDENCY_HINTS} "\n--   glm")
-endif()
-set(ISAAC_INCLUDE_DIRS ${ISAAC_INCLUDE_DIRS} ${GLM_INCLUDE_DIRS})
+find_package(glm REQUIRED)
+set(ISAAC_LIBRARIES ${ISAAC_LIBRARIES} "glm::glm")
 
 
 
@@ -218,6 +215,5 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(ISAAC
                                         ICET_INCLUDE_DIRS
                                         Boost_FOUND
                                         alpaka_FOUND
-                                        GLM_FOUND
                                         ISAAC_PRIVATE_FOUND
                                 )
