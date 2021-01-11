@@ -433,7 +433,7 @@ namespace isaac
     {
         constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
 
-        coord = glm::clamp(coord, isaac_float3(0.0f), isaac_float3( local_size - extra_border ) - FLT_MIN );
+        coord = glm::clamp(coord, isaac_float3(0), isaac_float3( local_size - extra_border ) - std::numeric_limits<isaac_float>::min( ) );
     }
 
     /**
@@ -457,7 +457,7 @@ namespace isaac
     {
         constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
 
-        coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), isaac_float3( local_size + ISAAC_GUARD_SIZE - extra_border ) - FLT_MIN );
+        coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), isaac_float3( local_size + ISAAC_GUARD_SIZE - extra_border ) - std::numeric_limits<isaac_float>::min( ) );
     }
 
     /**
@@ -935,7 +935,7 @@ namespace isaac
         }
     };
 
-    constexpr auto maxFloat = std::numeric_limits< isaac_float >::max( );
+    constexpr auto maxFloat = std::numeric_limits<isaac_float>::max( );
 
 
     template<
@@ -1056,7 +1056,7 @@ namespace isaac
                 global_front[e] = false;
 
                 //get normalized pixel position in framebuffer
-                pixel_f[e] = isaac_float2( pixel[e] ) / isaac_float2( framebuffer_size ) * 2.0f - 1.0f;
+                pixel_f[e] = isaac_float2( pixel[e] ) / isaac_float2( framebuffer_size ) * isaac_float( 2 ) - isaac_float( 1 );
                 
                 //get ray start/end position
                 start_p[e].x = pixel_f[e].x * ISAAC_Z_NEAR;
@@ -1152,7 +1152,7 @@ namespace isaac
                 count_start[e] = -start[e] / step_vec[e];
 
                 //get subvolume size as float
-                local_size_f[e] = isaac_float3(isaac_size_d[0].local_size);
+                local_size_f[e] = isaac_float3( isaac_size_d[0].local_size );
 
                 //end index for ray
                 count_end[e] = ( local_size_f[e] - start[e] ) / step_vec[e];
@@ -1413,10 +1413,8 @@ namespace isaac
             ISAAC_ELEM_ITERATE ( e )
             {
                 // set distance check in alpha channel on scaled max distance
-                particle_color[e].w =
-                    ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
-                local_start[e] =
-                    ( start[e] + step_vec[e] * first_f[e] ) * scale;
+                particle_color[e].w = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
+                local_start[e] = ( start[e] + step_vec[e] * first_f[e] ) * scale;
                 particle_hit[e] = false;
                 normalized_dir[e] = glm::normalize( step_vec[e] * scale / step );
                 // light direction is camera direction
@@ -1429,11 +1427,14 @@ namespace isaac
 
                 //TODO: alternative for constant 0.001f
                 // calculate current position in scaled object space
-                current_pos[e] = ( start[e] + step_vec[e] * ( ISAAC_MAX( first_f[e], 0.0f ) 
-                                    + 0.001f * particle_scale ) ) * scale;
+                current_pos[e] = ( start[e] + step_vec[e] * ISAAC_MAX( first_f[e], 0.0f ) ) * scale;
 
                 // calculate current local cell coordinates
-                current_cell[e] = isaac_uint3( current_pos[e] / particle_scale );
+                current_cell[e] = isaac_uint3( glm::clamp( 
+                                        isaac_int3( current_pos[e] / particle_scale ), 
+                                        isaac_int3( 0 ), 
+                                        isaac_int3( isaac_size_d[0].local_particle_size - 1 ) 
+                                    ) );
 
                 ray_length[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
                 march_length[e] = 0;
@@ -1447,11 +1448,7 @@ namespace isaac
 
                 delta_t[e] = particle_scale / normalized_dir[e] * isaac_float3( dir_sign[e] );
 
-                particle_hitposition[e] = {
-                    0.0,
-                    0.0,
-                    0.0
-                };
+                particle_hitposition[e] = isaac_float3( 0 );
 
                 // check for 0 to stop infinite looping
                 if( normalized_dir[e].x == 0 )
@@ -1548,7 +1545,7 @@ namespace isaac
                     light_factor = light_factor * 0.5f + 0.5f;
 
 
-                    particle_color[e] = glm::min( particle_color[e] * light_factor + specular, 1.0f );
+                    particle_color[e] = glm::min( particle_color[e] * light_factor + specular, isaac_float( 1 ) );
                 }
             }
 

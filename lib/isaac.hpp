@@ -1403,7 +1403,7 @@ namespace isaac
             isaac_float3* ssao_noise_h = reinterpret_cast<isaac_float3*> ( alpaka::getPtrNative ( ssao_noise_h_buf ) );
 
             
-            std::uniform_real_distribution<float> randomFloats(0.0, 1.0);
+            std::uniform_real_distribution<isaac_float> randomFloats(0.0, 1.0);
             std::default_random_engine generator;
 
             //set ssao_kernel values
@@ -1746,7 +1746,7 @@ namespace isaac
                             size_t p_pos = 0;
                             bool p_again = true;
                             int p_elem = 0;
-                            isaac_float * parameter_array = ( float * ) &(
+                            isaac_float * parameter_array = ( isaac_float * ) &(
                                 isaac_parameter_h[i * ISAAC_MAX_FUNCTORS + elem]
                             );
                             while( p_again && (
@@ -3241,7 +3241,7 @@ namespace isaac
                 )
             );
             isaac_float * inverse_h =
-                reinterpret_cast<float *> ( alpaka::getPtrNative( inverse_h_buf ) );
+                reinterpret_cast<isaac_float *> ( alpaka::getPtrNative( inverse_h_buf ) );
 
 
             //model-view matrix
@@ -3256,7 +3256,7 @@ namespace isaac
                 )
             );
             isaac_float * modelview_h =
-                reinterpret_cast<float *> ( alpaka::getPtrNative( modelview_h_buf ) );
+                reinterpret_cast<isaac_float *> ( alpaka::getPtrNative( modelview_h_buf ) );
 
 
             //projection matrix
@@ -3271,7 +3271,7 @@ namespace isaac
                 )
             );
             isaac_float * projection_h =
-                reinterpret_cast<float *> ( alpaka::getPtrNative( modelview_h_buf ) );
+                reinterpret_cast<isaac_float *> ( alpaka::getPtrNative( modelview_h_buf ) );
 
 
             //sim size values
