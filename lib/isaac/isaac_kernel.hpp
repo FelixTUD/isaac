@@ -68,20 +68,16 @@ namespace isaac
     );
 
     //inverse mvp matrix
-    ISAAC_CONSTANT isaac_float
-    isaac_inverse_d[16];
+    ISAAC_CONSTANT isaac_mat4 isaac_inverse_d;
 
     //modelview matrix
-    ISAAC_CONSTANT 
-    isaac_float isaac_modelview_d[16];
+    ISAAC_CONSTANT isaac_mat4 isaac_modelview_d;
 
     //projection matrix
-    ISAAC_CONSTANT 
-    isaac_float isaac_projection_d[16];
+    ISAAC_CONSTANT isaac_mat4 isaac_projection_d;
 
     //simulation size properties
-    ISAAC_CONSTANT isaac_size_struct< 3 >
-    isaac_size_d[1]; //[1] to access it for cuda and alpaka the same way
+    ISAAC_CONSTANT isaac_size_struct< 3 > isaac_size_d; //[1] to access it for cuda and alpaka the same way
 
     ISAAC_CONSTANT isaac_float4
     isaac_parameter_d[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCTORS ];
@@ -1070,33 +1066,10 @@ namespace isaac
                 end_p[e].w = 1.0f * ISAAC_Z_FAR;
 
                 //apply inverse modelview transform to ray start/end and get ray start/end as worldspace
-                start[e].x = isaac_inverse_d[0] * start_p[e].x
-                             + isaac_inverse_d[4] * start_p[e].y
-                             + isaac_inverse_d[8] * start_p[e].z
-                             + isaac_inverse_d[12] * start_p[e].w;
-                start[e].y = isaac_inverse_d[1] * start_p[e].x
-                             + isaac_inverse_d[5] * start_p[e].y
-                             + isaac_inverse_d[9] * start_p[e].z
-                             + isaac_inverse_d[13] * start_p[e].w;
-                start[e].z = isaac_inverse_d[2] * start_p[e].x
-                             + isaac_inverse_d[6] * start_p[e].y
-                             + isaac_inverse_d[10] * start_p[e].z
-                             + isaac_inverse_d[14] * start_p[e].w;
+                start[e] = isaac_inverse_d * start_p[e];
+                end[e] = isaac_inverse_d * end_p[e];
 
-                end[e].x = isaac_inverse_d[0] * end_p[e].x
-                           + isaac_inverse_d[4] * end_p[e].y
-                           + isaac_inverse_d[8] * end_p[e].z
-                           + isaac_inverse_d[12] * end_p[e].w;
-                end[e].y = isaac_inverse_d[1] * end_p[e].x
-                           + isaac_inverse_d[5] * end_p[e].y
-                           + isaac_inverse_d[9] * end_p[e].z
-                           + isaac_inverse_d[13] * end_p[e].w;
-                end[e].z = isaac_inverse_d[2] * end_p[e].x
-                           + isaac_inverse_d[6] * end_p[e].y
-                           + isaac_inverse_d[10] * end_p[e].z
-                           + isaac_inverse_d[14] * end_p[e].w;
-
-                isaac_float max_size = isaac_size_d[0].max_global_size_scaled / 2.0f;
+                isaac_float max_size = isaac_size_d.max_global_size_scaled / 2.0f;
 
                 //scale to globale grid size
                 start[e] = start[e] * max_size;
@@ -1113,7 +1086,7 @@ namespace isaac
 
                 //move to local (scaled) grid
                 //get offset of subvolume in global volume
-                move[e] = isaac_int3( isaac_size_d[0].global_size_scaled ) / 2 - isaac_int3( isaac_size_d[0].position_scaled );
+                move[e] = isaac_int3( isaac_size_d.global_size_scaled ) / 2 - isaac_int3( isaac_size_d.position_scaled );
 
                 move_f[e] = isaac_float3( move[e] );
 
@@ -1152,7 +1125,7 @@ namespace isaac
                 count_start[e] = -start[e] / step_vec[e];
 
                 //get subvolume size as float
-                local_size_f[e] = isaac_float3( isaac_size_d[0].local_size );
+                local_size_f[e] = isaac_float3( isaac_size_d.local_size );
 
                 //end index for ray
                 count_end[e] = ( local_size_f[e] - start[e] ) / step_vec[e];
@@ -1177,7 +1150,7 @@ namespace isaac
                 {
                     if( step_vec[e].x > 0.0f )
                     {
-                        if( isaac_size_d[0].position.x == 0 )
+                        if( isaac_size_d.position.x == 0 )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1189,7 +1162,7 @@ namespace isaac
                     }
                     else
                     {
-                        if( isaac_size_d[0].position.x == isaac_size_d[0].global_size.x - isaac_size_d[0].local_size.x )
+                        if( isaac_size_d.position.x == isaac_size_d.global_size.x - isaac_size_d.local_size.x )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1204,7 +1177,7 @@ namespace isaac
                 {
                     if( step_vec[e].y > 0.0f )
                     {
-                        if( isaac_size_d[0].position.y == 0 )
+                        if( isaac_size_d.position.y == 0 )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1216,7 +1189,7 @@ namespace isaac
                     }
                     else
                     {
-                        if( isaac_size_d[0].position.y == isaac_size_d[0].global_size.y - isaac_size_d[0].local_size.y )
+                        if( isaac_size_d.position.y == isaac_size_d.global_size.y - isaac_size_d.local_size.y )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1231,7 +1204,7 @@ namespace isaac
                 {
                     if( step_vec[e].z > 0.0f )
                     {
-                        if( isaac_size_d[0].position.z == 0 )
+                        if( isaac_size_d.position.z == 0 )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1243,7 +1216,7 @@ namespace isaac
                     }
                     else
                     {
-                        if( isaac_size_d[0].position.z == isaac_size_d[0].global_size.z - isaac_size_d[0].local_size.z )
+                        if( isaac_size_d.position.z == isaac_size_d.global_size.z - isaac_size_d.local_size.z )
                         {
                             global_front[e] = true;
                             start_normal[e] = {
@@ -1305,7 +1278,7 @@ namespace isaac
                 while( (
                     ISAAC_FOR_EACH_DIM_TWICE ( 3,
                         coord[e],
-                        >= isaac_size_d[0].local_size,
+                        >= isaac_size_d.local_size,
                         || )
                     ISAAC_FOR_EACH_DIM ( 3,
                         coord[e],
@@ -1321,7 +1294,7 @@ namespace isaac
                 while( (
                     ISAAC_FOR_EACH_DIM_TWICE ( 3,
                         coord[e],
-                        >= isaac_size_d[0].local_size,
+                        >= isaac_size_d.local_size,
                         || )
                     ISAAC_FOR_EACH_DIM ( 3,
                         coord[e],
@@ -1409,7 +1382,7 @@ namespace isaac
             isaac_float3 t[ISAAC_VECTOR_ELEM];
             isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
 
-            isaac_float3 particle_scale = isaac_float3( isaac_size_d[0].local_size_scaled ) / isaac_float3( isaac_size_d[0].local_particle_size );
+            isaac_float3 particle_scale = isaac_float3( isaac_size_d.local_size_scaled ) / isaac_float3( isaac_size_d.local_particle_size );
             ISAAC_ELEM_ITERATE ( e )
             {
                 // set distance check in alpha channel on scaled max distance
@@ -1433,7 +1406,7 @@ namespace isaac
                 current_cell[e] = isaac_uint3( glm::clamp( 
                                         isaac_int3( current_pos[e] / particle_scale ), 
                                         isaac_int3( 0 ), 
-                                        isaac_int3( isaac_size_d[0].local_particle_size - 1 ) 
+                                        isaac_int3( isaac_size_d.local_particle_size - 1 ) 
                                     ) );
 
                 ray_length[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
@@ -1466,9 +1439,9 @@ namespace isaac
 
 
                 // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
-                while( current_cell[e].x < isaac_size_d[0].local_particle_size.x 
-                    && current_cell[e].y < isaac_size_d[0].local_particle_size.y 
-                    && current_cell[e].z < isaac_size_d[0].local_particle_size.z 
+                while( current_cell[e].x < isaac_size_d.local_particle_size.x 
+                    && current_cell[e].y < isaac_size_d.local_particle_size.y 
+                    && current_cell[e].z < isaac_size_d.local_particle_size.z 
                     && particle_hit[e] == false
                     && march_length[e] <= ray_length[e] )
                 {
@@ -1564,14 +1537,14 @@ namespace isaac
                 //Starting the main loop
                 min_size[e] = ISAAC_MIN(
                     int(
-                        isaac_size_d[0].global_size.x
+                        isaac_size_d.global_size.x
                     ),
                     ISAAC_MIN(
                         int(
-                            isaac_size_d[0].global_size.y
+                            isaac_size_d.global_size.y
                         ),
                         int(
-                            isaac_size_d[0].global_size.z
+                            isaac_size_d.global_size.z
                         )
                     )
                 );
@@ -1595,7 +1568,7 @@ namespace isaac
                         >( ),
                         value[e],
                         pos[e],
-                        isaac_size_d[0].local_size,
+                        isaac_size_d.local_size,
                         transferArray,
                         sourceWeight,
                         pointerArray,

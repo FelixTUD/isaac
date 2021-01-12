@@ -912,17 +912,18 @@ namespace isaac
                 this->communicator = NULL;
             }
             recreateJSON( );
+            for(int i = 0; i < TController::pass_count; ++i)
+            {
+                projections.push_back(isaac_dmat4(1));
+            }
             controller.updateProjection(
-                projection,
+                projections,
                 framebuffer_size,
                 NULL,
                 true
             );
-            look_at[0] = 0.0f;
-            look_at[1] = 0.0f;
-            look_at[2] = 0.0f;
-            ISAAC_SET_IDENTITY ( 3,
-                rotation )
+            look_at = isaac_double3(0);
+            rotation = isaac_dmat3(1);
             distance = -4.5f;
             updateModelview( );
 
@@ -1255,16 +1256,20 @@ namespace isaac
                     "projection",
                     matrix = json_array( )
                 );
-                ISAAC_JSON_ADD_MATRIX ( matrix,
-                    projection,
-                    16 * TController::pass_count )
+                for(isaac_int p = 0; p < TController::pass_count; ++p)
+                {
+                    for (isaac_int i = 0; i < 16; ++i)
+                    {
+                        json_array_append_new( matrix, json_real( glm::value_ptr( projections[p] )[i] ) );
+                    }
+                }
                 json_object_set_new(
                     json_root,
                     "position",
                     matrix = json_array( )
                 );
                 ISAAC_JSON_ADD_MATRIX ( matrix,
-                    look_at,
+                    glm::value_ptr( look_at ),
                     3 )
                 json_object_set_new(
                     json_root,
@@ -1272,7 +1277,7 @@ namespace isaac
                     matrix = json_array( )
                 );
                 ISAAC_JSON_ADD_MATRIX ( matrix,
-                    rotation,
+                    glm::value_ptr( rotation ),
                     9 )
                 json_object_set_new(
                     json_root,
@@ -2239,7 +2244,7 @@ namespace isaac
                             index,
                             value
                         )
-                        rotation[index] = json_number_value( value );
+                        glm::value_ptr( rotation )[index] = json_number_value( value );
                         json_object_del(
                             last,
                             "rotation absolute"
@@ -2254,29 +2259,15 @@ namespace isaac
                     {
                         add_modelview = true;
                         send_rotation = true;
-                        IceTDouble relative[9];
-                        IceTDouble new_rotation[9];
+                        isaac_dmat3 relative;
                         json_array_foreach(
                             js,
                             index,
                             value
                         )
-                        relative[index] = json_number_value( value );
-                        for( isaac_int x = 0; x < 3; x++ )
-                        {
-                            for( isaac_int y = 0; y < 3; y++ )
-                            {
-                                new_rotation[y + x * 3] =
-                                    relative[y + 0 * 3] * rotation[0 + x * 3]
-                                    + relative[y + 1 * 3] * rotation[1 + x * 3]
-                                    + relative[y + 2 * 3] * rotation[2 + x * 3];
-                            }
-                        }
-                        memcpy(
-                            rotation,
-                            new_rotation,
-                            9 * sizeof( IceTDouble )
-                        );
+                        glm::value_ptr( relative )[index] = json_number_value( value );
+                        rotation = relative * rotation;
+
                         json_object_del(
                             last,
                             "rotation relative"
@@ -2289,70 +2280,38 @@ namespace isaac
                         )
                     ) == 4 )
                     {
-                        IceTDouble relative[9];
-                        IceTDouble x = json_number_value(
+                        isaac_double3 rot_vec;
+                        rot_vec.x = json_number_value(
                             json_array_get(
                                 js,
                                 0
                             )
                         );
-                        IceTDouble y = json_number_value(
+                        rot_vec.y = json_number_value(
                             json_array_get(
                                 js,
                                 1
                             )
                         );
-                        IceTDouble z = json_number_value(
+                        rot_vec.z = json_number_value(
                             json_array_get(
                                 js,
                                 2
                             )
                         );
-                        IceTDouble rad = json_number_value(
+                        isaac_double deg = json_number_value(
                             json_array_get(
                                 js,
                                 3
                             )
                         );
-                        IceTDouble s = sin( rad * M_PI / 180.0 );
-                        IceTDouble c = cos( rad * M_PI / 180.0 );
-                        IceTDouble l = sqrt( x * x + y * y + z * z );
-                        if( l != 0.0 )
-                        {
-                            add_modelview = true;
-                            send_rotation = true;
-                            x /= l;
-                            y /= l;
-                            z /= l;
-                            relative[0] = c + x * x * ( 1 - c );
-                            relative[3] = x * y * ( 1 - c ) - z * s;
-                            relative[6] = x * z * ( 1 - c ) + y * s;
-                            relative[1] = y * x * ( 1 - c ) + z * s;
-                            relative[4] = c + y * y * ( 1 - c );
-                            relative[7] = y * z * ( 1 - c ) - x * s;
-                            relative[2] = z * x * ( 1 - c ) - y * s;
-                            relative[5] = z * y * ( 1 - c ) + x * s;
-                            relative[8] = c + z * z * ( 1 - c );
-                            IceTDouble new_rotation[9];
-                            for( isaac_int x = 0; x < 3; x++ )
-                            {
-                                for( isaac_int y = 0; y < 3; y++ )
-                                {
-                                    new_rotation[y + x * 3] =
-                                        relative[y + 0 * 3]
-                                        * rotation[0 + x * 3]
-                                        + relative[y + 1 * 3]
-                                          * rotation[1 + x * 3]
-                                        + relative[y + 2 * 3]
-                                          * rotation[2 + x * 3];
-                                }
-                            }
-                            memcpy(
-                                rotation,
-                                new_rotation,
-                                9 * sizeof( IceTDouble )
-                            );
-                        }
+
+                        isaac_dmat3 relative = glm::rotate( isaac_dmat4( 1 ), glm::radians( deg ), rot_vec );
+                        rotation = relative * rotation;
+
+                        add_modelview = true;
+                        send_rotation = true;
+
                         json_object_del(
                             last,
                             "rotation axis"
@@ -2387,24 +2346,15 @@ namespace isaac
                     {
                         add_modelview = true;
                         send_look_at = true;
-                        IceTDouble add[3];
+                        isaac_double3 translation;
                         json_array_foreach(
                             js,
                             index,
                             value
                         )
-                        add[index] = json_number_value( value );
-                        IceTDouble add_p[3] = {
-                            rotation[0] * add[0] + rotation[1] * add[1]
-                            + rotation[2] * add[2],
-                            rotation[3] * add[0] + rotation[4] * add[1]
-                            + rotation[5] * add[2],
-                            rotation[6] * add[0] + rotation[7] * add[1]
-                            + rotation[8] * add[2]
-                        };
-                        look_at[0] += add_p[0];
-                        look_at[1] += add_p[1];
-                        look_at[2] += add_p[2];
+                        translation[index] = json_number_value( value );
+
+                        look_at += glm::transpose( rotation ) * translation;
                         json_object_del(
                             last,
                             "position relative"
@@ -2438,7 +2388,7 @@ namespace isaac
                     }
                     //Giving the Controller the chance to grep for controller specific messages:
                     if( controller.updateProjection(
-                        projection,
+                        projections,
                         framebuffer_size,
                         last
                     ) )
@@ -2451,9 +2401,13 @@ namespace isaac
                             "projection",
                             matrix = json_array( )
                         );
-                        ISAAC_JSON_ADD_MATRIX ( matrix,
-                            projection,
-                            16 * TController::pass_count )
+                        for(isaac_int p = 0; p < TController::pass_count; ++p)
+                        {
+                            for (isaac_int i = 0; i < 16; ++i)
+                            {
+                                json_array_append_new( matrix, json_real( glm::value_ptr( projections[p] )[i] ) );
+                            }
+                        }
                     }
                     mergeJSON(
                         message,
@@ -2472,7 +2426,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     ISAAC_JSON_ADD_MATRIX ( matrix,
-                        modelview,
+                        glm::value_ptr( modelview ),
                         16 )
                 }
                 char * buffer = json_dumps(
@@ -2569,7 +2523,7 @@ namespace isaac
                     index,
                     value
                 )
-                projection[index] = json_number_value( value );
+                glm::value_ptr( projections[index / 16] )[index % 16] = json_number_value( value );
             }
             if( rank != master && json_array_size(
                 js = json_object_get(
@@ -2584,7 +2538,7 @@ namespace isaac
                     index,
                     value
                 )
-                modelview[index] = json_number_value( value );
+                glm::value_ptr( modelview )[index] = json_number_value( value );
             }
             if( json_array_size(
                 js = json_object_get(
@@ -3004,37 +2958,29 @@ namespace isaac
                     ISAAC_START_TIME_MEASUREMENT ( sorting,
                         getTicksUs( ) )
                     //Every rank calculates it's distance to the camera
-                    IceTDouble point[4] = {
+                    isaac_double4 point = {
                         (
-                            IceTDouble( position_scaled[0] ) + (
-                                                                   IceTDouble( local_size_scaled[0] )
-                                                                   - IceTDouble( global_size_scaled[0] )
+                            isaac_double( position_scaled[0] ) + (
+                                                                   isaac_double( local_size_scaled[0] )
+                                                                   - isaac_double( global_size_scaled[0] )
                                                                ) / 2.0
-                        ) / IceTDouble( max_size_scaled / 2 ),
+                        ) / isaac_double( max_size_scaled / 2 ),
                         (
-                            IceTDouble( position_scaled[1] ) + (
-                                                                   IceTDouble( local_size_scaled[1] )
-                                                                   - IceTDouble( global_size_scaled[1] )
+                            isaac_double( position_scaled[1] ) + (
+                                                                   isaac_double( local_size_scaled[1] )
+                                                                   - isaac_double( global_size_scaled[1] )
                                                                ) / 2.0
-                        ) / IceTDouble( max_size_scaled / 2 ),
+                        ) / isaac_double( max_size_scaled / 2 ),
                         (
-                            IceTDouble( position_scaled[2] ) + (
-                                                                   IceTDouble( local_size_scaled[2] )
-                                                                   - IceTDouble( global_size_scaled[2] )
+                            isaac_double( position_scaled[2] ) + (
+                                                                   isaac_double( local_size_scaled[2] )
+                                                                   - isaac_double( global_size_scaled[2] )
                                                                ) / 2.0
-                        ) / IceTDouble( max_size_scaled / 2 ),
+                        ) / isaac_double( max_size_scaled / 2 ),
                         1.0
                     };
-                    IceTDouble result[4];
-                    mulMatrixVector(
-                        result,
-                        modelview,
-                        point
-                    );
-                    float point_distance = sqrt(
-                        result[0] * result[0] + result[1] * result[1]
-                        + result[2] * result[2]
-                    );
+
+                    float point_distance = glm::length(modelview * point);
                     //Allgather of the distances
                     float receive_buffer[numProc];
                     MPI_Allgather(
@@ -3083,8 +3029,8 @@ namespace isaac
                     ISAAC_START_TIME_MEASUREMENT ( merge,
                         getTicksUs( ) )
                     image[pass] = icetDrawFrame(
-                        &( projection[pass * 16] ),
-                        modelview,
+                        glm::value_ptr( projections[pass] ),
+                        glm::value_ptr( modelview ),
                         background_color
                     );
                     ISAAC_STOP_TIME_MEASUREMENT ( merge_time,
@@ -3230,48 +3176,48 @@ namespace isaac
             //allocate memory for inverse mvp, mv and p matrix and simulation size properties
 
             //inverse mvp
-            alpaka::Buf <THost, isaac_float, TFraDim, ISAAC_IDX_TYPE>
+            alpaka::Buf <THost, isaac_mat4, TFraDim, ISAAC_IDX_TYPE>
                 inverse_h_buf(
                 alpaka::allocBuf<
-                    isaac_float,
+                    isaac_mat4,
                     ISAAC_IDX_TYPE
                 >(
                     myself->host,
-                    ISAAC_IDX_TYPE( 16 )
+                    ISAAC_IDX_TYPE( 1 )
                 )
             );
-            isaac_float * inverse_h =
-                reinterpret_cast<isaac_float *> ( alpaka::getPtrNative( inverse_h_buf ) );
+            isaac_mat4& inverse_h =
+                *(reinterpret_cast<isaac_mat4 *> ( alpaka::getPtrNative( inverse_h_buf ) ) );
 
 
             //model-view matrix
-            alpaka::Buf <THost, isaac_float, TFraDim, ISAAC_IDX_TYPE>
+            alpaka::Buf <THost, isaac_mat4, TFraDim, ISAAC_IDX_TYPE>
                 modelview_h_buf(
                 alpaka::allocBuf<
-                    isaac_float,
+                    isaac_mat4,
                     ISAAC_IDX_TYPE
                 >(
                     myself->host,
-                    ISAAC_IDX_TYPE( 16 )
+                    ISAAC_IDX_TYPE( 1 )
                 )
             );
-            isaac_float * modelview_h =
-                reinterpret_cast<isaac_float *> ( alpaka::getPtrNative( modelview_h_buf ) );
+            isaac_mat4& modelview_h =
+                *( reinterpret_cast<isaac_mat4 *> ( alpaka::getPtrNative( modelview_h_buf ) ) );
 
 
             //projection matrix
-            alpaka::Buf <THost, isaac_float, TFraDim, ISAAC_IDX_TYPE>
+            alpaka::Buf <THost, isaac_mat4, TFraDim, ISAAC_IDX_TYPE>
                 projection_h_buf(
                 alpaka::allocBuf<
-                    isaac_float,
+                    isaac_mat4,
                     ISAAC_IDX_TYPE
                 >(
                     myself->host,
-                    ISAAC_IDX_TYPE( 16 )
+                    ISAAC_IDX_TYPE( 1 )
                 )
             );
-            isaac_float * projection_h =
-                reinterpret_cast<isaac_float *> ( alpaka::getPtrNative( modelview_h_buf ) );
+            isaac_mat4& projection_h =
+                *( reinterpret_cast<isaac_mat4 *> ( alpaka::getPtrNative( modelview_h_buf ) ) );
 
 
             //sim size values
@@ -3280,8 +3226,9 @@ namespace isaac
                 alpaka::allocBuf < isaac_size_struct < TSimDim::value > ,
                 ISAAC_IDX_TYPE > ( myself->host, ISAAC_IDX_TYPE( 1 ) )
             );
-            isaac_size_struct < TSimDim::value > *size_h =
-                reinterpret_cast<isaac_size_struct< TSimDim::value > *> ( alpaka::getPtrNative( size_h_buf ) );
+            isaac_size_struct < TSimDim::value >& size_h =
+                *( reinterpret_cast<isaac_size_struct< TSimDim::value > *> ( alpaka::getPtrNative( size_h_buf ) ) );
+
 
             //calculate inverse mvp matrix for render kernel
             IceTDouble inverse[16];
@@ -3290,44 +3237,44 @@ namespace isaac
                 projection_matrix,
                 modelview_matrix
             );
-            for( int i = 0; i < 16; i++ )
-            {
-                //set values for inverse, mv and p matrix
-                inverse_h[i] = static_cast<float> ( inverse[i] );
-                modelview_h[i] = static_cast<float>(modelview_matrix[i]);
-                projection_h[i] = static_cast<float>(projection_matrix[i]);
-            }
+            std::copy( inverse, inverse + 16, glm::value_ptr( inverse_h ) );
+            //copy the projection and viewmatrix to the host buffer location
+            std::copy( projection_matrix, projection_matrix + 16, glm::value_ptr( projection_h ) );
+            std::copy( modelview_matrix, modelview_matrix + 16, glm::value_ptr( modelview_h ) );
+
+            
+
 
             //set global simulation size
-            size_h[0].global_size.x = myself->global_size[0];
-            size_h[0].global_size.y = myself->global_size[1];
+            size_h.global_size.x = myself->global_size[0];
+            size_h.global_size.y = myself->global_size[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].global_size.z = myself->global_size[2];
+                size_h.global_size.z = myself->global_size[2];
             }
-            size_h[0].position .x = myself->position[0];
-            size_h[0].position.y = myself->position[1];
+            size_h.position .x = myself->position[0];
+            size_h.position.y = myself->position[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].position.z = myself->position[2];
+                size_h.position.z = myself->position[2];
             }
 
             //set subvolume size
-            size_h[0].local_size.x = myself->local_size[0];
-            size_h[0].local_size.y = myself->local_size[1];
+            size_h.local_size.x = myself->local_size[0];
+            size_h.local_size.y = myself->local_size[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].local_size.z = myself->local_size[2];
+                size_h.local_size.z = myself->local_size[2];
             }
-            size_h[0].local_particle_size.x = myself->local_particle_size[0];
-            size_h[0].local_particle_size.y = myself->local_particle_size[1];
+            size_h.local_particle_size.x = myself->local_particle_size[0];
+            size_h.local_particle_size.y = myself->local_particle_size[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].local_particle_size.z = myself->local_particle_size[2];
+                size_h.local_particle_size.z = myself->local_particle_size[2];
             }
             
             //get maximum size from biggest dimesnion MAX(x-dim, y-dim, z-dim)
-            size_h[0].max_global_size = static_cast<float> ( ISAAC_MAX(
+            size_h.max_global_size = static_cast<float> ( ISAAC_MAX(
                 ISAAC_MAX(
                     uint32_t( myself->global_size[0] ),
                     uint32_t( myself->global_size[1] )
@@ -3336,29 +3283,29 @@ namespace isaac
             ) );
 
             //set global size with cellcount scaled
-            size_h[0].global_size_scaled.x = myself->global_size_scaled[0];
-            size_h[0].global_size_scaled.y = myself->global_size_scaled[1];
+            size_h.global_size_scaled.x = myself->global_size_scaled[0];
+            size_h.global_size_scaled.y = myself->global_size_scaled[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].global_size_scaled.z = myself->global_size_scaled[2];
+                size_h.global_size_scaled.z = myself->global_size_scaled[2];
             }
 
             //set position in subvolume (adjusted to cellcount scale)
-            size_h[0].position_scaled.x = myself->position_scaled[0];
-            size_h[0].position_scaled.y = myself->position_scaled[1];
+            size_h.position_scaled.x = myself->position_scaled[0];
+            size_h.position_scaled.y = myself->position_scaled[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].position_scaled.z = myself->position_scaled[2];
+                size_h.position_scaled.z = myself->position_scaled[2];
             }
-            size_h[0].local_size_scaled.x = myself->local_size_scaled[0];
-            size_h[0].local_size_scaled.y = myself->local_size_scaled[1];
+            size_h.local_size_scaled.x = myself->local_size_scaled[0];
+            size_h.local_size_scaled.y = myself->local_size_scaled[1];
             if( TSimDim::value > 2 )
             {
-                size_h[0].local_size_scaled.z = myself->local_size_scaled[2];
+                size_h.local_size_scaled.z = myself->local_size_scaled[2];
             }
 
             //get maximum size from biggest dimesnion after scaling MAX(x-dim, y-dim, z-dim)
-            size_h[0].max_global_size_scaled = static_cast<float> ( ISAAC_MAX(
+            size_h.max_global_size_scaled = static_cast<float> ( ISAAC_MAX(
                 ISAAC_MAX(
                     uint32_t( myself->global_size_scaled[0] ),
                     uint32_t( myself->global_size_scaled[1] )
@@ -3377,54 +3324,54 @@ namespace isaac
 
             //inverse matrix
             alpaka::Vec <alpaka::DimInt< 1u >, ISAAC_IDX_TYPE> const
-                inverse_d_extent( ISAAC_IDX_TYPE( 16 ) );
+                inverse_d_extent( ISAAC_IDX_TYPE( 1 ) );
             //get view
             auto inverse_d_view(
-                alpaka::createStaticDevMemView ( & isaac_inverse_d[0u],
+                alpaka::createStaticDevMemView ( & isaac_inverse_d,
                 myself -> acc, inverse_d_extent ) );
             //copy to constant memory
             alpaka::memcpy(
                 myself->stream,
                 inverse_d_view,
                 inverse_h_buf,
-                ISAAC_IDX_TYPE( 16 )
+                ISAAC_IDX_TYPE( 1 )
             );
 
             //modelview matrix
             alpaka::Vec <alpaka::DimInt< 1u >, ISAAC_IDX_TYPE> const
-                modelview_d_extent( ISAAC_IDX_TYPE( 16 ) );
+                modelview_d_extent( ISAAC_IDX_TYPE( 1 ) );
             //get view
             auto modelview_d_view(
-                alpaka::createStaticDevMemView ( & isaac_modelview_d[0u],
+                alpaka::createStaticDevMemView ( & isaac_modelview_d,
                 myself -> acc, modelview_d_extent ) );
             //copy to constant memory 
             alpaka::memcpy(
                 myself->stream,
                 modelview_d_view,
                 modelview_h_buf,
-                ISAAC_IDX_TYPE( 16 )
+                ISAAC_IDX_TYPE( 1 )
             );
 
 
             //projection matrix
             alpaka::Vec <alpaka::DimInt< 1u >, ISAAC_IDX_TYPE> const
-                projection_d_extent( ISAAC_IDX_TYPE( 16 ) );
+                projection_d_extent( ISAAC_IDX_TYPE( 1 ) );
             //get view
             auto projection_d_view(
-                alpaka::createStaticDevMemView ( & isaac_projection_d[0u],
+                alpaka::createStaticDevMemView ( & isaac_projection_d,
                 myself -> acc, projection_d_extent ) );
             //copy to constant memory
             alpaka::memcpy(
                 myself->stream,
                 projection_d_view,
                 projection_h_buf,
-                ISAAC_IDX_TYPE( 16 )
+                ISAAC_IDX_TYPE( 1 )
             );
 
             alpaka::Vec <alpaka::DimInt< 1u >, ISAAC_IDX_TYPE> const
                 size_d_extent( ISAAC_IDX_TYPE( 1 ) );
             auto size_d_view(
-                alpaka::createStaticDevMemView ( & isaac_size_d[0u],
+                alpaka::createStaticDevMemView ( & isaac_size_d,
                 myself -> acc, size_d_extent ) );
             alpaka::memcpy(
                 myself->stream,
@@ -3678,9 +3625,13 @@ namespace isaac
                         "projection",
                         matrix = json_array( )
                     );
-                    ISAAC_JSON_ADD_MATRIX ( matrix,
-                        myself->projection,
-                        16 * TController::pass_count )
+                    for(isaac_int p = 0; p < TController::pass_count; ++p)
+                    {
+                        for (isaac_int i = 0; i < 16; ++i)
+                        {
+                            json_array_append_new( matrix, json_real( glm::value_ptr( myself->projections[p] )[i] ) );
+                        }
+                    }
                     json_object_set(
                         myself->json_init_root,
                         "projection",
@@ -3696,7 +3647,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     ISAAC_JSON_ADD_MATRIX ( matrix,
-                        myself->look_at,
+                        glm::value_ptr( myself->look_at ),
                         3 )
                     json_object_set(
                         myself->json_init_root,
@@ -3713,7 +3664,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     ISAAC_JSON_ADD_MATRIX ( matrix,
-                        myself->rotation,
+                        glm::value_ptr( myself->rotation ),
                         9 )
                     json_object_set(
                         myself->json_init_root,
@@ -4186,50 +4137,15 @@ namespace isaac
 
         void updateModelview( )
         {
-            IceTDouble look_at_m[16];
-            ISAAC_SET_IDENTITY ( 4,
-                look_at_m )
-            look_at_m[12] = look_at[0];
-            look_at_m[13] = look_at[1];
-            look_at_m[14] = look_at[2];
+            isaac_dmat4 translation_m = glm::translate( isaac_dmat4( 1 ), look_at);
 
-            IceTDouble rotation_m[16];
-            for( isaac_int x = 0; x < 4; x++ )
-            {
-                for( isaac_int y = 0; y < 4; y++ )
-                {
-                    if( x < 3 && y < 3 )
-                    {
-                        rotation_m[x + y * 4] = rotation[x + y * 3];
-                    }
-                    else if( x != 3 || y != 3 )
-                    {
-                        rotation_m[x + y * 4] = 0.0;
-                    }
-                    else
-                    {
-                        rotation_m[x + y * 4] = 1.0;
-                    }
-                }
-            }
+            isaac_dmat4 rotation_m = rotation;
+            rotation_m[3][3] = 1.0;
 
-            IceTDouble distance_m[16];
-            ISAAC_SET_IDENTITY ( 4,
-                distance_m )
-            distance_m[14] = distance;
-
-            IceTDouble temp[16];
-
-            mulMatrixMatrix(
-                temp,
-                rotation_m,
-                look_at_m
-            );
-            mulMatrixMatrix(
-                modelview,
-                distance_m,
-                temp
-            );
+            isaac_dmat4 distance_m = isaac_dmat4( 1 );
+            distance_m[3][2] = distance;
+            
+            modelview = distance_m * rotation_m * translation_m;
         }
 
 
@@ -4311,10 +4227,11 @@ namespace isaac
         std::vector <ISAAC_IDX_TYPE> local_size_scaled;
         std::vector <ISAAC_IDX_TYPE> position_scaled;
         MPI_Comm mpi_world;
-        IceTDouble projection[16 * TController::pass_count];
-        IceTDouble look_at[3];
-        IceTDouble rotation[9];
-        IceTDouble distance;
+        std::vector<isaac_dmat4> projections;
+        isaac_dmat4 modelview;                           //modelview matrix
+        isaac_double3 look_at;
+        isaac_dmat3 rotation;
+        isaac_double distance;
 
         //true if properties should be sent by server
         bool send_look_at;
@@ -4339,7 +4256,6 @@ namespace isaac
         bool iso_surface;
         bool icet_bounding_box;
         isaac_float step;
-        IceTDouble modelview[16];                           //modelview matrix
         IsaacCommunicator * communicator;
         json_t * json_root;
         json_t * json_init_root;
