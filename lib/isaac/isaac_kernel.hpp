@@ -1316,16 +1316,10 @@ namespace isaac
                 //Extra clipping
                 for( isaac_int i = 0; i < input_clipping.count; i++ )
                 {
-                    d[e] = step_vec[e].x * clipping[e].elem[i].normal.x 
-                        + step_vec[e].y * clipping[e].elem[i].normal.y 
-                        + step_vec[e].z * clipping[e].elem[i].normal.z;
+                    d[e] = glm::dot( step_vec[e], clipping[e].elem[i].normal);
 
-                    intersection_step[e] = ( clipping[e].elem[i].position.x * clipping[e].elem[i].normal.x 
-                                            + clipping[e].elem[i].position.y * clipping[e].elem[i].normal.y 
-                                            + clipping[e].elem[i].position.z * clipping[e].elem[i].normal.z 
-                                            - start[e].x * clipping[e].elem[i].normal.x 
-                                            - start[e].y * clipping[e].elem[i].normal.y 
-                                            - start[e].z * clipping[e].elem[i].normal.z ) / d[e];
+                    intersection_step[e] = ( glm::dot( clipping[e].elem[i].position, clipping[e].elem[i].normal )
+                                            - glm::dot( start[e], clipping[e].elem[i].normal ) ) / d[e];
                     if( d[e] > 0 )
                     {
                         if( last_f[e] < intersection_step[e] )
