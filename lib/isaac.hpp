@@ -470,32 +470,19 @@ namespace isaac
                 const THost__ & host
             ) const
             {
-                isaac_size2 grid_size = {
-                    ISAAC_IDX_TYPE( ( local_size[0] + 15 ) / 16 ),
-                    ISAAC_IDX_TYPE( ( local_size[1] + 15 ) / 16 ),
-                };
-                isaac_size2 block_size = {
-                    ISAAC_IDX_TYPE( 16 ),
-                    ISAAC_IDX_TYPE( 16 ),
-                };
-                isaac_int3 local_size_array = {
-                    isaac_int( local_size[0] ),
-                    isaac_int( local_size[1] ),
-                    isaac_int( local_size[2] )
-                };
-                minmax_struct
-                    local_minmax_array_h[local_size_array.x * local_size_array.y
-                ];
-                if( local_size[0] != 0 && local_size[1] != 0 )
+                isaac_size2 grid_size = ( local_size + 15 ) / 16;
+                isaac_size2 block_size( 16 );
+
+                minmax_struct local_minmax_array_h[local_size.x * local_size.y];
+
+                if( local_size.x != 0 && local_size.y != 0 )
                 {
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
                     if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
-                        grid_size.x = ISAAC_IDX_TYPE( local_size[0] );
-                        grid_size.y = ISAAC_IDX_TYPE( local_size[0] );
-                        block_size.x = ISAAC_IDX_TYPE( 1 );
-                        block_size.y = ISAAC_IDX_TYPE( 1 );
+                        grid_size = local_size;
+                        block_size = isaac_size2( 1 );
                     }
                     const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
                         ISAAC_IDX_TYPE( 1 ),
@@ -530,7 +517,7 @@ namespace isaac
                             source,
                             I,
                             alpaka::getPtrNative( local_minmax ),
-                            local_size_array,
+                            local_size,
                             pointer_array.pointer[I]
                         )
                     );
@@ -539,18 +526,13 @@ namespace isaac
                         instance
                     );
                     alpaka::wait( stream );
-                    alpaka::ViewPlainPtr <THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE>
-                        minmax_buffer(
+                    alpaka::ViewPlainPtr <THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(
                         local_minmax_array_h,
                         host,
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >(
-                            ISAAC_IDX_TYPE(
-                                local_size_array.x * local_size_array.y
-                            )
-                        )
+                        >( local_size.x * local_size.y )
                     );
                     alpaka::memcpy(
                         stream,
@@ -559,18 +541,12 @@ namespace isaac
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >(
-                            ISAAC_IDX_TYPE(
-                                local_size_array.x * local_size_array.y
-                            )
-                        )
+                        >( local_size.x * local_size.y )
                     );
                 }
                 minmax.min[I] = FLT_MAX;
                 minmax.max[I] = -FLT_MAX;
-                for( int i = 0;
-                    i < local_size_array.x * local_size_array.y;
-                    i++ )
+                for( int i = 0; i < local_size.x * local_size.y; i++ )
                 {
                     if( local_minmax_array_h[i].min < minmax.min[I] )
                     {
@@ -610,32 +586,19 @@ namespace isaac
             {
                 // iterate over all cells and the particle lists
 
-                isaac_size2 grid_size = {
-                    ISAAC_IDX_TYPE( ( local_size[0] + 15 ) / 16 ),
-                    ISAAC_IDX_TYPE( ( local_size[1] + 15 ) / 16 ),
-                };
-                isaac_size2 block_size = {
-                    ISAAC_IDX_TYPE( 16 ),
-                    ISAAC_IDX_TYPE( 16 ),
-                };
-                isaac_int3 local_size_array = {
-                    isaac_int( local_size[0] ),
-                    isaac_int( local_size[1] ),
-                    isaac_int( local_size[2] )
-                };
-                minmax_struct
-                    local_minmax_array_h[local_size_array.x * local_size_array.y
-                ];
-                if( local_size[0] != 0 && local_size[1] != 0 )
+                isaac_size2 grid_size = ( local_size + 15 ) / 16;
+                isaac_size2 block_size(16);
+
+                minmax_struct local_minmax_array_h[local_size.x * local_size.y];
+                
+                if( local_size.x != 0 && local_size.y != 0 )
                 {
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
                     if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
-                        grid_size.x = ISAAC_IDX_TYPE( local_size[0] );
-                        grid_size.y = ISAAC_IDX_TYPE( local_size[0] );
-                        block_size.x = ISAAC_IDX_TYPE( 1 );
-                        block_size.y = ISAAC_IDX_TYPE( 1 );
+                        grid_size = local_size;
+                        block_size = isaac_size2( 1 );
                     }
                     const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
                         ISAAC_IDX_TYPE( 1 ),
@@ -670,7 +633,7 @@ namespace isaac
                             particle_source,
                             I + TOffset,
                             alpaka::getPtrNative( local_minmax ),
-                            local_size_array
+                            local_size
                         )
                     );
                     alpaka::enqueue(
@@ -678,18 +641,13 @@ namespace isaac
                         instance
                     );
                     alpaka::wait( stream );
-                    alpaka::ViewPlainPtr <THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE>
-                        minmax_buffer(
+                    alpaka::ViewPlainPtr <THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(
                         local_minmax_array_h,
                         host,
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >(
-                            ISAAC_IDX_TYPE(
-                                local_size_array.x * local_size_array.y
-                            )
-                        )
+                        >( local_size.x * local_size.y )
                     );
                     alpaka::memcpy(
                         stream,
@@ -698,19 +656,13 @@ namespace isaac
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >(
-                            ISAAC_IDX_TYPE(
-                                local_size_array.x * local_size_array.y
-                            )
-                        )
+                        >( local_size.x * local_size.y )
                     );
                 }
                 minmax.min[I + TOffset] = FLT_MAX;
                 minmax.max[I + TOffset] = -FLT_MAX;
                 // find the min and max
-                for( int i = 0;
-                    i < local_size_array.x * local_size_array.y;
-                    i++ )
+                for( int i = 0; i < local_size.x * local_size.y; i++ )
                 {
                     if( local_minmax_array_h[i].min < minmax.min[I + TOffset] )
                     {

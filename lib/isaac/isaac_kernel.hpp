@@ -2460,7 +2460,7 @@ namespace isaac
             const TSource source,
             const int nr,
             minmax_struct * const result,
-            const isaac_int3 local_size,
+            const isaac_size3 local_size,
             void const * const pointer
         ) const
         {
@@ -2564,7 +2564,7 @@ namespace isaac
             const TParticleSource particle_source,
             const int nr,
             minmax_struct * const result,
-            const isaac_int3 local_size
+            const isaac_size3 local_size
         ) const
         {
             auto alpThreadIdx = alpaka::getIdx<
