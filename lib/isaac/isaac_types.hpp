@@ -67,6 +67,8 @@ using isaac_dmat2 = glm::mat<2, 2, isaac_double, glm::defaultp>;
 template <ISAAC_IDX_TYPE T>
 using isaac_float_dim = glm::vec<T, isaac_float, glm::defaultp>;
 template <ISAAC_IDX_TYPE T>
+using isaac_double_dim = glm::vec<T, isaac_double, glm::defaultp>;
+template <ISAAC_IDX_TYPE T>
 using isaac_int_dim = glm::vec<T, isaac_int, glm::defaultp>;
 template <ISAAC_IDX_TYPE T>
 using isaac_size_dim = glm::vec<T, ISAAC_IDX_TYPE, glm::defaultp>;

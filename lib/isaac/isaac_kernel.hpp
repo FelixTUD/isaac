@@ -935,7 +935,6 @@ namespace isaac
 
 
     template<
-        typename TSimDim,
         typename TParticleList,
         typename TSourceList,
         typename TTransferArray,
@@ -1879,7 +1878,6 @@ namespace isaac
 
 
     template<
-        typename TSimDim,
         typename TParticleList,
         typename TSourceList,
         typename TTransferArray,
@@ -1926,7 +1924,6 @@ namespace isaac
                                    - N] == isaac_float( 0 ) )
             {
                 IsaacRenderKernelCaller<
-                    TSimDim,
                     TParticleList,
                     TSourceList,
                     TTransferArray,
@@ -1971,7 +1968,6 @@ namespace isaac
             else
             {
                 IsaacRenderKernelCaller<
-                    TSimDim,
                     TParticleList,
                     TSourceList,
                     TTransferArray,
@@ -2017,7 +2013,6 @@ namespace isaac
     };
 
     template<
-        typename TSimDim,
         typename TParticleList,
         typename TSourceList,
         typename TTransferArray,
@@ -2035,7 +2030,6 @@ namespace isaac
         typename TFunctionChain
     >
     struct IsaacRenderKernelCaller<
-        TSimDim,
         TParticleList,
         TSourceList,
         TTransferArray,
@@ -2129,7 +2123,6 @@ namespace isaac
             { \
                 isaacRenderKernel \
                 < \
-                    TSimDim, \
                     TParticleList, \
                     TSourceList, \
                     TTransferArray, \
