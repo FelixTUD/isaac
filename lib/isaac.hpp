@@ -3152,13 +3152,13 @@ namespace isaac
 
 
             //sim size values
-            alpaka::Buf <THost, isaac_size_struct< TSimDim >, TFraDim, ISAAC_IDX_TYPE>
+            alpaka::Buf <THost, isaac_size_struct<TSimDim>, TFraDim, ISAAC_IDX_TYPE>
                 size_h_buf(
-                alpaka::allocBuf < isaac_size_struct < TSimDim > ,
-                ISAAC_IDX_TYPE > ( myself->host, ISAAC_IDX_TYPE( 1 ) )
+                alpaka::allocBuf <isaac_size_struct<TSimDim> ,
+                ISAAC_IDX_TYPE> ( myself->host, ISAAC_IDX_TYPE( 1 ) )
             );
-            isaac_size_struct < TSimDim >& size_h =
-                *( reinterpret_cast<isaac_size_struct< TSimDim > *> ( alpaka::getPtrNative( size_h_buf ) ) );
+            isaac_size_struct <TSimDim >& size_h =
+                *( reinterpret_cast<isaac_size_struct<TSimDim>*> ( alpaka::getPtrNative( size_h_buf ) ) );
 
 
             //calculate inverse mvp matrix for render kernel
