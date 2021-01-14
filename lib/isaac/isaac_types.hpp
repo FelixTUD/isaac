@@ -79,18 +79,17 @@ using isaac_size_dim = glm::vec<T, ISAAC_IDX_TYPE, glm::defaultp>;
  * 
  * @tparam simdim 
  */
-template < int simdim >
 struct isaac_size_struct
 {
-    isaac_size_dim < simdim > global_size;         //size of volume
+    isaac_size3 global_size;         //size of volume
     ISAAC_IDX_TYPE max_global_size;                //each dimension has a size and this value contains the value of the greatest dimension
-    isaac_size_dim < simdim > position;            //local position of subvolume
-    isaac_size_dim < simdim > local_size;          //size of local volume grid
-    isaac_size_dim < simdim > local_particle_size; //size of local particle grid 
-    isaac_size_dim < simdim > global_size_scaled;  //scaled version of global size with cells = scale * cells
+    isaac_size3 position;            //local position of subvolume
+    isaac_size3 local_size;          //size of local volume grid
+    isaac_size3 local_particle_size; //size of local particle grid 
+    isaac_size3 global_size_scaled;  //scaled version of global size with cells = scale * cells
     ISAAC_IDX_TYPE max_global_size_scaled;         //same as global_size_scaled
-    isaac_size_dim < simdim > position_scaled;     //scaled position of local subvolume
-    isaac_size_dim < simdim > local_size_scaled;   //same as global_size_scaled
+    isaac_size3 position_scaled;     //scaled position of local subvolume
+    isaac_size3 local_size_scaled;   //same as global_size_scaled
 };
 
 

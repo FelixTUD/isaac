@@ -78,7 +78,6 @@ namespace isaac
         typename TAcc,
         typename TStream,
         typename TAccDim,
-        int TSimDim,
         typename TParticleList,
         typename TSourceList,
         ISAAC_IDX_TYPE TTransfer_size,
@@ -546,7 +545,7 @@ namespace isaac
                 }
                 minmax.min[I] = FLT_MAX;
                 minmax.max[I] = -FLT_MAX;
-                for( int i = 0; i < local_size.x * local_size.y; i++ )
+                for( ISAAC_IDX_TYPE i = 0; i < local_size.x * local_size.y; i++ )
                 {
                     if( local_minmax_array_h[i].min < minmax.min[I] )
                     {
@@ -662,7 +661,7 @@ namespace isaac
                 minmax.min[I + TOffset] = FLT_MAX;
                 minmax.max[I + TOffset] = -FLT_MAX;
                 // find the min and max
-                for( int i = 0; i < local_size.x * local_size.y; i++ )
+                for( ISAAC_IDX_TYPE i = 0; i < local_size.x * local_size.y; i++ )
                 {
                     if( local_minmax_array_h[i].min < minmax.min[I + TOffset] )
                     {
@@ -686,13 +685,13 @@ namespace isaac
             const std::string server_url,
             const isaac_uint server_port,
             const isaac_size2 framebuffer_size,
-            const isaac_size_dim<TSimDim> global_size,
-            const isaac_size_dim<TSimDim> local_size,
-            const isaac_size_dim<TSimDim> local_particle_size,
-            const isaac_size_dim<TSimDim> position,
+            const isaac_size3 global_size,
+            const isaac_size3 local_size,
+            const isaac_size3 local_particle_size,
+            const isaac_size3 position,
             TParticleList & particle_sources,
             TSourceList & sources,
-            isaac_float_dim<TSimDim> scale
+            isaac_float3 scale
 
         ) :
             host( host ),
@@ -812,9 +811,9 @@ namespace isaac
             );
 #endif
             json_object_seed( 0 );
-            global_size_scaled = isaac_float_dim<TSimDim>( global_size ) * scale;
-            local_size_scaled = isaac_float_dim<TSimDim>( local_size ) * scale;
-            position_scaled = isaac_float_dim<TSimDim>( position ) * scale;
+            global_size_scaled = isaac_float3( global_size ) * scale;
+            local_size_scaled = isaac_float3( local_size ) * scale;
+            position_scaled = isaac_float3( position ) * scale;
 
             background_color[0] = 0;
             background_color[1] = 0;
@@ -1066,28 +1065,8 @@ namespace isaac
             }
             updateTransfer( );
 
-            max_size = ISAAC_MAX(
-                ISAAC_IDX_TYPE( global_size.x ),
-                ISAAC_IDX_TYPE( global_size.y )
-            );
-            if( TSimDim > 2 )
-            {
-                max_size = ISAAC_MAX(
-                    ISAAC_IDX_TYPE( global_size.z ),
-                    ISAAC_IDX_TYPE( max_size )
-                );
-            }
-            max_size_scaled = ISAAC_MAX(
-                ISAAC_IDX_TYPE( global_size_scaled.x ),
-                ISAAC_IDX_TYPE( global_size_scaled.y )
-            );
-            if( TSimDim > 2 )
-            {
-                max_size_scaled = ISAAC_MAX(
-                    ISAAC_IDX_TYPE( global_size_scaled.z ),
-                    ISAAC_IDX_TYPE( max_size_scaled )
-                );
-            }
+            max_size = glm::max( global_size.x , glm::max( global_size.y, global_size.z ) );
+            max_size_scaled = glm::max( global_size_scaled.x , glm::max( global_size_scaled.y, global_size_scaled.z ) );
 
             //ICET:
             IceTCommunicator icetComm;
@@ -1256,29 +1235,23 @@ namespace isaac
                 json_object_set_new(
                     json_root,
                     "dimension",
-                    json_integer( TSimDim )
+                    json_integer( 3 )
                 );
                 json_object_set_new(
                     json_root,
                     "width",
                     json_integer( global_size_scaled.x )
                 );
-                if( TSimDim > 1 )
-                {
-                    json_object_set_new(
-                        json_root,
-                        "height",
-                        json_integer( global_size_scaled.y )
-                    );
-                }
-                if( TSimDim > 2 )
-                {
-                    json_object_set_new(
-                        json_root,
-                        "depth",
-                        json_integer( global_size_scaled.z )
-                    );
-                }
+                json_object_set_new(
+                    json_root,
+                    "height",
+                    json_integer( global_size_scaled.y )
+                );
+                json_object_set_new(
+                    json_root,
+                    "depth",
+                    json_integer( global_size_scaled.z )
+                );
                 json_t * json_version_array = json_array( );
                 json_array_append_new(
                     json_version_array,
@@ -1514,10 +1487,10 @@ namespace isaac
                 icetSetContext( icetContext[pass] );
                 if( icet_bounding_box )
                 {
-                    isaac_float3 bb_dimension = isaac_float_dim<TSimDim>( local_size_scaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 );
+                    isaac_float3 bb_dimension = isaac_float3( local_size_scaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 );
 
-                    isaac_float3 bb_min = isaac_float_dim<TSimDim>( position_scaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 )
-                                    - isaac_float_dim<TSimDim>( global_size_scaled ) / isaac_float( max_size_scaled );
+                    isaac_float3 bb_min = isaac_float3( position_scaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 )
+                                    - isaac_float3( global_size_scaled ) / isaac_float( max_size_scaled );
 
                     icetBoundingBoxf(
                         bb_min.x,
@@ -1542,23 +1515,23 @@ namespace isaac
         }
 
 
-        void updatePosition( const isaac_size_dim<TSimDim> position )
+        void updatePosition( const isaac_size3 position )
         {
             ISAAC_WAIT_VISUALIZATION
             this->position = position;
-            this->position_scaled = isaac_float_dim<TSimDim>( position ) * scale;
+            this->position_scaled = isaac_float3( position ) * scale;
         }
 
 
-        void updateLocalSize( const isaac_size_dim<TSimDim> local_size )
+        void updateLocalSize( const isaac_size3 local_size )
         {
             ISAAC_WAIT_VISUALIZATION
             this->local_size = local_size;
-            this->local_size_scaled = isaac_float_dim<TSimDim>( local_size ) * scale;
+            this->local_size_scaled = isaac_float3( local_size ) * scale;
         }
 
 
-        void updateLocalParticleSize( const isaac_size_dim<TSimDim> local_particle_size )
+        void updateLocalParticleSize( const isaac_size3 local_particle_size )
         {
             ISAAC_WAIT_VISUALIZATION
             this->local_particle_size = local_particle_size;
@@ -2858,8 +2831,8 @@ namespace isaac
                     ISAAC_START_TIME_MEASUREMENT ( sorting,
                         getTicksUs( ) )
                     //Every rank calculates it's distance to the camera
-                    isaac_double4 point = isaac_double4( ( isaac_double_dim<TSimDim>( position_scaled ) 
-                                        + ( isaac_double_dim<TSimDim>( local_size_scaled ) - isaac_double_dim<TSimDim>( global_size_scaled ) ) / isaac_double(2.0) )
+                    isaac_double4 point = isaac_double4( ( isaac_double3( position_scaled ) 
+                                        + ( isaac_double3( local_size_scaled ) - isaac_double3( global_size_scaled ) ) / isaac_double(2.0) )
                                         / isaac_double( max_size_scaled / 2 ), 0 );
                     point.w = 1.0;
 
@@ -3104,13 +3077,13 @@ namespace isaac
 
 
             //sim size values
-            alpaka::Buf <THost, isaac_size_struct<TSimDim>, TFraDim, ISAAC_IDX_TYPE>
+            alpaka::Buf <THost, isaac_size_struct, TFraDim, ISAAC_IDX_TYPE>
                 size_h_buf(
-                alpaka::allocBuf <isaac_size_struct<TSimDim> ,
+                alpaka::allocBuf <isaac_size_struct ,
                 ISAAC_IDX_TYPE> ( myself->host, ISAAC_IDX_TYPE( 1 ) )
             );
-            isaac_size_struct <TSimDim >& size_h =
-                *( reinterpret_cast<isaac_size_struct<TSimDim>*> ( alpaka::getPtrNative( size_h_buf ) ) );
+            isaac_size_struct & size_h =
+                *( reinterpret_cast<isaac_size_struct*> ( alpaka::getPtrNative( size_h_buf ) ) );
 
 
             //calculate inverse mvp matrix for render kernel
@@ -3277,8 +3250,7 @@ namespace isaac
                     TFraDim, 
                     ISAAC_IDX_TYPE
                 >,
-                TTransfer_size, 
-                isaac_float3, 
+                TTransfer_size,
                 TAccDim, 
                 TAcc, 
                 TStream,
@@ -4053,13 +4025,13 @@ namespace isaac
             ISAAC_IDX_TYPE
         > local_particle_minmax_array_d;
 
-        isaac_size_dim<TSimDim> global_size;
-        isaac_size_dim<TSimDim> local_size;
-        isaac_size_dim<TSimDim> local_particle_size;
-        isaac_size_dim<TSimDim> position;
-        isaac_size_dim<TSimDim> global_size_scaled;
-        isaac_size_dim<TSimDim> local_size_scaled;
-        isaac_size_dim<TSimDim> position_scaled;
+        isaac_size3 global_size;
+        isaac_size3 local_size;
+        isaac_size3 local_particle_size;
+        isaac_size3 position;
+        isaac_size3 global_size_scaled;
+        isaac_size3 local_size_scaled;
+        isaac_size3 position_scaled;
         MPI_Comm mpi_world;
         std::vector<isaac_dmat4> projections;
         isaac_dmat4 modelview;                           //modelview matrix
@@ -4163,7 +4135,7 @@ namespace isaac
         ISAAC_IDX_TYPE max_size_scaled;
         IceTFloat background_color[4];
         static IsaacVisualization * myself;
-        isaac_float_dim<TSimDim> scale;
+        isaac_float3 scale;
         clipping_struct clipping;
         isaac_float3 clipping_saved_normals[ISAAC_MAX_CLIPPING];
         TController controller;
@@ -4176,7 +4148,6 @@ namespace isaac
         typename TAcc,
         typename TStream,
         typename TAccDim,
-        int TSimDim,
         typename TParticleList,
         typename TSourceList,
         ISAAC_IDX_TYPE TTransfer_size,
@@ -4187,7 +4158,6 @@ namespace isaac
         TAcc,
         TStream,
         TAccDim,
-        TSimDim,
         TParticleList,
         TSourceList,
         TTransfer_size,
@@ -4198,7 +4168,6 @@ namespace isaac
         TAcc,
         TStream,
         TAccDim,
-        TSimDim,
         TParticleList,
         TSourceList,
         TTransfer_size,

@@ -77,7 +77,7 @@ namespace isaac
     ISAAC_CONSTANT isaac_mat4 isaac_projection_d;
 
     //simulation size properties
-    ISAAC_CONSTANT isaac_size_struct< 3 > isaac_size_d; //[1] to access it for cuda and alpaka the same way
+    ISAAC_CONSTANT isaac_size_struct isaac_size_d;
 
     ISAAC_CONSTANT isaac_float4 isaac_parameter_d[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCTORS ];
 
@@ -233,25 +233,22 @@ namespace isaac
         isaac_int TInterpolation,
         typename NR,
         typename TSource,
-        typename TPos,
-        typename TPointerArray,
-        typename TLocalSize,
-        typename TScale
+        typename TPointerArray
     >
     ISAAC_HOST_DEVICE_INLINE isaac_float
 
 
     get_value(
         const TSource & source,
-        const TPos & pos,
+        const isaac_float3 & pos,
         const TPointerArray & pointerArray,
-        const TLocalSize & local_size,
-        const TScale & scale
+        const isaac_size3 & local_size,
+        const isaac_float3 & scale
     )
     {
         isaac_float_dim <TSource::feature_dim> data;
         isaac_float_dim <TSource::feature_dim> * ptr = (
-            isaac_float_dim < TSource::feature_dim > *
+        isaac_float_dim < TSource::feature_dim > *
         )( pointerArray.pointer[NR::value] );
         if( TInterpolation == 0 )
         {
@@ -400,16 +397,15 @@ namespace isaac
      * @return ISAAC_HOST_DEVICE_INLINE check_coord clamped coordiantes
      */
     template<
-        bool TInterpolation,
-        typename TLocalSize
+        bool TInterpolation
     >
     ISAAC_HOST_DEVICE_INLINE void
     check_coord(
         isaac_float3 & coord,
-        const TLocalSize local_size
+        const isaac_size3 &  local_size
     )
     {
-        constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
+        constexpr ISAAC_IDX_TYPE extra_border = static_cast<ISAAC_IDX_TYPE>(TInterpolation);
 
         coord = glm::clamp(coord, isaac_float3(0), isaac_float3( local_size - extra_border ) - std::numeric_limits<isaac_float>::min( ) );
     }
@@ -424,16 +420,15 @@ namespace isaac
      * @return ISAAC_HOST_DEVICE_INLINE check_coord_with_guard clamped coordinate
      */
     template<
-        bool TInterpolation,
-        typename TLocalSize
+        bool TInterpolation
     >
     ISAAC_HOST_DEVICE_INLINE void
     check_coord_with_guard(
         isaac_float3 & coord,
-        const TLocalSize local_size
+        const isaac_size3 & local_size
     )
     {
-        constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
+        constexpr ISAAC_IDX_TYPE extra_border = static_cast<ISAAC_IDX_TYPE>(TInterpolation);
 
         coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), 
                             isaac_float3( local_size + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE ) - extra_border )
@@ -593,26 +588,24 @@ namespace isaac
         template<
             typename NR,
             typename TSource,
-            typename TLocalSize,
             typename TTransferArray,
             typename TSourceWeight,
             typename TPointerArray,
-            typename TFeedback,
-            typename TScale
+            typename TFeedback
         >
         ISAAC_HOST_DEVICE_INLINE void operator()(
             const NR & nr,
             const TSource & source,
             isaac_float4 & color,
             const isaac_float3 & pos,
-            const TLocalSize & local_size,
+            const isaac_size3 & local_size,
             const TTransferArray & transferArray,
             const TSourceWeight & sourceWeight,
             const TPointerArray & pointerArray,
             TFeedback & feedback,
             const isaac_float3 & step,
             const isaac_float & stepLength,
-            const TScale & scale,
+            const isaac_float3 & scale,
             const bool & first,
             const isaac_float3 & start_normal
         ) const
@@ -927,8 +920,7 @@ namespace isaac
         typename TFilter,
         ISAAC_IDX_TYPE Ttransfer_size,
         isaac_int TInterpolation,
-        isaac_int TIsoSurface,
-        typename TScale
+        isaac_int TIsoSurface
     >
     struct isaacRenderKernel
     {
@@ -949,7 +941,7 @@ namespace isaac
             const TTransferArray transferArray,     //mapping to simulation memory
             const TSourceWeight sourceWeight,       //weights of sources for blending
             const TPointerArray pointerArray,
-            const TScale scale,                     //isaac set scaling
+            const isaac_float3 scale,                     //isaac set scaling
             const clipping_struct input_clipping,   //clipping planes
             const ao_struct ambientOcclusion        //ambient occlusion params
         ) const
@@ -1532,7 +1524,7 @@ namespace isaac
                 for( isaac_int i = first[e]; i <= last[e]; i++ )
                 {
                     pos[e] = start[e] + step_vec[e] * isaac_float( i );
-                    value[e] = isaac_float4(0);
+                    value[e] = isaac_float4( 0 );
                     result[e] = 0;
                     bool firstRound = ( global_front[e] && i == first[e] );
                     isaac_for_each_with_mpl_params(
@@ -1866,7 +1858,6 @@ namespace isaac
         typename TFramebufferDepth,
         typename TFramebufferNormal,
         ISAAC_IDX_TYPE TTransfer_size,
-        typename TScale,
         typename TAccDim,
         typename TAcc,
         typename TStream,
@@ -1892,7 +1883,7 @@ namespace isaac
             IceTInt const * const readback_viewport,
             const isaac_int interpolation,
             const isaac_int iso_surface,
-            const TScale & scale,
+            const isaac_float3 & scale,
             const clipping_struct & clipping,
             const ao_struct & ambientOcclusion
         )
@@ -1915,7 +1906,6 @@ namespace isaac
                     TFramebufferDepth,
                     TFramebufferNormal,
                     TTransfer_size,
-                    TScale,
                     TAccDim,
                     TAcc,
                     TStream,
@@ -1959,7 +1949,6 @@ namespace isaac
                     TFramebufferDepth,
                     TFramebufferNormal,
                     TTransfer_size,
-                    TScale,
                     TAccDim,
                     TAcc,
                     TStream,
@@ -2001,7 +1990,6 @@ namespace isaac
         typename TFramebufferDepth,
         typename TFramebufferNormal,
         ISAAC_IDX_TYPE TTransfer_size,
-        typename TScale,
         typename TAccDim,
         typename TAcc,
         typename TStream,
@@ -2018,7 +2006,6 @@ namespace isaac
         TFramebufferDepth,
         TFramebufferNormal,
         TTransfer_size,
-        TScale,
         TAccDim,
         TAcc,
         TStream,
@@ -2043,7 +2030,7 @@ namespace isaac
             IceTInt const * const readback_viewport,
             const isaac_int interpolation,
             const isaac_int iso_surface,
-            const TScale & scale,
+            const isaac_float3 & scale,
             const clipping_struct & clipping,
             const ao_struct & ambientOcclusion
         )
@@ -2109,7 +2096,6 @@ namespace isaac
                     TFilter, \
                     TTransfer_size,
 #define ISAAC_KERNEL_END \
-                    ,TScale \
                 > \
                 kernel; \
                 auto const instance \

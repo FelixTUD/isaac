@@ -27,9 +27,9 @@ using namespace isaac;
 #define VOLUME_Y 64
 #define VOLUME_Z 64
 
-#define PARTICLE_VOLUME_X 256
-#define PARTICLE_VOLUME_Y 256
-#define PARTICLE_VOLUME_Z 256
+#define PARTICLE_VOLUME_X 64
+#define PARTICLE_VOLUME_Y 64
+#define PARTICLE_VOLUME_Z 64
 
 #define PARTICLE_COUNT 64
 
@@ -144,7 +144,7 @@ public:
 
 // Particle Iterator
 
-template< size_t feature_dim, typename ElemType >
+template< ISAAC_IDX_TYPE feature_dim, typename ElemType >
 class ParticleIterator1
 {
 public:
@@ -244,8 +244,6 @@ public:
 
     // Returns correct particle iterator for the requested cell (in the example the same particle list for each cell)
     ISAAC_NO_HOST_DEVICE_WARNING ISAAC_HOST_DEVICE_INLINE
-
-
     ParticleIterator1<
         feature_dim,
         isaac_float3
@@ -577,10 +575,8 @@ int main(
         Acc, //Alpaka specific Accelerator Dev Type
         Stream, //Alpaka specific Stream Type
         AccDim, //Alpaka specific Acceleration Dimension Type
-        SimDim::value, //Dimension of the Simulation. In this case: 3D
         ParticleList, SourceList, //The boost::fusion list of Source Types
         1024, //Size of the transfer functions
-
 #if ( ISAAC_STEREO == 0 )
         isaac::DefaultController,
         //isaac::OrthoController,
