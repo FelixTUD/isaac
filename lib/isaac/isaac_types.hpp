@@ -64,13 +64,13 @@ using isaac_dmat4 = glm::mat<4, 4, isaac_double, glm::defaultp>;
 using isaac_dmat3 = glm::mat<3, 3, isaac_double, glm::defaultp>;
 using isaac_dmat2 = glm::mat<2, 2, isaac_double, glm::defaultp>;
 
-template <ISAAC_IDX_TYPE T>
+template <int T>
 using isaac_float_dim = glm::vec<T, isaac_float, glm::defaultp>;
-template <ISAAC_IDX_TYPE T>
+template <int T>
 using isaac_double_dim = glm::vec<T, isaac_double, glm::defaultp>;
-template <ISAAC_IDX_TYPE T>
+template <int T>
 using isaac_int_dim = glm::vec<T, isaac_int, glm::defaultp>;
-template <ISAAC_IDX_TYPE T>
+template <int T>
 using isaac_size_dim = glm::vec<T, ISAAC_IDX_TYPE, glm::defaultp>;
 
 
@@ -79,7 +79,7 @@ using isaac_size_dim = glm::vec<T, ISAAC_IDX_TYPE, glm::defaultp>;
  * 
  * @tparam simdim 
  */
-template < ISAAC_IDX_TYPE simdim >
+template < int simdim >
 struct isaac_size_struct
 {
     isaac_size_dim < simdim > global_size;         //size of volume

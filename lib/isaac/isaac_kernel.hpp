@@ -79,11 +79,9 @@ namespace isaac
     //simulation size properties
     ISAAC_CONSTANT isaac_size_struct< 3 > isaac_size_d; //[1] to access it for cuda and alpaka the same way
 
-    ISAAC_CONSTANT isaac_float4
-    isaac_parameter_d[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCTORS ];
+    ISAAC_CONSTANT isaac_float4 isaac_parameter_d[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCTORS ];
 
-    ISAAC_CONSTANT isaac_functor_chain_pointer_N
-    isaac_function_chain_d[ ISAAC_MAX_SOURCES ];
+    ISAAC_CONSTANT isaac_functor_chain_pointer_N isaac_function_chain_d[ ISAAC_MAX_SOURCES ];
 
 
     /* 
@@ -92,26 +90,10 @@ namespace isaac
      */
 
     //filter kernel
-    ISAAC_CONSTANT 
-    isaac_float3 ssao_kernel_d[64];
+    ISAAC_CONSTANT isaac_float3 ssao_kernel_d[64];
 
     //vector rotation noise kernel
-    ISAAC_CONSTANT 
-    isaac_float3 ssao_noise_d[16];
-
-
-
-    template<
-        typename T
-    >
-    ISAAC_DEVICE_INLINE
-
-
-    int sgn( T val )
-    {
-        return ( T( 0 ) < val ) - ( val < T( 0 ) );
-    }
-
+    ISAAC_CONSTANT isaac_float3 ssao_noise_d[16];
 
     template<
         typename TFunctorVector,
@@ -453,7 +435,9 @@ namespace isaac
     {
         constexpr auto extra_border = static_cast<decltype( local_size.x )>(TInterpolation);
 
-        coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), isaac_float3( local_size + ISAAC_GUARD_SIZE - extra_border ) - std::numeric_limits<isaac_float>::min( ) );
+        coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), 
+                            isaac_float3( local_size + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE ) - extra_border )
+                             - std::numeric_limits<isaac_float>::min( ) );
     }
 
     /**
@@ -567,10 +551,10 @@ namespace isaac
                             }
 
                             // apply transferfunction
-                            isaac_int lookup_value = isaac_int(
+                            ISAAC_IDX_TYPE lookup_value = ISAAC_IDX_TYPE(
                                 glm::round( result * isaac_float( Ttransfer_size ) )
                             );
-                            lookup_value = glm::clamp(lookup_value, 0, Ttransfer_size - 1);
+                            lookup_value = glm::clamp( lookup_value, ISAAC_IDX_TYPE( 0 ), Ttransfer_size - 1 );
                             isaac_float4 value = transferArray.pointer[NR::value + TOffset][lookup_value];
 
                             // check if the alpha value is greater or equal than 0.5
@@ -648,10 +632,10 @@ namespace isaac
                     local_size,
                     scale
                 );
-                isaac_int lookup_value = isaac_int(
+                ISAAC_IDX_TYPE lookup_value = ISAAC_IDX_TYPE(
                     glm::round( result * isaac_float( Ttransfer_size ) )
                 );
-                lookup_value = glm::clamp(lookup_value, 0, Ttransfer_size - 1);
+                lookup_value = glm::clamp( lookup_value, ISAAC_IDX_TYPE( 0 ), Ttransfer_size - 1 );
                 isaac_float4 value = transferArray.pointer[NR::value][lookup_value];
                 if( TIsoSurface )
                 {
@@ -1399,7 +1383,7 @@ namespace isaac
                 current_cell[e] = isaac_uint3( glm::clamp( 
                                         isaac_int3( current_pos[e] / particle_scale ), 
                                         isaac_int3( 0 ), 
-                                        isaac_int3( isaac_size_d.local_particle_size - 1 ) 
+                                        isaac_int3( isaac_size_d.local_particle_size - ISAAC_IDX_TYPE( 1 ) ) 
                                     ) );
 
                 ray_length[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];

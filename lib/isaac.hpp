@@ -78,7 +78,7 @@ namespace isaac
         typename TAcc,
         typename TStream,
         typename TAccDim,
-        ISAAC_IDX_TYPE TSimDim,
+        int TSimDim,
         typename TParticleList,
         typename TSourceList,
         ISAAC_IDX_TYPE TTransfer_size,
@@ -470,7 +470,7 @@ namespace isaac
                 const THost__ & host
             ) const
             {
-                isaac_size2 grid_size = ( local_size + 15 ) / 16;
+                isaac_size2 grid_size = ( local_size + ISAAC_IDX_TYPE( 15 ) ) / ISAAC_IDX_TYPE( 16 );
                 isaac_size2 block_size( 16 );
 
                 minmax_struct local_minmax_array_h[local_size.x * local_size.y];
@@ -586,8 +586,8 @@ namespace isaac
             {
                 // iterate over all cells and the particle lists
 
-                isaac_size2 grid_size = ( local_size + 15 ) / 16;
-                isaac_size2 block_size(16);
+                isaac_size2 grid_size = ( local_size + ISAAC_IDX_TYPE( 15 ) ) / ISAAC_IDX_TYPE( 16 );
+                isaac_size2 block_size( 16 );
 
                 minmax_struct local_minmax_array_h[local_size.x * local_size.y];
                 
@@ -1546,7 +1546,7 @@ namespace isaac
         {
             ISAAC_WAIT_VISUALIZATION
             this->position = position;
-            this->position_scaled = position * scale;
+            this->position_scaled = isaac_float_dim<TSimDim>( position ) * scale;
         }
 
 
@@ -1554,7 +1554,7 @@ namespace isaac
         {
             ISAAC_WAIT_VISUALIZATION
             this->local_size = local_size;
-            this->local_size_scaled = local_size * scale;
+            this->local_size_scaled = isaac_float_dim<TSimDim>( local_size ) * scale;
         }
 
 
@@ -4176,7 +4176,7 @@ namespace isaac
         typename TAcc,
         typename TStream,
         typename TAccDim,
-        ISAAC_IDX_TYPE TSimDim,
+        int TSimDim,
         typename TParticleList,
         typename TSourceList,
         ISAAC_IDX_TYPE TTransfer_size,

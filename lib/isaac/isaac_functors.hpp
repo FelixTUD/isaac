@@ -47,7 +47,7 @@ struct IsaacFunctorIdem
     static const std::string name;
     static const std::string description;
     
-    template<ISAAC_IDX_TYPE N>
+    template<int N>
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
@@ -72,7 +72,7 @@ struct IsaacFunctorLength
     static const std::string name;
     static const std::string description;
 
-    template<ISAAC_IDX_TYPE N>
+    template<int N>
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
@@ -98,7 +98,7 @@ struct IsaacFunctorMul
     static const std::string name;
     static const std::string description;
 
-    template<ISAAC_IDX_TYPE N>
+    template<int N>
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
@@ -124,7 +124,7 @@ struct IsaacFunctorAdd
     static const std::string name;
     static const std::string description;
 
-    template<ISAAC_IDX_TYPE N>
+    template<int N>
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
@@ -150,7 +150,7 @@ struct IsaacFunctorPow
     static const std::string name;
     static const std::string description;
 
-    template<ISAAC_IDX_TYPE N>
+    template<int N>
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<N> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
@@ -176,13 +176,13 @@ struct IsaacFunctorSum
     static const std::string name;
     static const std::string description;
 
-    template<ISAAC_IDX_TYPE N>
+    template<int N>
     ISAAC_HOST_DEVICE_INLINE
     static isaac_float_dim<1> call( const isaac_float_dim<N> v, const isaac_float4& p )
     {
         isaac_float_dim<1> result;
 
-        for(ISAAC_IDX_TYPE i = 0; i < N; ++i)
+        for(int i = 0; i < N; ++i)
         {
             result += v[i];
         }
