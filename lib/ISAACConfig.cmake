@@ -214,6 +214,5 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(ISAAC
                                         ICET_MPI_LIBS
                                         ICET_INCLUDE_DIRS
                                         Boost_FOUND
-                                        alpaka_FOUND
                                         ISAAC_PRIVATE_FOUND
                                 )
