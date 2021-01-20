@@ -17,10 +17,6 @@
 
 #include <boost/preprocessor.hpp>
 
-#ifndef ISAAC_VECTOR_ELEM
-    #define ISAAC_VECTOR_ELEM 1
-#endif
-
 #ifndef ISAAC_MAX_DIFFERENCE
     #define ISAAC_MAX_DIFFERENCE 4
 #endif
