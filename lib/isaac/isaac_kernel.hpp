@@ -2046,136 +2046,6 @@ namespace isaac
         }
     };
 
-    template <
-        typename TAOBuffer,
-        typename TDepthBuffer,
-        typename TNormalBuffer
-        ,typename TAccDim
-        ,typename TAcc
-        ,typename TStream
-        >
-    struct IsaacSSAOKernelCaller {
-        
-        inline static void call (
-            TStream stream,
-            TAOBuffer aoBuffer,
-            TDepthBuffer depthBuffer,
-            TNormalBuffer normalBuffer,
-            const isaac_size2& framebuffer_size,
-            const isaac_uint2& framebuffer_start,
-            IceTInt const * const readback_viewport,
-            ao_struct ao_properties
-        )
-        {
-            isaac_size2 block_size= {
-                ISAAC_IDX_TYPE ( 8 ),
-                ISAAC_IDX_TYPE ( 16 )
-            };
-            isaac_size2 grid_size= {
-                ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
-                ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
-            };
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
-#endif
-            {
-                grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] );
-                grid_size.y = ISAAC_IDX_TYPE ( readback_viewport[3] );
-                block_size.x = ISAAC_IDX_TYPE ( 1 );
-                block_size.y = ISAAC_IDX_TYPE ( 1 );
-            }
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ) );
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> blocks ( ISAAC_IDX_TYPE ( 1 ), block_size.y, block_size.x );
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> grid ( ISAAC_IDX_TYPE ( 1 ), grid_size.y, grid_size.x );
-            auto const workdiv ( alpaka::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE> ( grid,blocks,threads ) );
-
-            {
-                isaacSSAOKernel kernel;
-                auto const instance
-                (
-                    alpaka::createTaskKernel<TAcc>
-                    (
-                        workdiv,
-                        kernel,
-                        alpaka::getPtrNative(aoBuffer),
-                        alpaka::getPtrNative(depthBuffer),
-                        alpaka::getPtrNative(normalBuffer),
-                        framebuffer_size,
-                        framebuffer_start,
-                        ao_properties
-                    )
-                );
-                alpaka::enqueue(stream, instance);
-            }
-        }
-    };
-
-
-    template <
-        typename TFramebuffer,
-        typename TFramebufferAO,
-        typename TFramebufferDepth
-        ,typename TAccDim
-        ,typename TAcc
-        ,typename TStream
-        >
-    struct IsaacSSAOFilterKernelCaller {
-        
-        inline static void call (
-            TStream stream,
-            TFramebuffer framebuffer,
-            TFramebufferAO aobuffer,
-            TFramebufferDepth depthbuffer,
-            const isaac_size2& framebuffer_size,
-            const isaac_uint2& framebuffer_start,
-            IceTInt const * const readback_viewport,
-            ao_struct ao_properties
-        )
-        {
-            isaac_size2 block_size= {
-                ISAAC_IDX_TYPE ( 8 ),
-                ISAAC_IDX_TYPE ( 16 )
-            };
-            isaac_size2 grid_size= {
-                ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
-                ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
-            };
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
-#endif
-            {
-                grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] );
-                grid_size.y = ISAAC_IDX_TYPE ( readback_viewport[3] );
-                block_size.x = ISAAC_IDX_TYPE ( 1 );
-                block_size.y = ISAAC_IDX_TYPE ( 1 );
-            }
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ) );
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> blocks ( ISAAC_IDX_TYPE ( 1 ), block_size.y, block_size.x );
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> grid ( ISAAC_IDX_TYPE ( 1 ), grid_size.y, grid_size.x );
-            auto const workdiv ( alpaka::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE> ( grid,blocks,threads ) );
-
-            {
-                isaacSSAOFilterKernel kernel;
-                auto const instance
-                (
-                    alpaka::createTaskKernel<TAcc>
-                    (
-                        workdiv,
-                        kernel,
-                        alpaka::getPtrNative(framebuffer),
-                        alpaka::getPtrNative(aobuffer),
-                        alpaka::getPtrNative(depthbuffer),
-                        framebuffer_size,
-                        framebuffer_start,
-                        ao_properties
-                    )
-                );
-                alpaka::enqueue(stream, instance);
-            }
-        }
-    };
-
-
 
     template<
         int count,
@@ -2404,7 +2274,7 @@ namespace isaac
     template<
         typename TParticleSource
     >
-    struct minMaxPartikelKernel
+    struct minMaxParticleKernel
     {
         template<
             typename TAcc__

@@ -624,7 +624,7 @@ namespace isaac
                             threads
                         )
                     );
-                    minMaxPartikelKernel< TParticleSource > kernel;
+                    minMaxParticleKernel< TParticleSource > kernel;
                     auto const instance(
                         alpaka::createTaskKernel< TAcc >(
                             workdiv,
@@ -3292,77 +3292,69 @@ namespace isaac
 
             //process color and depth values for depth simulation
             if(myself->ambientOcclusion.isEnabled && myself->ambientOcclusion.weight > 0.0f) {
-                IsaacSSAOKernelCaller<
-                    alpaka::Buf<
-                        TDevAcc, 
-                        isaac_float, 
-                        TFraDim, 
-                        ISAAC_IDX_TYPE
-                    >,
-                    alpaka::Buf<
-                        TDevAcc, 
-                        isaac_float3, 
-                        TFraDim, 
-                        ISAAC_IDX_TYPE
-                    >,
-                    alpaka::Buf<
-                        TDevAcc, 
-                        isaac_float3, 
-                        TFraDim, 
-                        ISAAC_IDX_TYPE
-                    >,
-                    TAccDim,
-                    TAcc,
-                    TStream
-                >
-                ::call (
-                    myself->stream,
-                    myself->framebufferAO,
-                    myself->framebufferDepth,
-                    myself->framebufferNormal,
-                    myself->framebuffer_size,
-                    framebuffer_start,
-                    readback_viewport,
-                    myself->ambientOcclusion
-                );
+
+                isaac_size2 block_size= {
+                    ISAAC_IDX_TYPE ( 8 ),
+                    ISAAC_IDX_TYPE ( 16 )
+                };
+                isaac_size2 grid_size= {
+                    ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
+                    ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
+                };
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+                if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+#endif
+                {
+                    grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] );
+                    grid_size.y = ISAAC_IDX_TYPE ( readback_viewport[3] );
+                    block_size.x = ISAAC_IDX_TYPE ( 1 );
+                    block_size.y = ISAAC_IDX_TYPE ( 1 );
+                }
+                const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ) );
+                const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> blocks ( ISAAC_IDX_TYPE ( 1 ), block_size.y, block_size.x );
+                const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> grid ( ISAAC_IDX_TYPE ( 1 ), grid_size.y, grid_size.x );
+                auto const workdiv ( alpaka::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE> ( grid,blocks,threads ) );
+
+                {
+                    isaacSSAOKernel kernel;
+                    auto const instance
+                    (
+                        alpaka::createTaskKernel<TAcc>
+                        (
+                            workdiv,
+                            kernel,
+                            alpaka::getPtrNative(myself->framebufferAO),
+                            alpaka::getPtrNative(myself->framebufferDepth),
+                            alpaka::getPtrNative(myself->framebufferNormal),
+                            myself->framebuffer_size,
+                            framebuffer_start,
+                            myself->ambientOcclusion
+                        )
+                    );
+                    alpaka::enqueue(myself->stream, instance);
+                }
 
                 //wait until render kernel has finished
                 alpaka::wait ( myself->stream );
 
-                IsaacSSAOFilterKernelCaller
-                <
-                    alpaka::Buf<
-                        TDevAcc, 
-                        uint32_t, 
-                        TFraDim, 
-                        ISAAC_IDX_TYPE
-                    >,
-                    alpaka::Buf<
-                        TDevAcc, 
-                        isaac_float, 
-                        TFraDim, 
-                        ISAAC_IDX_TYPE
-                    >,
-                    alpaka::Buf<
-                        TDevAcc, 
-                        isaac_float3, 
-                        TFraDim, 
-                        ISAAC_IDX_TYPE
-                    >,
-                    TAccDim,
-                    TAcc,
-                    TStream
-                >
-                ::call (
-                    myself->stream,
-                    myself->framebuffer,
-                    myself->framebufferAO,
-                    myself->framebufferDepth,
-                    myself->framebuffer_size,
-                    framebuffer_start,
-                    readback_viewport,
-                    myself->ambientOcclusion
-                );
+                {
+                    isaacSSAOFilterKernel kernel;
+                    auto const instance
+                    (
+                        alpaka::createTaskKernel<TAcc>
+                        (
+                            workdiv,
+                            kernel,
+                            alpaka::getPtrNative(myself->framebuffer),
+                            alpaka::getPtrNative(myself->framebufferAO),
+                            alpaka::getPtrNative(myself->framebufferDepth),
+                            myself->framebuffer_size,
+                            framebuffer_start,
+                            myself->ambientOcclusion
+                        )
+                    );
+                    alpaka::enqueue(myself->stream, instance);
+                }
 
                 //wait until render kernel has finished
                 alpaka::wait ( myself->stream );
