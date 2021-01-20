@@ -2355,22 +2355,8 @@ namespace isaac
             }
             else
             {
-                if( coord.x < 0 )
-                {
-                    coord.x = 0;
-                }
-                if( coord.x >= local_size.x )
-                {
-                    coord.x = local_size.x - 1;
-                }
-                if( coord.y < 0 )
-                {
-                    coord.y = 0;
-                }
-                if( coord.y >= local_size.y )
-                {
-                    coord.y = local_size.y - 1;
-                }
+                coord.x = glm::clamp( coord.x, 0, local_size.x - 1 );
+                coord.y = glm::clamp( coord.y, 0, local_size.y - 1 );
                 coord.z = 0;
                 for( ; dest.z < ISAAC_GUARD_SIZE; dest.z++ )
                 {
