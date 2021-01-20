@@ -473,7 +473,8 @@ namespace isaac
             isaac_float4 & out_color,                 //resulting particle color
             isaac_float3 & out_normal,                //resulting particle normal
             isaac_float3 & out_position,              //resulting particle hit position
-            bool & out_particle_hit                   //true or false if particle has been hit or not
+            bool & out_particle_hit,                  //true or false if particle has been hit or not
+            isaac_float & depth                       //resulting particle depth
         ) const
         {
             const int sourceNumber = NR::value + TOffset;
@@ -504,7 +505,7 @@ namespace isaac
                         isaac_float t1 = tca + thc;
 
                         // if the ray hits the sphere
-                        if( t1 >= 0 && t0 < out_color.w )
+                        if( t1 >= 0 && t0 < depth )
                         {
                             isaac_float_dim <TSource::feature_dim>
                                 data = particle_iterator.getAttribute( );
@@ -556,14 +557,14 @@ namespace isaac
                             if( value.w >= 0.5f )
                             {
                                 out_color = value;
-                                out_color.w = t0;
+                                depth = t0;
                                 out_particle_hit = 1;
                                 out_position = particle_pos;
                                 out_normal = start + t0 * dir - particle_pos;
                                 if( t0 < 0 && is_clipped )
                                 {
                                     #if ISAAC_AO_BUG_FIX == 1
-                                    out_color.w = 0;
+                                    depth = 0;
                                     #endif
                                     out_normal = -clipping_normal;
                                 }
@@ -1350,12 +1351,13 @@ namespace isaac
             isaac_float march_length[ISAAC_VECTOR_ELEM];
             isaac_float3 t[ISAAC_VECTOR_ELEM];
             isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
+            isaac_float depth[ISAAC_VECTOR_ELEM];
 
             isaac_float3 particle_scale = isaac_float3( isaac_size_d.local_size_scaled ) / isaac_float3( isaac_size_d.local_particle_size );
             ISAAC_ELEM_ITERATE ( e )
             {
                 // set distance check in alpha channel on scaled max distance
-                particle_color[e].w = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
+                depth[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
                 local_start[e] = ( start[e] + step_vec[e] * first_f[e] ) * scale;
                 particle_hit[e] = false;
                 normalized_dir[e] = glm::normalize( step_vec[e] * scale / step );
@@ -1435,7 +1437,8 @@ namespace isaac
                         particle_color[e],
                         particle_normal[e],
                         particle_hitposition[e],
-                        particle_hit[e]
+                        particle_hit[e],
+                        depth[e]
                     );
 
 
@@ -1467,7 +1470,7 @@ namespace isaac
                         last[e],
                         int(
                             ceil(
-                                first_f[e] + particle_color[e].w
+                                first_f[e] + depth[e]
                                              / ( step * l_scaled[e] / l[e] )
                             )
                         )
@@ -1571,7 +1574,7 @@ namespace isaac
                 if( particle_hit[e] && !result[e] )
                 {
                     //extracting real particle depth and override block march length
-                    march_length[e] = particle_color[e].w;
+                    march_length[e] = depth[e];
                     ao_blend = (1 - color[e].w);
 
                     particle_color[e].w = 1;
