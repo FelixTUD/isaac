@@ -940,675 +940,586 @@ namespace isaac
             const ao_struct ambientOcclusion        //ambient occlusion params
         ) const
         {
-            isaac_uint2 pixel[ISAAC_VECTOR_ELEM];
-            bool finish[ISAAC_VECTOR_ELEM];
-
             //get pixel values from thread ids
             auto alpThreadIdx = alpaka::getIdx<
                 alpaka::Grid,
                 alpaka::Threads
             >( acc );
-            ISAAC_ELEM_ITERATE ( e )
-            {
-                pixel[e] = isaac_uint2(alpThreadIdx[2] * ISAAC_VECTOR_ELEM + e, alpThreadIdx[1] );
-                //apply framebuffer offset to pixel
-                //stop if pixel position is out of bounds
-                finish[e] = false;
-                pixel[e] = pixel[e] + framebuffer_start;
-                if( ISAAC_FOR_EACH_DIM_TWICE ( 2,
-                        pixel[e],
-                        >= framebuffer_size,
-                        || ) 0 )
-                    finish[e] = true;
-
-            }
-            ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
-            bool at_least_one[ISAAC_VECTOR_ELEM];
-            isaac_float4 color[ISAAC_VECTOR_ELEM];
+            isaac_uint2 pixel = isaac_uint2( alpThreadIdx[2], alpThreadIdx[1] );
+            //apply framebuffer offset to pixel
+            //stop if pixel position is out of bounds
+            pixel = pixel + framebuffer_start;
+            if( pixel.x >= framebuffer_size.x || pixel.y >= framebuffer_size.y )
+                return;
 
             //gNormalBuffer default value
             isaac_float3 default_normal = {0.0, 0.0, 0.0};
             isaac_float3 default_depth = {1.0, 1.0, 1.0};
 
             //set background color
-            ISAAC_ELEM_ITERATE ( e )
+            isaac_float4 color = background_color;
+            bool at_least_one = true;
+            isaac_for_each_with_mpl_params(
+                sources,
+                check_no_source_iterator< TFilter >( ),
+                at_least_one
+            );
+            if( !at_least_one )
             {
-                color[e] = background_color;
-                at_least_one[e] = true;
-                isaac_for_each_with_mpl_params(
-                    sources,
-                    check_no_source_iterator< TFilter >( ),
-                    at_least_one[e]
-                );
-                if( !at_least_one[e] )
-                {
-                    if( !finish[e] ) {
-                        //if no source is found set all values to their defaults
-                        //color = background, ...
-                        ISAAC_SET_COLOR ( 
-                            pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], 
-                            color[e] 
-                        )
-                        gNormal[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_normal;
-                        gDepth[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_depth;
-                    }
-                    finish[e] = true;
-                }
+                ISAAC_SET_COLOR ( 
+                    pixels[pixel.x + pixel.y * framebuffer_size.x], 
+                    color 
+                )
+                gNormal[pixel.x + pixel.y * framebuffer_size.x] = default_normal;
+                gDepth[pixel.x + pixel.y * framebuffer_size.x] = default_depth;
+                return;
             }
-            ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
-
-            isaac_float2 pixel_f[ISAAC_VECTOR_ELEM];        //relative pixel position in framebuffer [0.0 ... 1.0]
-            isaac_float4 start_p[ISAAC_VECTOR_ELEM];        //ray start position
-            isaac_float4 end_p[ISAAC_VECTOR_ELEM];          //ray end position
-            isaac_float3 start[ISAAC_VECTOR_ELEM];          //ray start position (world space)
-            isaac_float3 end[ISAAC_VECTOR_ELEM];            //ray end position (world space)
-            isaac_int3 move[ISAAC_VECTOR_ELEM];             //offset of subvolume
-            isaac_float3 move_f[ISAAC_VECTOR_ELEM];         //offset of subvolume as float
-            clipping_struct clipping[ISAAC_VECTOR_ELEM];    //clipping planes with transformed positions
-            isaac_float3 vec[ISAAC_VECTOR_ELEM];            //temp storage vector
-            isaac_float l_scaled[ISAAC_VECTOR_ELEM];        //scaled length of ray
-            isaac_float l[ISAAC_VECTOR_ELEM];               //isaac scaled length of ray
-            isaac_float3 step_vec[ISAAC_VECTOR_ELEM];       //ray direction vector scaled by step length
-            isaac_float3 count_start[ISAAC_VECTOR_ELEM];    //start index for ray
-            isaac_float3 local_size_f[ISAAC_VECTOR_ELEM];   //subvolume size as float
-            isaac_float3 count_end[ISAAC_VECTOR_ELEM];      //end index for ray
-            isaac_float3 start_normal[ISAAC_VECTOR_ELEM];
-            bool global_front[ISAAC_VECTOR_ELEM];
-
-            ISAAC_ELEM_ITERATE ( e )
-            {
-                
-                global_front[e] = false;
-
-                //get normalized pixel position in framebuffer
-                pixel_f[e] = isaac_float2( pixel[e] ) / isaac_float2( framebuffer_size ) * isaac_float( 2 ) - isaac_float( 1 );
-                
-                //get ray start/end position
-                start_p[e].x = pixel_f[e].x * ISAAC_Z_NEAR;
-                start_p[e].y = pixel_f[e].y * ISAAC_Z_NEAR;
-                start_p[e].z = -1.0f * ISAAC_Z_NEAR;
-                start_p[e].w = 1.0f * ISAAC_Z_NEAR;
-
-                end_p[e].x = pixel_f[e].x * ISAAC_Z_FAR;
-                end_p[e].y = pixel_f[e].y * ISAAC_Z_FAR;
-                end_p[e].z = 1.0f * ISAAC_Z_FAR;
-                end_p[e].w = 1.0f * ISAAC_Z_FAR;
-
-                //apply inverse modelview transform to ray start/end and get ray start/end as worldspace
-                start[e] = isaac_inverse_d * start_p[e];
-                end[e] = isaac_inverse_d * end_p[e];
-
-                isaac_float max_size = isaac_size_d.max_global_size_scaled / 2.0f;
-
-                //scale to globale grid size
-                start[e] = start[e] * max_size;
-                end[e] = end[e] * max_size;
-
-                //set values for clipping planes
-                //scale position to global size
-                for( isaac_int i = 0; i < input_clipping.count; i++ )
-                {
-                    clipping[e].elem[i].position =
-                        input_clipping.elem[i].position * max_size;
-                    clipping[e].elem[i].normal = input_clipping.elem[i].normal;
-                }
-
-                //move to local (scaled) grid
-                //get offset of subvolume in global volume
-                move[e] = isaac_int3( isaac_size_d.global_size_scaled ) / 2 - isaac_int3( isaac_size_d.position_scaled );
-
-                move_f[e] = isaac_float3( move[e] );
-
-                //apply subvolume offset to start and end
-                start[e] = start[e] + move_f[e];
-                end[e] = end[e] + move_f[e];
-
-                //apply subvolume offset to position checked clipping plane
-                for( isaac_int i = 0; i < input_clipping.count; i++ )
-                {
-                    clipping[e].elem[i].position =
-                        clipping[e].elem[i].position + move_f[e];
-                }
-
-                //get ray length
-                vec[e] = end[e] - start[e];
-                l_scaled[e] = glm::length(vec[e]);
-
-                //apply isaac scaling to start, end and position tested by clipping plane
-                start[e] = start[e] / scale;
-                end[e] = end[e] / scale;
-
-                for( isaac_int i = 0; i < input_clipping.count; i++ )
-                {
-                    clipping[e].elem[i].position = clipping[e].elem[i].position / scale;
-                }
-
-                //get ray length (scaled by isaac scaling)
-                vec[e] = end[e] - start[e];
-                l[e] = glm::length(vec[e]);
-
-                //get step vector
-                step_vec[e] = vec[e] / l[e] * step;
-
-                //start index for ray
-                count_start[e] = -start[e] / step_vec[e];
-
-                //get subvolume size as float
-                local_size_f[e] = isaac_float3( isaac_size_d.local_size );
-
-                //end index for ray
-                count_end[e] = ( local_size_f[e] - start[e] ) / step_vec[e];
-
-                //count_start shall have the smaller values
-                ISAAC_SWITCH_IF_SMALLER ( count_end[e].x,
-                    count_start[e].x )
-                ISAAC_SWITCH_IF_SMALLER ( count_end[e].y,
-                    count_start[e].y )
-                ISAAC_SWITCH_IF_SMALLER ( count_end[e].z,
-                    count_start[e].z )
-
-                //calc intersection of all three super planes and save in [count_start.x ; count_end.x]
-                isaac_float max_start = ISAAC_MAX(
-                    ISAAC_MAX(
-                        count_start[e].x,
-                        count_start[e].y
-                    ),
-                    count_start[e].z
-                );
-                if( ceil( count_start[e].x ) == ceil( max_start ) )
-                {
-                    if( step_vec[e].x > 0.0f )
-                    {
-                        if( isaac_size_d.position.x == 0 )
-                        {
-                            global_front[e] = true;
-                            start_normal[e] = {
-                                1.0f,
-                                0,
-                                0
-                            };
-                        }
-                    }
-                    else
-                    {
-                        if( isaac_size_d.position.x == isaac_size_d.global_size.x - isaac_size_d.local_size.x )
-                        {
-                            global_front[e] = true;
-                            start_normal[e] = {
-                                -1.0f,
-                                0,
-                                0
-                            };
-                        }
-                    }
-                }
-                if( ceil( count_start[e].y ) == ceil( max_start ) )
-                {
-                    if( step_vec[e].y > 0.0f )
-                    {
-                        if( isaac_size_d.position.y == 0 )
-                        {
-                            global_front[e] = true;
-                            start_normal[e] = {
-                                0,
-                                1.0f,
-                                0
-                            };
-                        }
-                    }
-                    else
-                    {
-                        if( isaac_size_d.position.y == isaac_size_d.global_size.y - isaac_size_d.local_size.y )
-                        {
-                            global_front[e] = true;
-                            start_normal[e] = {
-                                0,
-                                -1.0f,
-                                0
-                            };
-                        }
-                    }
-                }
-                if( ceil( count_start[e].z ) == ceil( max_start ) )
-                {
-                    if( step_vec[e].z > 0.0f )
-                    {
-                        if( isaac_size_d.position.z == 0 )
-                        {
-                            global_front[e] = true;
-                            start_normal[e] = {
-                                0,
-                                0,
-                                1.0f
-                            };
-                        }
-                    }
-                    else
-                    {
-                        if( isaac_size_d.position.z == isaac_size_d.global_size.z - isaac_size_d.local_size.z )
-                        {
-                            global_front[e] = true;
-                            start_normal[e] = {
-                                0,
-                                0,
-                                -1.0f
-                            };
-                        }
-                    }
-                }
-                count_start[e].x = max_start;
-                count_end[e].x = ISAAC_MIN(
-                    ISAAC_MIN(
-                        count_end[e].x,
-                        count_end[e].y
-                    ),
-                    count_end[e].z
-                );
-                if( count_start[e].x > count_end[e].x )
-                {
-                    if ( !finish[e] ) {
-                        //TODO understand the superplanes stuff...
-                        ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
-
-                        //this function aborts drawing and therfore wont set any normal or depth values
-                        //defaults will be applied for clean images
-                        gNormal[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_normal;
-                        gDepth[pixel[e].x + pixel[e].y * framebuffer_size.x] = default_depth;
-
-                        finish[e] = true;
-                    }
-                }
-            }
-            ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
-
-            isaac_int first[ISAAC_VECTOR_ELEM];                 //start index of ray
-            isaac_int last[ISAAC_VECTOR_ELEM];                  //end index of ray
-            isaac_float first_f[ISAAC_VECTOR_ELEM];             //start index as float
-            isaac_float last_f[ISAAC_VECTOR_ELEM];              //end index as float
-            isaac_float3 pos[ISAAC_VECTOR_ELEM];
-            isaac_int3 coord[ISAAC_VECTOR_ELEM];
-            isaac_float d[ISAAC_VECTOR_ELEM];
-            isaac_float intersection_step[ISAAC_VECTOR_ELEM];
-            isaac_float3 clipping_normal[ISAAC_VECTOR_ELEM];
-            bool is_clipped[ISAAC_VECTOR_ELEM];
-
-            ISAAC_ELEM_ITERATE ( e )
-            {
-                //set start and end index of ray
-                first[e] = isaac_int( ceil( count_start[e].x ) );
-                last[e] = isaac_int( floor( count_end[e].x ) );
-
-                first_f[e] = count_start[e].x;
-                last_f[e] = count_end[e].x;
-
-                //Moving last and first until their points are valid
-                pos[e] = start[e] + step_vec[e] * isaac_float( last[e] );
-                coord[e] = isaac_int3( glm::floor( pos[e] ) );
-                while( (
-                    ISAAC_FOR_EACH_DIM_TWICE ( 3,
-                        coord[e],
-                        >= isaac_size_d.local_size,
-                        || )
-                    ISAAC_FOR_EACH_DIM ( 3,
-                        coord[e],
-                        < 0 || ) 0 )
-                    && first[e] <= last[e] )
-                {
-                    last[e]--;
-                    pos[e] = start[e] + step_vec[e] * isaac_float( last[e] );
-                    coord[e] = isaac_int3( glm::floor( pos[e] ) );
-                }
-                pos[e] = start[e] + step_vec[e] * isaac_float( first[e] );
-                coord[e] = isaac_int3( glm::floor( pos[e] ) );
-                while( (
-                    ISAAC_FOR_EACH_DIM_TWICE ( 3,
-                        coord[e],
-                        >= isaac_size_d.local_size,
-                        || )
-                    ISAAC_FOR_EACH_DIM ( 3,
-                        coord[e],
-                        < 0 || ) 0 )
-                    && first[e] <= last[e] )
-                {
-                    first[e]++;
-                    pos[e] = start[e] + step_vec[e] * isaac_float( first[e] );
-                    coord[e] = isaac_int3( glm::floor( pos[e] ) );
-                }
-                first[e] = ISAAC_MAX(
-                    first[e],
-                    0
-                );
-                first_f[e] = ISAAC_MAX(
-                    first_f[e],
-                    0.0f
-                );
-                is_clipped[e] = false;
-                //Extra clipping
-                for( isaac_int i = 0; i < input_clipping.count; i++ )
-                {
-                    d[e] = glm::dot( step_vec[e], clipping[e].elem[i].normal);
-
-                    intersection_step[e] = ( glm::dot( clipping[e].elem[i].position, clipping[e].elem[i].normal )
-                                            - glm::dot( start[e], clipping[e].elem[i].normal ) ) / d[e];
-                    if( d[e] > 0 )
-                    {
-                        if( last_f[e] < intersection_step[e] )
-                        {
-                            if( !finish[e] )
-                            ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
-                            finish[e] = true;
-                        }
-                        if( first_f[e] <= intersection_step[e] )
-                        {
-                            first[e] = ceil( intersection_step[e] );
-                            first_f[e] = intersection_step[e];
-                            clipping_normal[e] = clipping[e].elem[i].normal;
-                            is_clipped[e] = true;
-                            global_front[e] = true;
-                            start_normal[e] = clipping[e].elem[i].normal;
-                        }
-                    }
-                    else
-                    {
-                        if( first_f[e] > intersection_step[e] )
-                        {
-                            if( !finish[e] )
-                            ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
-                            finish[e] = true;
-                        }
-                        if( last_f[e] > intersection_step[e] )
-                        {
-                            last[e] = floor( intersection_step[e] );
-                            last_f[e] = intersection_step[e];
-                        }
-                    }
-                }
-
-            }
-            ISAAC_ELEM_ALL_TRUE_RETURN ( finish )
 
 
-            isaac_float4 particle_color[ISAAC_VECTOR_ELEM];          //color at particle hist position
-            isaac_float3 particle_normal[ISAAC_VECTOR_ELEM];         //normal at particle hit position
-            isaac_float3 particle_hitposition[ISAAC_VECTOR_ELEM];    //hit position of particle
+            bool global_front = false;
+
+            //relative pixel position in framebuffer [0.0 ... 1.0]
+            //get normalized pixel position in framebuffer
+            isaac_float2 pixel_f = isaac_float2( pixel ) / isaac_float2( framebuffer_size ) * isaac_float( 2 ) - isaac_float( 1 );
             
-            bool particle_hit[ISAAC_VECTOR_ELEM];
-            isaac_float3 local_start[ISAAC_VECTOR_ELEM];
-            isaac_float3 light_dir[ISAAC_VECTOR_ELEM];
-            isaac_float3 normalized_dir[ISAAC_VECTOR_ELEM];
+            //ray start position
+            isaac_float4 start_p;
+            start_p.x = pixel_f.x * ISAAC_Z_NEAR;
+            start_p.y = pixel_f.y * ISAAC_Z_NEAR;
+            start_p.z = -1.0f * ISAAC_Z_NEAR;
+            start_p.w = 1.0f * ISAAC_Z_NEAR;
 
-            isaac_int3 dir_sign[ISAAC_VECTOR_ELEM];
-            isaac_float3 current_pos[ISAAC_VECTOR_ELEM];
-            isaac_uint3 current_cell[ISAAC_VECTOR_ELEM];
-            isaac_float ray_length[ISAAC_VECTOR_ELEM];
-            isaac_float march_length[ISAAC_VECTOR_ELEM];
-            isaac_float3 t[ISAAC_VECTOR_ELEM];
-            isaac_float3 delta_t[ISAAC_VECTOR_ELEM];
-            isaac_float depth[ISAAC_VECTOR_ELEM];
+            //ray end position
+            isaac_float4 end_p;
+            end_p.x = pixel_f.x * ISAAC_Z_FAR;
+            end_p.y = pixel_f.y * ISAAC_Z_FAR;
+            end_p.z = 1.0f * ISAAC_Z_FAR;
+            end_p.w = 1.0f * ISAAC_Z_FAR;
+
+            //apply inverse modelview transform to ray start/end and get ray start/end as worldspace
+            isaac_float3 start = isaac_inverse_d * start_p;
+            isaac_float3 end = isaac_inverse_d * end_p;
+
+            isaac_float max_size = isaac_size_d.max_global_size_scaled / 2.0f;
+
+            //scale to globale grid size
+            start = start * max_size;
+            end = end * max_size;
+
+
+            //clipping planes with transformed positions
+            clipping_struct clipping;
+            //set values for clipping planes
+            //scale position to global size
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                clipping.elem[i].position =
+                    input_clipping.elem[i].position * max_size;
+                clipping.elem[i].normal = input_clipping.elem[i].normal;
+            }
+
+            //move to local (scaled) grid
+            //get offset of subvolume in global volume
+            isaac_float3 move_f = isaac_float3( isaac_int3( isaac_size_d.global_size_scaled ) / 2 - isaac_int3( isaac_size_d.position_scaled ) );
+
+            //apply subvolume offset to start and end
+            start = start + move_f;
+            end = end + move_f;
+
+            //apply subvolume offset to position checked clipping plane
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                clipping.elem[i].position =
+                    clipping.elem[i].position + move_f;
+            }
+
+            //get ray length
+            isaac_float3 vec = end - start;
+            isaac_float l_scaled = glm::length(vec);
+
+            //apply isaac scaling to start, end and position tested by clipping plane
+            start = start / scale;
+            end = end / scale;
+
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                clipping.elem[i].position = clipping.elem[i].position / scale;
+            }
+
+            //get ray length (scaled by isaac scaling)
+            vec = end - start;
+            isaac_float l = glm::length(vec);
+
+            //get step vector
+            isaac_float3 step_vec = vec / l * step;
+
+            //start index for ray
+            isaac_float3 count_start = -start / step_vec;
+
+            //get subvolume size as float
+            isaac_float3 local_size_f = isaac_float3( isaac_size_d.local_size );
+
+            //end index for ray
+            isaac_float3 count_end = ( local_size_f - start ) / step_vec;
+
+            //count_start shall have the smaller values
+            ISAAC_SWITCH_IF_SMALLER ( count_end.x,
+                count_start.x )
+            ISAAC_SWITCH_IF_SMALLER ( count_end.y,
+                count_start.y )
+            ISAAC_SWITCH_IF_SMALLER ( count_end.z,
+                count_start.z )
+
+            //calc intersection of all three super planes and save in [count_start.x ; count_end.x]
+            isaac_float max_start = ISAAC_MAX(
+                ISAAC_MAX(
+                    count_start.x,
+                    count_start.y
+                ),
+                count_start.z
+            );
+
+            isaac_float3 start_normal;
+            if( ceil( count_start.x ) == ceil( max_start ) )
+            {
+                if( step_vec.x > 0.0f )
+                {
+                    if( isaac_size_d.position.x == 0 )
+                    {
+                        global_front = true;
+                        start_normal = {
+                            1.0f,
+                            0,
+                            0
+                        };
+                    }
+                }
+                else
+                {
+                    if( isaac_size_d.position.x == isaac_size_d.global_size.x - isaac_size_d.local_size.x )
+                    {
+                        global_front = true;
+                        start_normal = {
+                            -1.0f,
+                            0,
+                            0
+                        };
+                    }
+                }
+            }
+            if( ceil( count_start.y ) == ceil( max_start ) )
+            {
+                if( step_vec.y > 0.0f )
+                {
+                    if( isaac_size_d.position.y == 0 )
+                    {
+                        global_front = true;
+                        start_normal = {
+                            0,
+                            1.0f,
+                            0
+                        };
+                    }
+                }
+                else
+                {
+                    if( isaac_size_d.position.y == isaac_size_d.global_size.y - isaac_size_d.local_size.y )
+                    {
+                        global_front = true;
+                        start_normal = {
+                            0,
+                            -1.0f,
+                            0
+                        };
+                    }
+                }
+            }
+            if( ceil( count_start.z ) == ceil( max_start ) )
+            {
+                if( step_vec.z > 0.0f )
+                {
+                    if( isaac_size_d.position.z == 0 )
+                    {
+                        global_front = true;
+                        start_normal = {
+                            0,
+                            0,
+                            1.0f
+                        };
+                    }
+                }
+                else
+                {
+                    if( isaac_size_d.position.z == isaac_size_d.global_size.z - isaac_size_d.local_size.z )
+                    {
+                        global_front = true;
+                        start_normal = {
+                            0,
+                            0,
+                            -1.0f
+                        };
+                    }
+                }
+            }
+            count_start.x = max_start;
+            count_end.x = ISAAC_MIN(
+                ISAAC_MIN(
+                    count_end.x,
+                    count_end.y
+                ),
+                count_end.z
+            );
+            if( count_start.x > count_end.x )
+            {
+                //TODO understand the superplanes stuff...
+                ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+
+                //this function aborts drawing and therfore wont set any normal or depth values
+                //defaults will be applied for clean images
+                gNormal[pixel.x + pixel.y * framebuffer_size.x] = default_normal;
+                gDepth[pixel.x + pixel.y * framebuffer_size.x] = default_depth;
+
+                return;
+            }
+
+            //set start and end index of ray
+            isaac_int first = isaac_int( ceil( count_start.x ) );
+            isaac_int last = isaac_int( floor( count_end.x ) );
+
+            isaac_float first_f = count_start.x;
+            isaac_float last_f = count_end.x;
+
+            //Moving last and first until their points are valid
+            isaac_float3 pos = start + step_vec * isaac_float( last );
+            isaac_int3 coord = isaac_int3( glm::floor( pos ) );
+            while( (
+                ISAAC_FOR_EACH_DIM_TWICE ( 3,
+                    coord,
+                    >= isaac_size_d.local_size,
+                    || )
+                ISAAC_FOR_EACH_DIM ( 3,
+                    coord,
+                    < 0 || ) 0 )
+                && first <= last )
+            {
+                last--;
+                pos = start + step_vec * isaac_float( last );
+                coord = isaac_int3( glm::floor( pos ) );
+            }
+            pos = start + step_vec * isaac_float( first );
+            coord = isaac_int3( glm::floor( pos ) );
+            while( (
+                ISAAC_FOR_EACH_DIM_TWICE ( 3,
+                    coord,
+                    >= isaac_size_d.local_size,
+                    || )
+                ISAAC_FOR_EACH_DIM ( 3,
+                    coord,
+                    < 0 || ) 0 )
+                && first <= last )
+            {
+                first++;
+                pos = start + step_vec * isaac_float( first );
+                coord = isaac_int3( glm::floor( pos ) );
+            }
+            first = ISAAC_MAX(
+                first,
+                0
+            );
+            first_f = ISAAC_MAX(
+                first_f,
+                0.0f
+            );
+
+            bool is_clipped = false;
+            isaac_float3 clipping_normal;
+            //Extra clipping
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                isaac_float d = glm::dot( step_vec, clipping.elem[i].normal);
+
+                isaac_float intersection_step = ( glm::dot( clipping.elem[i].position, clipping.elem[i].normal )
+                                                    - glm::dot( start, clipping.elem[i].normal ) ) / d;
+                if( d > 0 )
+                {
+                    if( last_f < intersection_step )
+                    {
+                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+                        return;
+                    }
+                    if( first_f <= intersection_step )
+                    {
+                        first = ceil( intersection_step );
+                        first_f = intersection_step;
+                        clipping_normal = clipping.elem[i].normal;
+                        is_clipped = true;
+                        global_front = true;
+                        start_normal = clipping.elem[i].normal;
+                    }
+                }
+                else
+                {
+                    if( first_f > intersection_step )
+                    {
+                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+                        return;
+                    }
+                    if( last_f > intersection_step )
+                    {
+                        last = floor( intersection_step );
+                        last_f = intersection_step;
+                    }
+                }
+            }
+
+
+            // set distance check in alpha channel on scaled max distance
+            isaac_float4 particle_color;
+            isaac_float depth = ( last_f - first_f ) * step * l_scaled / l;
+            isaac_float3 local_start = ( start + step_vec * first_f ) * scale;
+            bool particle_hit = false;
+            isaac_float3 normalized_dir = glm::normalize( step_vec * scale / step );
+            // light direction is camera direction
+            isaac_float3 light_dir = -normalized_dir;
+
+            /* RAYMARCH */
+
+            // get the signs of the direction for the raymarch
+            isaac_int3 dir_sign = glm::sign( normalized_dir );
+
+            //TODO: alternative for constant 0.001f
+            // calculate current position in scaled object space
+            isaac_float3 current_pos = ( start + step_vec * ISAAC_MAX( first_f, 0.0f ) ) * scale;
 
             isaac_float3 particle_scale = isaac_float3( isaac_size_d.local_size_scaled ) / isaac_float3( isaac_size_d.local_particle_size );
-            ISAAC_ELEM_ITERATE ( e )
+            // calculate current local cell coordinates
+            isaac_uint3 current_cell = isaac_uint3( glm::clamp( 
+                                    isaac_int3( current_pos / particle_scale ), 
+                                    isaac_int3( 0 ), 
+                                    isaac_int3( isaac_size_d.local_particle_size - ISAAC_IDX_TYPE( 1 ) ) 
+                                ) );
+
+            isaac_float ray_length = ( last_f - first_f ) * step * l_scaled / l;
+            isaac_float march_length = 0;
+
+
+            // calculate next intersection with each dimension
+            isaac_float3 t = ( ( isaac_float3( current_cell ) + isaac_float3( glm::max( dir_sign, 0 ) ) ) 
+                    * particle_scale - current_pos ) / normalized_dir;
+
+            // calculate delta length to next intersection in the same dimension
+            isaac_float3 delta_t = particle_scale / normalized_dir * isaac_float3( dir_sign );
+
+            isaac_float3 particle_hitposition(0);
+
+            // check for 0 to stop infinite looping
+            if( normalized_dir.x == 0 )
             {
-                // set distance check in alpha channel on scaled max distance
-                depth[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
-                local_start[e] = ( start[e] + step_vec[e] * first_f[e] ) * scale;
-                particle_hit[e] = false;
-                normalized_dir[e] = glm::normalize( step_vec[e] * scale / step );
-                // light direction is camera direction
-                light_dir[e] = -normalized_dir[e];
-
-                /* RAYMARCH */
-
-                // get the signs of the direction for the raymarch
-                dir_sign[e] = glm::sign( normalized_dir[e] );
-
-                //TODO: alternative for constant 0.001f
-                // calculate current position in scaled object space
-                current_pos[e] = ( start[e] + step_vec[e] * ISAAC_MAX( first_f[e], 0.0f ) ) * scale;
-
-                // calculate current local cell coordinates
-                current_cell[e] = isaac_uint3( glm::clamp( 
-                                        isaac_int3( current_pos[e] / particle_scale ), 
-                                        isaac_int3( 0 ), 
-                                        isaac_int3( isaac_size_d.local_particle_size - ISAAC_IDX_TYPE( 1 ) ) 
-                                    ) );
-
-                ray_length[e] = ( last_f[e] - first_f[e] ) * step * l_scaled[e] / l[e];
-                march_length[e] = 0;
-
-
-                // calculate next intersection with each dimension
-                t[e] = ( ( isaac_float3( current_cell[e] ) + isaac_float3( glm::max( dir_sign[e], 0 ) ) ) 
-                        * particle_scale - current_pos[e] ) / normalized_dir[e];
-
-                // calculate delta length to next intersection in the same dimension
-
-                delta_t[e] = particle_scale / normalized_dir[e] * isaac_float3( dir_sign[e] );
-
-                particle_hitposition[e] = isaac_float3( 0 );
-
-                // check for 0 to stop infinite looping
-                if( normalized_dir[e].x == 0 )
-                {
-                    t[e].x = maxFloat;
-                }
-                if( normalized_dir[e].y == 0 )
-                {
-                    t[e].y = maxFloat;
-                }
-                if( normalized_dir[e].z == 0 )
-                {
-                    t[e].z = maxFloat;
-                }
-
-
-                // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
-                while( current_cell[e].x < isaac_size_d.local_particle_size.x 
-                    && current_cell[e].y < isaac_size_d.local_particle_size.y 
-                    && current_cell[e].z < isaac_size_d.local_particle_size.z 
-                    && particle_hit[e] == false
-                    && march_length[e] <= ray_length[e] )
-                {
-
-                    // calculate particle intersections for each particle source
-                    isaac_for_each_with_mpl_params(
-                        particle_sources,
-                        merge_particle_iterator<
-                            Ttransfer_size,
-                            mpl::size< TSourceList >::type::value,
-                            TFilter
-                        >( ),
-                        local_start[e],
-                        normalized_dir[e],
-                        light_dir[e],
-                        current_cell[e],
-                        transferArray,
-                        sourceWeight,
-                        particle_scale,
-                        clipping_normal[e],
-                        is_clipped[e],
-                        particle_color[e],
-                        particle_normal[e],
-                        particle_hitposition[e],
-                        particle_hit[e],
-                        depth[e]
-                    );
-
-
-                    // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
-                    if( t[e].x < t[e].y && t[e].x < t[e].z )
-                    {
-                        current_cell[e].x += dir_sign[e].x;
-                        march_length[e] = t[e].x;
-                        t[e].x += delta_t[e].x;
-                    }
-                    else if( t[e].y < t[e].x && t[e].y < t[e].z )
-                    {
-                        current_cell[e].y += dir_sign[e].y;
-                        march_length[e] = t[e].y;
-                        t[e].y += delta_t[e].y;
-                    }
-                    else
-                    {
-                        current_cell[e].z += dir_sign[e].z;
-                        march_length[e] = t[e].z;
-                        t[e].z += delta_t[e].z;
-                    }
-
-                }
-                // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
-                if( particle_hit[e] )
-                {
-                    last[e] = ISAAC_MIN(
-                        last[e],
-                        int(
-                            ceil(
-                                first_f[e] + depth[e]
-                                             / ( step * l_scaled[e] / l[e] )
-                            )
-                        )
-                    );
-
-                    // calculate lighting properties for the last hit particle
-                    particle_normal[e] = glm::normalize( particle_normal[e] );
-
-                    isaac_float light_factor = glm::dot( particle_normal[e], light_dir[e] );
-
-                    isaac_float3 half_vector = glm::normalize( -normalized_dir[e] + light_dir[e] );
-
-                    isaac_float specular = glm::dot( particle_normal[e], half_vector );
-
-                    specular = pow( specular, 10 );
-                    specular *= 0.5f;
-                    light_factor = light_factor * 0.5f + 0.5f;
-
-
-                    particle_color[e] = glm::min( particle_color[e] * light_factor + specular, isaac_float( 1 ) );
-                }
+                t.x = maxFloat;
+            }
+            if( normalized_dir.y == 0 )
+            {
+                t.y = maxFloat;
+            }
+            if( normalized_dir.z == 0 )
+            {
+                t.z = maxFloat;
             }
 
 
-            isaac_float min_size[ISAAC_VECTOR_ELEM];
-            isaac_float factor[ISAAC_VECTOR_ELEM];
-            isaac_float4 value[ISAAC_VECTOR_ELEM];
-            isaac_int result[ISAAC_VECTOR_ELEM];
-            isaac_float oma[ISAAC_VECTOR_ELEM];
-            isaac_float4 color_add[ISAAC_VECTOR_ELEM];
-            isaac_float ao_blend = 0.0f; //indicates how strong particle ao should be when gas is overlapping
-
-            ISAAC_ELEM_ITERATE ( e )
+            //normal at particle hit position
+            isaac_float3 particle_normal;
+            // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
+            while( current_cell.x < isaac_size_d.local_particle_size.x 
+                && current_cell.y < isaac_size_d.local_particle_size.y 
+                && current_cell.z < isaac_size_d.local_particle_size.z 
+                && particle_hit == false
+                && march_length <= ray_length )
             {
 
-                //Starting the main loop
-                min_size[e] = ISAAC_MIN(
+                // calculate particle intersections for each particle source
+                isaac_for_each_with_mpl_params(
+                    particle_sources,
+                    merge_particle_iterator<
+                        Ttransfer_size,
+                        mpl::size< TSourceList >::type::value,
+                        TFilter
+                    >( ),
+                    local_start,
+                    normalized_dir,
+                    light_dir,
+                    current_cell,
+                    transferArray,
+                    sourceWeight,
+                    particle_scale,
+                    clipping_normal,
+                    is_clipped,
+                    particle_color,
+                    particle_normal,
+                    particle_hitposition,
+                    particle_hit,
+                    depth
+                );
+
+
+                // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
+                if( t.x < t.y && t.x < t.z )
+                {
+                    current_cell.x += dir_sign.x;
+                    march_length = t.x;
+                    t.x += delta_t.x;
+                }
+                else if( t.y < t.x && t.y < t.z )
+                {
+                    current_cell.y += dir_sign.y;
+                    march_length = t.y;
+                    t.y += delta_t.y;
+                }
+                else
+                {
+                    current_cell.z += dir_sign.z;
+                    march_length = t.z;
+                    t.z += delta_t.z;
+                }
+
+            }
+            // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
+            if( particle_hit )
+            {
+                last = ISAAC_MIN(
+                    last,
                     int(
-                        isaac_size_d.global_size.x
-                    ),
-                    ISAAC_MIN(
-                        int(
-                            isaac_size_d.global_size.y
-                        ),
-                        int(
-                            isaac_size_d.global_size.z
+                        ceil(
+                            first_f + depth
+                                            / ( step * l_scaled / l )
                         )
                     )
                 );
-                factor[e] = step / min_size[e] * 2.0f;
-                value[e] = isaac_float4(0);
-                result[e] = 0;
 
-                for( isaac_int i = first[e]; i <= last[e]; i++ )
+                // calculate lighting properties for the last hit particle
+                particle_normal = glm::normalize( particle_normal );
+
+                isaac_float light_factor = glm::dot( particle_normal, light_dir );
+
+                isaac_float3 half_vector = glm::normalize( -normalized_dir + light_dir );
+
+                isaac_float specular = glm::dot( particle_normal, half_vector );
+
+                specular = pow( specular, 10 );
+                specular *= 0.5f;
+                light_factor = light_factor * 0.5f + 0.5f;
+
+
+                particle_color = glm::min( particle_color * light_factor + specular, isaac_float( 1 ) );
+            }
+
+
+            //Starting the main loop
+            isaac_float min_size = ISAAC_MIN(
+                int(
+                    isaac_size_d.global_size.x
+                ),
+                ISAAC_MIN(
+                    int(
+                        isaac_size_d.global_size.y
+                    ),
+                    int(
+                        isaac_size_d.global_size.z
+                    )
+                )
+            );
+            isaac_float factor = step / min_size * 2.0f;
+            isaac_float4 value = isaac_float4(0);
+            isaac_int result = 0;
+            isaac_float oma;
+            isaac_float4 color_add;
+            for( isaac_int i = first; i <= last; i++ )
+            {
+                pos = start + step_vec * isaac_float( i );
+                value = isaac_float4( 0 );
+                result = 0;
+                bool firstRound = ( global_front && i == first );
+                isaac_for_each_with_mpl_params(
+                    sources,
+                    merge_source_iterator<
+                        Ttransfer_size,
+                        TFilter,
+                        TInterpolation,
+                        TIsoSurface
+                    >( ),
+                    value,
+                    pos,
+                    isaac_size_d.local_size,
+                    transferArray,
+                    sourceWeight,
+                    pointerArray,
+                    result,
+                    step_vec,
+                    step,
+                    scale,
+                    firstRound,
+                    start_normal
+                );
+                if( TIsoSurface )
                 {
-                    pos[e] = start[e] + step_vec[e] * isaac_float( i );
-                    value[e] = isaac_float4( 0 );
-                    result[e] = 0;
-                    bool firstRound = ( global_front[e] && i == first[e] );
-                    isaac_for_each_with_mpl_params(
-                        sources,
-                        merge_source_iterator<
-                            Ttransfer_size,
-                            TFilter,
-                            TInterpolation,
-                            TIsoSurface
-                        >( ),
-                        value[e],
-                        pos[e],
-                        isaac_size_d.local_size,
-                        transferArray,
-                        sourceWeight,
-                        pointerArray,
-                        result[e],
-                        step_vec[e],
-                        step,
-                        scale,
-                        firstRound,
-                        start_normal[e]
-                    );
-                    if( TIsoSurface )
+                    if( result )
                     {
-                        if( result[e] )
-                        {
-                            color[e] = value[e];
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        oma[e] = isaac_float( 1 ) - color[e].w;
-                        value[e] *= factor[e];
-                        color_add[e] = oma[e] * value[e];
-                        color[e] += color_add[e];
-                        if( color[e].w > isaac_float( 0.99 ) )
-                        {
-                            break;
-                        }
+                        color = value;
+                        break;
                     }
                 }
-                if( particle_hit[e] && !result[e] )
+                else
                 {
-                    //extracting real particle depth and override block march length
-                    march_length[e] = depth[e];
-                    ao_blend = (1 - color[e].w);
-
-                    particle_color[e].w = 1;
-                    
-                    color[e] = color[e] + particle_color[e] * ( 1 - color[e].w );
-                    
+                    oma = isaac_float( 1 ) - color.w;
+                    value *= factor;
+                    color_add = oma * value;
+                    color += color_add;
+                    if( color.w > isaac_float( 0.99 ) )
+                    {
+                        break;
+                    }
                 }
+            }
+            //indicates how strong particle ao should be when gas is overlapping
+            isaac_float ao_blend = 0.0f;
+            if( particle_hit && !result )
+            {
+                ao_blend = (1 - color.w);
+
+                particle_color.w = 1;
+                
+                color = color + particle_color * ( 1 - color.w );
+                
+            }
 
 #if ISAAC_SHOWBORDER == 1
-                if ( color[e].w <= isaac_float ( 0.99 ) ) {
-                    oma[e] = isaac_float ( 1 ) - color[e].w;
-                    color_add[e].x = 0;
-                    color_add[e].y = 0;
-                    color_add[e].z = 0;
-                    color_add[e].w = oma[e] * factor[e] * isaac_float ( 10 );
-                    color[e] += color_add[e];
-                }
+            if ( color.w <= isaac_float ( 0.99 ) ) {
+                oma = isaac_float ( 1 ) - color.w;
+                color_add.x = 0;
+                color_add.y = 0;
+                color_add.z = 0;
+                color_add.w = oma * factor * isaac_float ( 10 );
+                color += color_add;
+            }
 #endif
 
 
-                if( !finish[e] )
-                {
-                    ISAAC_SET_COLOR ( pixels[pixel[e].x + pixel[e].y * framebuffer_size.x], color[e] )
-                    //save the particle normal in the normal g buffer
-                    gNormal[pixel[e].x + pixel[e].y * framebuffer_size.x] = particle_normal[e];
-                    
-                    //save the cell depth in our g buffer (depth)
-                    //march_length takes the old particle_color w component 
-                    //the w component stores the particle depth and will be replaced later by new alpha values and 
-                    //is therefore stored in march_length
-                    //LINE 2044
-                    isaac_float3 depth_value = {
-                        0.0f,
-                        ao_blend,
-                        march_length[e]
-                    };                
+            ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+            //save the particle normal in the normal g buffer
+            gNormal[pixel.x + pixel.y * framebuffer_size.x] = particle_normal;
+            
+            //save the cell depth in our g buffer (depth)
+            //march_length takes the old particle_color w component 
+            //the w component stores the particle depth and will be replaced later by new alpha values and 
+            //is therefore stored in march_length
+            //LINE 2044
+            isaac_float3 depth_value = {
+                0.0f,
+                ao_blend,
+                depth
+            };                
 
-                    gDepth[pixel[e].x + pixel[e].y * framebuffer_size.x] = depth_value;
-                    
-                }
-            }
+            gDepth[pixel.x + pixel.y * framebuffer_size.x] = depth_value;
         }
     };
 
@@ -2036,21 +1947,14 @@ namespace isaac
                 ISAAC_IDX_TYPE( 16 )
             };
             isaac_size2 grid_size = {
-                ISAAC_IDX_TYPE(
-                    ( readback_viewport[2] + block_size.x - 1 ) / block_size.x
-                    + ISAAC_VECTOR_ELEM - 1
-                ) / ISAAC_IDX_TYPE( ISAAC_VECTOR_ELEM ),
-                ISAAC_IDX_TYPE(
-                    ( readback_viewport[3] + block_size.y - 1 ) / block_size.y
-                )
+                ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
+                ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
             };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
             if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
             {
-                grid_size.x = ISAAC_IDX_TYPE(
-                    readback_viewport[2] + ISAAC_VECTOR_ELEM - 1
-                ) / ISAAC_IDX_TYPE( ISAAC_VECTOR_ELEM );
+                grid_size.x = ISAAC_IDX_TYPE( readback_viewport[2] );
                 grid_size.y = ISAAC_IDX_TYPE( readback_viewport[3] );
                 block_size.x = ISAAC_IDX_TYPE( 1 );
                 block_size.y = ISAAC_IDX_TYPE( 1 );
@@ -2058,7 +1962,7 @@ namespace isaac
             const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
                 ISAAC_IDX_TYPE( 1 ),
                 ISAAC_IDX_TYPE( 1 ),
-                ISAAC_IDX_TYPE( ISAAC_VECTOR_ELEM )
+                ISAAC_IDX_TYPE( 1 )
             );
             const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> blocks(
                 ISAAC_IDX_TYPE( 1 ),
@@ -2168,19 +2072,19 @@ namespace isaac
                 ISAAC_IDX_TYPE ( 16 )
             };
             isaac_size2 grid_size= {
-                ISAAC_IDX_TYPE ( ( readback_viewport[2]+block_size.x-1 ) /block_size.x + ISAAC_VECTOR_ELEM - 1 ) /ISAAC_IDX_TYPE ( ISAAC_VECTOR_ELEM ),
-                ISAAC_IDX_TYPE ( ( readback_viewport[3]+block_size.y-1 ) /block_size.y )
+                ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
+                ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
             };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
             if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
             {
-                grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] + ISAAC_VECTOR_ELEM - 1 ) /ISAAC_IDX_TYPE ( ISAAC_VECTOR_ELEM );
+                grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] );
                 grid_size.y = ISAAC_IDX_TYPE ( readback_viewport[3] );
                 block_size.x = ISAAC_IDX_TYPE ( 1 );
                 block_size.y = ISAAC_IDX_TYPE ( 1 );
             }
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( ISAAC_VECTOR_ELEM ) );
+            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ) );
             const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> blocks ( ISAAC_IDX_TYPE ( 1 ), block_size.y, block_size.x );
             const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> grid ( ISAAC_IDX_TYPE ( 1 ), grid_size.y, grid_size.x );
             auto const workdiv ( alpaka::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE> ( grid,blocks,threads ) );
@@ -2233,19 +2137,19 @@ namespace isaac
                 ISAAC_IDX_TYPE ( 16 )
             };
             isaac_size2 grid_size= {
-                ISAAC_IDX_TYPE ( ( readback_viewport[2]+block_size.x-1 ) /block_size.x + ISAAC_VECTOR_ELEM - 1 ) /ISAAC_IDX_TYPE ( ISAAC_VECTOR_ELEM ),
-                ISAAC_IDX_TYPE ( ( readback_viewport[3]+block_size.y-1 ) /block_size.y )
+                ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
+                ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
             };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
             if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
             {
-                grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] + ISAAC_VECTOR_ELEM - 1 ) /ISAAC_IDX_TYPE ( ISAAC_VECTOR_ELEM );
+                grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] );
                 grid_size.y = ISAAC_IDX_TYPE ( readback_viewport[3] );
                 block_size.x = ISAAC_IDX_TYPE ( 1 );
                 block_size.y = ISAAC_IDX_TYPE ( 1 );
             }
-            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( ISAAC_VECTOR_ELEM ) );
+            const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ) );
             const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> blocks ( ISAAC_IDX_TYPE ( 1 ), block_size.y, block_size.x );
             const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> grid ( ISAAC_IDX_TYPE ( 1 ), grid_size.y, grid_size.x );
             auto const workdiv ( alpaka::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE> ( grid,blocks,threads ) );
