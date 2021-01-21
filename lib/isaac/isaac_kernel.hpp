@@ -1761,9 +1761,6 @@ namespace isaac
         typename TSourceWeight,
         typename TPointerArray,
         typename TFilter,
-        typename TFramebuffer, 
-        typename TFramebufferDepth,
-        typename TFramebufferNormal,
         ISAAC_IDX_TYPE TTransfer_size,
         typename TAccDim,
         typename TAcc,
@@ -1775,9 +1772,9 @@ namespace isaac
     {
         inline static void call(
             TStream stream,
-            TFramebuffer framebuffer,
-            TFramebufferDepth depthBuffer,
-            TFramebufferNormal normalBuffer,
+            uint32_t * framebuffer,
+            isaac_float3 * depthBuffer,
+            isaac_float3 * normalBuffer,
             const isaac_size2 & framebuffer_size,
             const isaac_uint2 & framebuffer_start,
             const TParticleList & particle_sources,
@@ -1809,9 +1806,6 @@ namespace isaac
                         TFilter,
                         mpl::false_
                     >::type,
-                    TFramebuffer,
-                    TFramebufferDepth,
-                    TFramebufferNormal,
                     TTransfer_size,
                     TAccDim,
                     TAcc,
@@ -1852,9 +1846,6 @@ namespace isaac
                         TFilter,
                         mpl::true_
                     >::type,
-                    TFramebuffer,
-                    TFramebufferDepth,
-                    TFramebufferNormal,
                     TTransfer_size,
                     TAccDim,
                     TAcc,
@@ -1893,9 +1884,6 @@ namespace isaac
         typename TSourceWeight,
         typename TPointerArray,
         typename TFilter,
-        typename TFramebuffer, 
-        typename TFramebufferDepth,
-        typename TFramebufferNormal,
         ISAAC_IDX_TYPE TTransfer_size,
         typename TAccDim,
         typename TAcc,
@@ -1909,9 +1897,6 @@ namespace isaac
         TSourceWeight,
         TPointerArray,
         TFilter,
-        TFramebuffer,
-        TFramebufferDepth,
-        TFramebufferNormal,
         TTransfer_size,
         TAccDim,
         TAcc,
@@ -1922,9 +1907,9 @@ namespace isaac
     {
         inline static void call(
             TStream stream,
-            TFramebuffer framebuffer,
-            TFramebufferDepth depthBuffer,
-            TFramebufferNormal normalBuffer,
+            uint32_t *  framebuffer,
+            isaac_float3 * depthBuffer,
+            isaac_float3 * normalBuffer,
             const isaac_size2 & framebuffer_size,
             const isaac_uint2 & framebuffer_start,
             const TParticleList & particle_sources,
@@ -2004,9 +1989,9 @@ namespace isaac
                     ( \
                         workdiv, \
                         kernel, \
-                        alpaka::getPtrNative(framebuffer), \
-                        alpaka::getPtrNative(depthBuffer), \
-                        alpaka::getPtrNative(normalBuffer), \
+                        framebuffer, \
+                        depthBuffer, \
+                        normalBuffer, \
                         framebuffer_size, \
                         framebuffer_start, \
                         particle_sources, \

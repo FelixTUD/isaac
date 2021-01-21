@@ -3232,24 +3232,6 @@ namespace isaac
                     )
                 >,
                 mpl::vector< >,
-                alpaka::Buf< 
-                    TDevAcc, 
-                    uint32_t, 
-                    TFraDim, 
-                    ISAAC_IDX_TYPE
-                >, 
-                alpaka::Buf<
-                    TDevAcc, 
-                    isaac_float3, 
-                    TFraDim, 
-                    ISAAC_IDX_TYPE
-                >,
-                alpaka::Buf<
-                    TDevAcc, 
-                    isaac_float3, 
-                    TFraDim, 
-                    ISAAC_IDX_TYPE
-                >,
                 TTransfer_size,
                 TAccDim, 
                 TAcc, 
@@ -3267,9 +3249,9 @@ namespace isaac
             > 
             ::call(
                 myself->stream,
-                myself->framebuffer,
-                myself->framebufferDepth,
-                myself->framebufferNormal,
+                alpaka::getPtrNative(myself->framebuffer),
+                alpaka::getPtrNative(myself->framebufferDepth),
+                alpaka::getPtrNative(myself->framebufferNormal),
                 myself->framebuffer_size,
                 framebuffer_start,
                 myself->particle_sources,
