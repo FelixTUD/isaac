@@ -456,7 +456,6 @@ namespace isaac
             const TSource & source,                   //particle source
             const isaac_float3 & start,               //ray start position in local volume
             const isaac_float3 & dir,
-            const isaac_float3 & light_dir,           //direction of incoming light
             const isaac_uint3 & cell_pos,             //cell to test in local volume
             const TTransferArray & transferArray,     //transfer function
             const TSourceWeight & sourceWeight,       //weight of this particle source for radius
@@ -467,7 +466,7 @@ namespace isaac
             isaac_float3 & out_normal,                //resulting particle normal
             isaac_float3 & out_position,              //resulting particle hit position
             bool & out_particle_hit,                  //true or false if particle has been hit or not
-            isaac_float & depth                       //resulting particle depth
+            isaac_float & out_depth                       //resulting particle depth
         ) const
         {
             const int sourceNumber = NR::value + TOffset;
@@ -498,7 +497,7 @@ namespace isaac
                         isaac_float t1 = tca + thc;
 
                         // if the ray hits the sphere
-                        if( t1 >= 0 && t0 < depth )
+                        if( t1 >= 0 && t0 < out_depth )
                         {
                             isaac_float_dim <TSource::feature_dim>
                                 data = particle_iterator.getAttribute( );
@@ -550,14 +549,14 @@ namespace isaac
                             if( value.w >= 0.5f )
                             {
                                 out_color = value;
-                                depth = t0;
+                                out_depth = t0;
                                 out_particle_hit = 1;
                                 out_position = particle_pos;
                                 out_normal = start + t0 * dir - particle_pos;
                                 if( t0 < 0 && is_clipped )
                                 {
                                     #if ISAAC_AO_BUG_FIX == 1
-                                    depth = 0;
+                                    out_depth = 0;
                                     #endif
                                     out_normal = -clipping_normal;
                                 }
@@ -1566,7 +1565,7 @@ namespace isaac
 
             //gNormalBuffer default value
             isaac_float3 default_normal = {0.0, 0.0, 0.0};
-            isaac_float3 default_depth = {1.0, 1.0, 1.0};
+            isaac_float3 default_depth = {0.0, 0.0, 1.0};
 
             //set background color
             isaac_float4 color = background_color;
@@ -1610,7 +1609,7 @@ namespace isaac
             isaac_float3 start = start_w / start_w.w;
             isaac_float3 end = end_w / end_w.w;
 
-            isaac_float max_size = isaac_size_d.max_global_size_scaled / 2.0f;
+            isaac_float max_size = isaac_size_d.max_global_size_scaled * isaac_float( 0.5 );
 
             //scale to globale grid size
             start = start * max_size;
@@ -1623,64 +1622,39 @@ namespace isaac
             //scale position to global size
             for( isaac_int i = 0; i < input_clipping.count; i++ )
             {
-                clipping.elem[i].position =
-                    input_clipping.elem[i].position * max_size;
+                clipping.elem[i].position = input_clipping.elem[i].position * isaac_float3( isaac_size_d.global_size ) * scale * isaac_float( 0.5 );
                 clipping.elem[i].normal = input_clipping.elem[i].normal;
             }
 
             //move to local (scaled) grid
             //get offset of subvolume in global volume
-            isaac_float3 move_f = isaac_float3( isaac_int3( isaac_size_d.global_size_scaled ) / 2 - isaac_int3( isaac_size_d.position_scaled ) );
+            isaac_float3 position_offset = isaac_float3( isaac_int3( isaac_size_d.global_size_scaled ) / 2 - isaac_int3( isaac_size_d.position_scaled ) );
 
             //apply subvolume offset to start and end
-            start = start + move_f;
-            end = end + move_f;
+            start = start + position_offset;
+            end = end + position_offset;
 
             //apply subvolume offset to position checked clipping plane
             for( isaac_int i = 0; i < input_clipping.count; i++ )
             {
                 clipping.elem[i].position =
-                    clipping.elem[i].position + move_f;
-            }
-
-            //apply isaac scaling to start, end and position tested by clipping plane
-            start = start / scale;
-            end = end / scale;
-
-            for( isaac_int i = 0; i < input_clipping.count; i++ )
-            {
-                clipping.elem[i].position = clipping.elem[i].position / scale;
+                    clipping.elem[i].position + position_offset;
             }
 
             //get step vector
             isaac_float3 ray_dir = glm::normalize( end - start );
 
             //clip ray on volume bounding box
-            isaac_float3 count_start = -start / ray_dir;
-            isaac_float3 count_end = ( isaac_float3( isaac_size_d.local_size ) - start ) / ray_dir;
+            isaac_float3 bb_intersection_min = -start / ray_dir;
+            isaac_float3 bb_intersection_max = ( isaac_float3( isaac_size_d.local_size ) * scale - start ) / ray_dir;
 
-            //count_start shall have the smaller values
-            ISAAC_SWITCH_IF_SMALLER ( count_end.x, count_start.x )
-            ISAAC_SWITCH_IF_SMALLER ( count_end.y, count_start.y )
-            ISAAC_SWITCH_IF_SMALLER ( count_end.z, count_start.z )
+            //bb_intersection_min shall have the smaller values
+            ISAAC_SWITCH_IF_SMALLER ( bb_intersection_max.x, bb_intersection_min.x )
+            ISAAC_SWITCH_IF_SMALLER ( bb_intersection_max.y, bb_intersection_min.y )
+            ISAAC_SWITCH_IF_SMALLER ( bb_intersection_max.z, bb_intersection_min.z )
 
-            isaac_float first_f = glm::max( count_start.x, glm::max( count_start.y, count_start.z ) );
-            isaac_float last_f = glm::min( count_end.x, glm::min( count_end.y, count_end.z ) );
-            if( first_f > last_f )
-            {
-                ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
-
-                //this function aborts drawing and therfore wont set any normal or depth values
-                //defaults will be applied for clean images
-                gNormal[pixel.x + pixel.y * framebuffer_size.x] = default_normal;
-                gDepth[pixel.x + pixel.y * framebuffer_size.x] = default_depth;
-
-                return;
-            }
-
-
-            //ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], isaac_float4((start + ray_dir * first_f) / isaac_float3( isaac_size_d.local_size ) * 0.5f + 0.5f, 1.0f) );
-            //return;
+            isaac_float first_f = glm::max( bb_intersection_min.x, glm::max( bb_intersection_min.y, bb_intersection_min.z ) );
+            isaac_float last_f = glm::min( bb_intersection_max.x, glm::min( bb_intersection_max.y, bb_intersection_max.z ) );
 
             bool is_clipped = false;
             isaac_float3 clipping_normal;
@@ -1703,7 +1677,6 @@ namespace isaac
                         clipping_normal = clipping.elem[i].normal;
                         is_clipped = true;
                         first_f = intersection_depth;
-                        count_start = start + ray_dir * intersection_depth;
                     }
                 }
                 else
@@ -1716,26 +1689,37 @@ namespace isaac
                     if( last_f > intersection_depth )
                     {
                         last_f = intersection_depth;
-                        count_end = end + ray_dir * intersection_depth;
                     }
                 }
             }
+            first_f = glm::max( first_f, 0.0f );
+
+            if( first_f > last_f )
+            {
+                ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+
+                //this function aborts drawing and therfore wont set any normal or depth values
+                //defaults will be applied for clean images
+                gNormal[pixel.x + pixel.y * framebuffer_size.x] = default_normal;
+                gDepth[pixel.x + pixel.y * framebuffer_size.x] = default_depth;
+
+                return;
+            }
+
 
             isaac_float4 particle_color = background_color;
             isaac_float depth = std::numeric_limits<isaac_float>::max( );
-            isaac_float3 local_start = start * scale;
             bool particle_hit = false;
-            isaac_float3 normalized_dir = glm::normalize( ray_dir * scale );
             // light direction is camera direction
-            isaac_float3 light_dir = -normalized_dir;
+            isaac_float3 light_dir = -ray_dir;
 
             /* RAYMARCH */
 
             // get the signs of the direction for the raymarch
-            isaac_int3 dir_sign = glm::sign( normalized_dir );
+            isaac_int3 dir_sign = glm::sign( ray_dir );
 
             // calculate current position in scaled object space
-            isaac_float3 current_pos = ( start + ray_dir * glm::max( first_f, 0.0f ) ) * scale;
+            isaac_float3 current_pos = start + ray_dir * first_f;
 
             // calculate current local cell coordinates
             isaac_uint3 current_cell = isaac_uint3( glm::clamp( 
@@ -1744,29 +1728,29 @@ namespace isaac
                                     isaac_int3( isaac_size_d.local_particle_size - ISAAC_IDX_TYPE( 1 ) ) 
                                 ) );
 
-            isaac_float ray_length = glm::length( ( end - start ) * scale );
+            isaac_float ray_length = last_f - first_f;
             isaac_float march_length = 0;
 
 
             // calculate next intersection with each dimension
             isaac_float3 t = ( ( isaac_float3( current_cell ) + isaac_float3( glm::max( dir_sign, 0 ) ) ) 
-                    * scale - current_pos ) / normalized_dir;
+                    * scale - current_pos ) / ray_dir;
 
             // calculate delta length to next intersection in the same dimension
-            isaac_float3 delta_t = scale / normalized_dir * isaac_float3( dir_sign );
+            isaac_float3 delta_t = scale / ray_dir * isaac_float3( dir_sign );
 
             isaac_float3 particle_hitposition(0);
 
             // check for 0 to stop infinite looping
-            if( normalized_dir.x == 0 )
+            if( ray_dir.x == 0 )
             {
                 t.x = std::numeric_limits<isaac_float>::max( );
             }
-            if( normalized_dir.y == 0 )
+            if( ray_dir.y == 0 )
             {
                 t.y = std::numeric_limits<isaac_float>::max( );
             }
-            if( normalized_dir.z == 0 )
+            if( ray_dir.z == 0 )
             {
                 t.z = std::numeric_limits<isaac_float>::max( );
             }
@@ -1790,9 +1774,8 @@ namespace isaac
                         TSourceOffset,
                         TFilter
                     >( ),
-                    local_start,
-                    normalized_dir,
-                    light_dir,
+                    current_pos,
+                    ray_dir,
                     current_cell,
                     transferArray,
                     sourceWeight,
@@ -1837,7 +1820,7 @@ namespace isaac
 
                 isaac_float light_factor = glm::dot( particle_normal, light_dir );
 
-                isaac_float3 half_vector = glm::normalize( -normalized_dir + light_dir );
+                isaac_float3 half_vector = glm::normalize( -ray_dir + light_dir );
 
                 isaac_float specular = glm::dot( particle_normal, half_vector );
 
@@ -1856,9 +1839,6 @@ namespace isaac
             gNormal[pixel.x + pixel.y * framebuffer_size.x] = particle_normal;
             
             //save the cell depth in our g buffer (depth)
-            //march_length takes the old particle_color w component 
-            //the w component stores the particle depth and will be replaced later by new alpha values and 
-            //is therefore stored in march_length
             isaac_float3 depth_value = {
                 0.0f,
                 1.0f,

@@ -3086,18 +3086,9 @@ namespace isaac
                 *( reinterpret_cast<isaac_size_struct*> ( alpaka::getPtrNative( size_h_buf ) ) );
 
 
-            //calculate inverse mvp matrix for render kernel
-            //IceTDouble inverse[16];
-            //calcInverse(
-            //    inverse,
-            //    projection_matrix,
-            //    modelview_matrix
-            //);
-            //std::copy( inverse, inverse + 16, glm::value_ptr( inverse_h ) );
-            //copy the projection and viewmatrix to the host buffer location
             std::copy( projection_matrix, projection_matrix + 16, glm::value_ptr( projection_h ) );
             std::copy( modelview_matrix, modelview_matrix + 16, glm::value_ptr( modelview_h ) );
-
+            //calculate inverse mvp matrix for render kernel
             isaac_mat4 inverse = glm::inverse( projection_h * modelview_h );
             std::copy( glm::value_ptr( inverse ), glm::value_ptr( inverse ) + 16, glm::value_ptr( inverse_h ) );
 
