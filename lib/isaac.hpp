@@ -3087,19 +3087,19 @@ namespace isaac
 
 
             //calculate inverse mvp matrix for render kernel
-            IceTDouble inverse[16];
-            calcInverse(
-                inverse,
-                projection_matrix,
-                modelview_matrix
-            );
-            std::copy( inverse, inverse + 16, glm::value_ptr( inverse_h ) );
+            //IceTDouble inverse[16];
+            //calcInverse(
+            //    inverse,
+            //    projection_matrix,
+            //    modelview_matrix
+            //);
+            //std::copy( inverse, inverse + 16, glm::value_ptr( inverse_h ) );
             //copy the projection and viewmatrix to the host buffer location
             std::copy( projection_matrix, projection_matrix + 16, glm::value_ptr( projection_h ) );
             std::copy( modelview_matrix, modelview_matrix + 16, glm::value_ptr( modelview_h ) );
 
-            //isaac_mat4 inverse = glm::inverse( projection_h *  modelview_h );
-            //std::copy( glm::value_ptr( inverse ), glm::value_ptr( inverse ) + 16, glm::value_ptr( inverse_h ) );
+            isaac_mat4 inverse = glm::inverse( projection_h * modelview_h );
+            std::copy( glm::value_ptr( inverse ), glm::value_ptr( inverse ) + 16, glm::value_ptr( inverse_h ) );
 
 
             //set global simulation size
@@ -3209,6 +3209,59 @@ namespace isaac
                 isaac_uint( readback_viewport[1] )
             };
 
+                        //call render kernel
+            ParticleRenderKernelCaller<
+                TParticleList,
+                transfer_d_struct<
+                    (
+                        boost::mpl::size< TSourceList >::type::value
+                        + boost::mpl::size< TParticleList >::type::value
+                    )
+                >,
+                source_weight_struct<
+                    (
+                        boost::mpl::size< TSourceList >::type::value
+                        + boost::mpl::size< TParticleList >::type::value
+                    )
+                >,
+                pointer_array_struct<
+                    (
+                        boost::mpl::size< TSourceList >::type::value
+                        + boost::mpl::size< TParticleList >::type::value
+                    )
+                >,
+                mpl::vector< >,
+                TTransfer_size,
+                TAccDim, 
+                TAcc, 
+                TStream,
+                alpaka::Buf< 
+                    TDevAcc, 
+                    isaac_functor_chain_pointer_N, 
+                    TFraDim,
+                    ISAAC_IDX_TYPE 
+                >, 
+                boost::mpl::size< TSourceList >::type::value,
+                boost::mpl::size< TParticleList >::type::value
+            > 
+            ::call(
+                myself->stream,
+                alpaka::getPtrNative(myself->framebuffer),
+                alpaka::getPtrNative(myself->framebufferDepth),
+                alpaka::getPtrNative(myself->framebufferNormal),
+                myself->framebuffer_size,
+                framebuffer_start,
+                myself->particle_sources,
+                bg_color,
+                myself->transfer_d,
+                myself->source_weight,
+                myself->pointer_array,
+                readback_viewport,
+                isaac_scale,
+                myself->clipping,
+                myself->ambientOcclusion
+            );
+            /*
             //call render kernel
             IsaacRenderKernelCaller<
                 TParticleList,
@@ -3268,7 +3321,7 @@ namespace isaac
                 myself->clipping,
                 myself->ambientOcclusion
             );
-
+            */
             //wait until render kernel has finished
             alpaka::wait( myself->stream );
 

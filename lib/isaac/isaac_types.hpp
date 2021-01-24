@@ -48,6 +48,8 @@ using isaac_uint4 = glm::vec<4, isaac_uint, glm::defaultp>;
 using isaac_uint3 = glm::vec<3, isaac_uint, glm::defaultp>;
 using isaac_uint2 = glm::vec<2, isaac_uint, glm::defaultp>;
 
+using isaac_byte4 = glm::vec<4, uint8_t, glm::defaultp>;
+
 using isaac_int4 = glm::vec<4, isaac_int, glm::defaultp>;
 using isaac_int3 = glm::vec<3, isaac_int, glm::defaultp>;
 using isaac_int2 = glm::vec<2, isaac_int, glm::defaultp>;

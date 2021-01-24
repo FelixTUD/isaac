@@ -473,7 +473,7 @@ namespace isaac
             const int sourceNumber = NR::value + TOffset;
             if( mpl::at_c<
                 TFilter,
-                sourceNumber
+                NR::value
             >::type::value )
             {
                 auto particle_iterator = source.getIterator( cell_pos );
@@ -902,8 +902,6 @@ namespace isaac
         }
     };
 
-    constexpr auto maxFloat = std::numeric_limits<isaac_float>::max( );
-
 
     template<
         typename TParticleList,
@@ -1315,15 +1313,15 @@ namespace isaac
             // check for 0 to stop infinite looping
             if( normalized_dir.x == 0 )
             {
-                t.x = maxFloat;
+                t.x = std::numeric_limits<isaac_float>::max( );
             }
             if( normalized_dir.y == 0 )
             {
-                t.y = maxFloat;
+                t.y = std::numeric_limits<isaac_float>::max( );
             }
             if( normalized_dir.z == 0 )
             {
-                t.z = maxFloat;
+                t.z = std::numeric_limits<isaac_float>::max( );
             }
 
 
@@ -1516,6 +1514,354 @@ namespace isaac
             isaac_float3 depth_value = {
                 0.0f,
                 ao_blend,
+                depth
+            };                
+
+            gDepth[pixel.x + pixel.y * framebuffer_size.x] = depth_value;
+        }
+    };
+
+    template<
+        typename TParticleList,
+        typename TTransferArray,
+        typename TSourceWeight,
+        typename TPointerArray,
+        typename TFilter,
+        ISAAC_IDX_TYPE Ttransfer_size,
+        int TSourceOffset
+    >
+    struct ParticleRenderKernel
+    {
+        template<
+            typename TAcc__
+        >
+        ALPAKA_FN_ACC void operator()(
+            TAcc__ const & acc,
+            uint32_t * const pixels,                //ptr to output pixels
+            isaac_float3 * const gDepth,            //depth buffer
+            isaac_float3 * const gNormal,           //normal buffer
+            isaac_size2 framebuffer_size,     //size of framebuffer
+            isaac_uint2 framebuffer_start,    //framebuffer offset
+            TParticleList particle_sources,   //source simulation particles
+            isaac_float4 background_color,    //color of render background
+            TTransferArray transferArray,     //mapping to simulation memory
+            TSourceWeight sourceWeight,       //weights of sources for blending
+            TPointerArray pointerArray,
+            isaac_float3 scale,               //isaac set scaling
+            clipping_struct input_clipping,   //clipping planes
+            ao_struct ambientOcclusion        //ambient occlusion params
+        ) const
+        {
+            //get pixel values from thread ids
+            auto alpThreadIdx = alpaka::getIdx<
+                alpaka::Grid,
+                alpaka::Threads
+            >( acc );
+            isaac_uint2 pixel = isaac_uint2( alpThreadIdx[2], alpThreadIdx[1] );
+            //apply framebuffer offset to pixel
+            //stop if pixel position is out of bounds
+            pixel = pixel + framebuffer_start;
+            if( pixel.x >= framebuffer_size.x || pixel.y >= framebuffer_size.y )
+                return;
+
+            //gNormalBuffer default value
+            isaac_float3 default_normal = {0.0, 0.0, 0.0};
+            isaac_float3 default_depth = {1.0, 1.0, 1.0};
+
+            //set background color
+            isaac_float4 color = background_color;
+            bool at_least_one = true;
+            isaac_for_each_with_mpl_params(
+                particle_sources,
+                check_no_source_iterator< TFilter >( ),
+                at_least_one
+            );
+            if( !at_least_one )
+            {
+                ISAAC_SET_COLOR ( 
+                    pixels[pixel.x + pixel.y * framebuffer_size.x], 
+                    color 
+                )
+                gNormal[pixel.x + pixel.y * framebuffer_size.x] = default_normal;
+                gDepth[pixel.x + pixel.y * framebuffer_size.x] = default_depth;
+                return;
+            }
+
+            //relative pixel position in framebuffer [-1.0 ... 1.0]
+            isaac_float2 pixel_f = isaac_float2( pixel ) / isaac_float2( framebuffer_size ) * isaac_float( 2 ) - isaac_float( 1 );
+
+            //ray start position
+            isaac_float4 start_p;
+            start_p.x = pixel_f.x;
+            start_p.y = pixel_f.y;
+            start_p.z = -1.0f;
+            start_p.w = 1.0f;
+
+            //ray end position
+            isaac_float4 end_p;
+            end_p.x = pixel_f.x;
+            end_p.y = pixel_f.y;
+            end_p.z = 1.0f;
+            end_p.w = 1.0f;
+
+            //apply inverse modelview transform to ray start/end and get ray start/end as worldspace
+            isaac_float4 start_w = isaac_inverse_d * start_p;
+            isaac_float4 end_w = isaac_inverse_d * end_p;
+            isaac_float3 start = start_w / start_w.w;
+            isaac_float3 end = end_w / end_w.w;
+
+            isaac_float max_size = isaac_size_d.max_global_size_scaled / 2.0f;
+
+            //scale to globale grid size
+            start = start * max_size;
+            end = end * max_size;
+
+
+            //clipping planes with transformed positions
+            clipping_struct clipping;
+            //set values for clipping planes
+            //scale position to global size
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                clipping.elem[i].position =
+                    input_clipping.elem[i].position * max_size;
+                clipping.elem[i].normal = input_clipping.elem[i].normal;
+            }
+
+            //move to local (scaled) grid
+            //get offset of subvolume in global volume
+            isaac_float3 move_f = isaac_float3( isaac_int3( isaac_size_d.global_size_scaled ) / 2 - isaac_int3( isaac_size_d.position_scaled ) );
+
+            //apply subvolume offset to start and end
+            start = start + move_f;
+            end = end + move_f;
+
+            //apply subvolume offset to position checked clipping plane
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                clipping.elem[i].position =
+                    clipping.elem[i].position + move_f;
+            }
+
+            //apply isaac scaling to start, end and position tested by clipping plane
+            start = start / scale;
+            end = end / scale;
+
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                clipping.elem[i].position = clipping.elem[i].position / scale;
+            }
+
+            //get step vector
+            isaac_float3 ray_dir = glm::normalize( end - start );
+
+            //clip ray on volume bounding box
+            isaac_float3 count_start = -start / ray_dir;
+            isaac_float3 count_end = ( isaac_float3( isaac_size_d.local_size ) - start ) / ray_dir;
+
+            //count_start shall have the smaller values
+            ISAAC_SWITCH_IF_SMALLER ( count_end.x, count_start.x )
+            ISAAC_SWITCH_IF_SMALLER ( count_end.y, count_start.y )
+            ISAAC_SWITCH_IF_SMALLER ( count_end.z, count_start.z )
+
+            isaac_float first_f = glm::max( count_start.x, glm::max( count_start.y, count_start.z ) );
+            isaac_float last_f = glm::min( count_end.x, glm::min( count_end.y, count_end.z ) );
+            if( first_f > last_f )
+            {
+                ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+
+                //this function aborts drawing and therfore wont set any normal or depth values
+                //defaults will be applied for clean images
+                gNormal[pixel.x + pixel.y * framebuffer_size.x] = default_normal;
+                gDepth[pixel.x + pixel.y * framebuffer_size.x] = default_depth;
+
+                return;
+            }
+
+
+            //ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], isaac_float4((start + ray_dir * first_f) / isaac_float3( isaac_size_d.local_size ) * 0.5f + 0.5f, 1.0f) );
+            //return;
+
+            bool is_clipped = false;
+            isaac_float3 clipping_normal;
+            //Extra clipping
+            for( isaac_int i = 0; i < input_clipping.count; i++ )
+            {
+                isaac_float d = glm::dot( ray_dir, clipping.elem[i].normal);
+
+                isaac_float intersection_depth = ( glm::dot( clipping.elem[i].position, clipping.elem[i].normal )
+                                                    - glm::dot( start, clipping.elem[i].normal ) ) / d;
+                if( d > 0 )
+                {
+                    if( last_f < intersection_depth )
+                    {
+                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+                        return;
+                    }
+                    if( first_f <= intersection_depth )
+                    {
+                        clipping_normal = clipping.elem[i].normal;
+                        is_clipped = true;
+                        first_f = intersection_depth;
+                        count_start = start + ray_dir * intersection_depth;
+                    }
+                }
+                else
+                {
+                    if( first_f > intersection_depth )
+                    {
+                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+                        return;
+                    }
+                    if( last_f > intersection_depth )
+                    {
+                        last_f = intersection_depth;
+                        count_end = end + ray_dir * intersection_depth;
+                    }
+                }
+            }
+
+            isaac_float4 particle_color = background_color;
+            isaac_float depth = std::numeric_limits<isaac_float>::max( );
+            isaac_float3 local_start = start * scale;
+            bool particle_hit = false;
+            isaac_float3 normalized_dir = glm::normalize( ray_dir * scale );
+            // light direction is camera direction
+            isaac_float3 light_dir = -normalized_dir;
+
+            /* RAYMARCH */
+
+            // get the signs of the direction for the raymarch
+            isaac_int3 dir_sign = glm::sign( normalized_dir );
+
+            // calculate current position in scaled object space
+            isaac_float3 current_pos = ( start + ray_dir * glm::max( first_f, 0.0f ) ) * scale;
+
+            // calculate current local cell coordinates
+            isaac_uint3 current_cell = isaac_uint3( glm::clamp( 
+                                    isaac_int3( current_pos / scale ), 
+                                    isaac_int3( 0 ), 
+                                    isaac_int3( isaac_size_d.local_particle_size - ISAAC_IDX_TYPE( 1 ) ) 
+                                ) );
+
+            isaac_float ray_length = glm::length( ( end - start ) * scale );
+            isaac_float march_length = 0;
+
+
+            // calculate next intersection with each dimension
+            isaac_float3 t = ( ( isaac_float3( current_cell ) + isaac_float3( glm::max( dir_sign, 0 ) ) ) 
+                    * scale - current_pos ) / normalized_dir;
+
+            // calculate delta length to next intersection in the same dimension
+            isaac_float3 delta_t = scale / normalized_dir * isaac_float3( dir_sign );
+
+            isaac_float3 particle_hitposition(0);
+
+            // check for 0 to stop infinite looping
+            if( normalized_dir.x == 0 )
+            {
+                t.x = std::numeric_limits<isaac_float>::max( );
+            }
+            if( normalized_dir.y == 0 )
+            {
+                t.y = std::numeric_limits<isaac_float>::max( );
+            }
+            if( normalized_dir.z == 0 )
+            {
+                t.z = std::numeric_limits<isaac_float>::max( );
+            }
+
+
+            //normal at particle hit position
+            isaac_float3 particle_normal = default_normal;
+            // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
+            while( current_cell.x < isaac_size_d.local_particle_size.x 
+                && current_cell.y < isaac_size_d.local_particle_size.y 
+                && current_cell.z < isaac_size_d.local_particle_size.z 
+                && particle_hit == false
+                && march_length <= ray_length )
+            {
+
+                // calculate particle intersections for each particle source
+                isaac_for_each_with_mpl_params(
+                    particle_sources,
+                    merge_particle_iterator<
+                        Ttransfer_size,
+                        TSourceOffset,
+                        TFilter
+                    >( ),
+                    local_start,
+                    normalized_dir,
+                    light_dir,
+                    current_cell,
+                    transferArray,
+                    sourceWeight,
+                    scale,
+                    clipping_normal,
+                    is_clipped,
+                    particle_color,
+                    particle_normal,
+                    particle_hitposition,
+                    particle_hit,
+                    depth
+                );
+
+
+                // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
+                if( t.x < t.y && t.x < t.z )
+                {
+                    current_cell.x += dir_sign.x;
+                    march_length = t.x;
+                    t.x += delta_t.x;
+                }
+                else if( t.y < t.x && t.y < t.z )
+                {
+                    current_cell.y += dir_sign.y;
+                    march_length = t.y;
+                    t.y += delta_t.y;
+                }
+                else
+                {
+                    current_cell.z += dir_sign.z;
+                    march_length = t.z;
+                    t.z += delta_t.z;
+                }
+
+            }
+            // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
+            if( particle_hit )
+            {
+
+                // calculate lighting properties for the last hit particle
+                particle_normal = glm::normalize( particle_normal );
+
+                isaac_float light_factor = glm::dot( particle_normal, light_dir );
+
+                isaac_float3 half_vector = glm::normalize( -normalized_dir + light_dir );
+
+                isaac_float specular = glm::dot( particle_normal, half_vector );
+
+                specular = pow( specular, 10 );
+                specular *= 0.5f;
+                light_factor = light_factor * 0.5f + 0.5f;
+
+
+                particle_color = glm::min( particle_color * light_factor + specular, isaac_float( 1 ) );
+                particle_color.a = 1.0f;
+            }
+
+
+            ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], particle_color )
+            //save the particle normal in the normal g buffer
+            gNormal[pixel.x + pixel.y * framebuffer_size.x] = particle_normal;
+            
+            //save the cell depth in our g buffer (depth)
+            //march_length takes the old particle_color w component 
+            //the w component stores the particle depth and will be replaced later by new alpha values and 
+            //is therefore stored in march_length
+            isaac_float3 depth_value = {
+                0.0f,
+                1.0f,
                 depth
             };                
 
@@ -1753,6 +2099,238 @@ namespace isaac
         }
     };
 
+    template<
+        typename TParticleList,
+        typename TTransferArray,
+        typename TSourceWeight,
+        typename TPointerArray,
+        typename TFilter,
+        ISAAC_IDX_TYPE TTransfer_size,
+        typename TAccDim,
+        typename TAcc,
+        typename TStream,
+        typename TFunctionChain,
+        int TSourceOffset,
+        int N
+    >
+    struct ParticleRenderKernelCaller
+    {
+        inline static void call(
+            TStream stream,
+            uint32_t * framebuffer,
+            isaac_float3 * depthBuffer,
+            isaac_float3 * normalBuffer,
+            const isaac_size2 & framebuffer_size,
+            const isaac_uint2 & framebuffer_start,
+            const TParticleList & particle_sources,
+            const isaac_float4 & background_color,
+            const TTransferArray & transferArray,
+            const TSourceWeight & sourceWeight,
+            const TPointerArray & pointerArray,
+            IceTInt const * const readback_viewport,
+            const isaac_float3 & scale,
+            const clipping_struct & clipping,
+            const ao_struct & ambientOcclusion
+        )
+        {
+            if( sourceWeight.value[TSourceOffset + mpl::size< TParticleList >::type::value - N] == isaac_float( 0 ) )
+            {
+                ParticleRenderKernelCaller<
+                    TParticleList,
+                    TTransferArray,
+                    TSourceWeight,
+                    TPointerArray,
+                    typename mpl::push_back<
+                        TFilter,
+                        mpl::false_
+                    >::type,
+                    TTransfer_size,
+                    TAccDim,
+                    TAcc,
+                    TStream,
+                    TFunctionChain,
+                    TSourceOffset,
+                    N - 1
+                >::call(
+                    stream,
+                    framebuffer,
+                    depthBuffer,
+                    normalBuffer,
+                    framebuffer_size,
+                    framebuffer_start,
+                    particle_sources,
+                    background_color,
+                    transferArray,
+                    sourceWeight,
+                    pointerArray,
+                    readback_viewport,
+                    scale,
+                    clipping,
+                    ambientOcclusion
+                );
+            }
+            else
+            {
+                ParticleRenderKernelCaller<
+                    TParticleList,
+                    TTransferArray,
+                    TSourceWeight,
+                    TPointerArray,
+                    typename mpl::push_back<
+                        TFilter,
+                        mpl::true_
+                    >::type,
+                    TTransfer_size,
+                    TAccDim,
+                    TAcc,
+                    TStream,
+                    TFunctionChain,
+                    TSourceOffset,
+                    N - 1
+                >::call(
+                    stream,
+                    framebuffer,
+                    depthBuffer,
+                    normalBuffer,
+                    framebuffer_size,
+                    framebuffer_start,
+                    particle_sources,
+                    background_color,
+                    transferArray,
+                    sourceWeight,
+                    pointerArray,
+                    readback_viewport,
+                    scale,
+                    clipping,
+                    ambientOcclusion
+                );
+            }
+        }
+    };
+
+    template<
+        typename TParticleList,
+        typename TTransferArray,
+        typename TSourceWeight,
+        typename TPointerArray,
+        typename TFilter,
+        ISAAC_IDX_TYPE TTransfer_size,
+        typename TAccDim,
+        typename TAcc,
+        typename TStream,
+        typename TFunctionChain,
+        int TSourceOffset
+    >
+    struct ParticleRenderKernelCaller<
+        TParticleList,
+        TTransferArray,
+        TSourceWeight,
+        TPointerArray,
+        TFilter,
+        TTransfer_size,
+        TAccDim,
+        TAcc,
+        TStream,
+        TFunctionChain,
+        TSourceOffset,
+        0 //<-- spezialisation
+    >
+    {
+        inline static void call(
+            TStream stream,
+            uint32_t *  framebuffer,
+            isaac_float3 * depthBuffer,
+            isaac_float3 * normalBuffer,
+            const isaac_size2 & framebuffer_size,
+            const isaac_uint2 & framebuffer_start,
+            const TParticleList & particle_sources,
+            const isaac_float4 & background_color,
+            const TTransferArray & transferArray,
+            const TSourceWeight & sourceWeight,
+            const TPointerArray & pointerArray,
+            IceTInt const * const readback_viewport,
+            const isaac_float3 & scale,
+            const clipping_struct & clipping,
+            const ao_struct & ambientOcclusion
+        )
+        {
+            isaac_size2 block_size = {
+                ISAAC_IDX_TYPE( 8 ),
+                ISAAC_IDX_TYPE( 16 )
+            };
+            isaac_size2 grid_size = {
+                ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
+                ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
+            };
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+            if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+#endif
+            {
+                grid_size.x = ISAAC_IDX_TYPE( readback_viewport[2] );
+                grid_size.y = ISAAC_IDX_TYPE( readback_viewport[3] );
+                block_size.x = ISAAC_IDX_TYPE( 1 );
+                block_size.y = ISAAC_IDX_TYPE( 1 );
+            }
+            const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
+                ISAAC_IDX_TYPE( 1 ),
+                ISAAC_IDX_TYPE( 1 ),
+                ISAAC_IDX_TYPE( 1 )
+            );
+            const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> blocks(
+                ISAAC_IDX_TYPE( 1 ),
+                block_size.y,
+                block_size.x
+            );
+            const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> grid(
+                ISAAC_IDX_TYPE( 1 ),
+                grid_size.y,
+                grid_size.x
+            );
+            auto const workdiv(
+                alpaka::WorkDivMembers<
+                    TAccDim,
+                    ISAAC_IDX_TYPE
+                >(
+                    grid,
+                    blocks,
+                    threads
+                )
+            );
+            ParticleRenderKernel
+            <
+                TParticleList,
+                TTransferArray,
+                TSourceWeight,
+                TPointerArray,
+                TFilter,
+                TTransfer_size,
+                TSourceOffset
+            >
+            kernel;
+            auto const instance
+            (
+                alpaka::createTaskKernel<TAcc>
+                (
+                    workdiv,
+                    kernel,
+                    framebuffer,
+                    depthBuffer,
+                    normalBuffer,
+                    framebuffer_size,
+                    framebuffer_start,
+                    particle_sources,
+                    background_color,
+                    transferArray,
+                    sourceWeight,
+                    pointerArray,
+                    scale,
+                    clipping,
+                    ambientOcclusion
+                )
+            );
+            alpaka::enqueue(stream, instance);
+        }
+    };
 
     template<
         typename TParticleList,
