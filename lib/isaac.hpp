@@ -3073,7 +3073,7 @@ namespace isaac
                 )
             );
             isaac_mat4& projection_h =
-                *( reinterpret_cast<isaac_mat4 *> ( alpaka::getPtrNative( modelview_h_buf ) ) );
+                *( reinterpret_cast<isaac_mat4 *> ( alpaka::getPtrNative( projection_h_buf ) ) );
 
 
             //sim size values
