@@ -314,7 +314,7 @@ namespace isaac
                     }
                 }
             }
-            isaac_float_dim< 3 > pos_in_cube = pos - glm::floor( pos );
+            isaac_float3 pos_in_cube = pos - glm::floor( pos );
             
             isaac_float_dim <TSource::feature_dim> data4[2][2];
             for( int x = 0; x < 2; x++ )
