@@ -314,15 +314,8 @@ namespace isaac
                     }
                 }
             }
-            //Against annoying double->float casting warning with gcc5
-#if __CUDACC_VER_MAJOR__ > 7
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wnarrowing"
-#endif
             isaac_float_dim< 3 > pos_in_cube = pos - glm::floor( pos );
-#if __CUDACC_VER_MAJOR__ > 7
-#pragma GCC diagnostic pop
-#endif
+            
             isaac_float_dim <TSource::feature_dim> data4[2][2];
             for( int x = 0; x < 2; x++ )
             {
