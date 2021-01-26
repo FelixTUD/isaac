@@ -73,7 +73,7 @@ namespace isaac
             TResult & result
         ) const
         {
-            result |= mpl::at_c<
+            result |= boost::mpl::at_c<
                 TFilter,
                 NR::value
             >::type::value;

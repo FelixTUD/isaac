@@ -114,7 +114,7 @@ namespace isaac
             if (bytecode[ISAAC_MAX_FUNCTORS-NR] == I) \
                 return FillFunctorChainPointerKernelStruct \
                 < \
-                    typename mpl::push_back< TFunctorVector, typename boost::mpl::at_c<IsaacFunctorPool,I>::type >::type, \
+                    typename boost::mpl::push_back< TFunctorVector, typename boost::mpl::at_c<IsaacFunctorPool,I>::type >::type, \
                     TFeatureDim, \
                     NR - 1 \
                 > ::call( bytecode );
@@ -138,7 +138,7 @@ namespace isaac
         isaac_int const src_id
     )
     {
-#define  ISAAC_LEFT_DEF( Z, I, U ) mpl::at_c< TFunctorVector, ISAAC_MAX_FUNCTORS - I - 1 >::type::call(
+#define  ISAAC_LEFT_DEF( Z, I, U ) boost::mpl::at_c< TFunctorVector, ISAAC_MAX_FUNCTORS - I - 1 >::type::call(
 #define ISAAC_RIGHT_DEF( Z, I, U ) , isaac_parameter_d[ src_id * ISAAC_MAX_FUNCTORS + I ] )
 #define  ISAAC_LEFT BOOST_PP_REPEAT( ISAAC_MAX_FUNCTORS, ISAAC_LEFT_DEF, ~)
 #define ISAAC_RIGHT BOOST_PP_REPEAT( ISAAC_MAX_FUNCTORS, ISAAC_RIGHT_DEF, ~)
@@ -195,25 +195,25 @@ namespace isaac
             {
                 functor_chain_d[i * 4 + 0] =
                     FillFunctorChainPointerKernelStruct<
-                        mpl::vector< >,
+                        boost::mpl::vector< >,
                         1,
                         ISAAC_MAX_FUNCTORS
                     >::call( bytecode );
                 functor_chain_d[i * 4 + 1] =
                     FillFunctorChainPointerKernelStruct<
-                        mpl::vector< >,
+                        boost::mpl::vector< >,
                         2,
                         ISAAC_MAX_FUNCTORS
                     >::call( bytecode );
                 functor_chain_d[i * 4 + 2] =
                     FillFunctorChainPointerKernelStruct<
-                        mpl::vector< >,
+                        boost::mpl::vector< >,
                         3,
                         ISAAC_MAX_FUNCTORS
                     >::call( bytecode );
                 functor_chain_d[i * 4 + 3] =
                     FillFunctorChainPointerKernelStruct<
-                        mpl::vector< >,
+                        boost::mpl::vector< >,
                         4,
                         ISAAC_MAX_FUNCTORS
                     >::call( bytecode );

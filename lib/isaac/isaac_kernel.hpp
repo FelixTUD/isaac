@@ -29,11 +29,6 @@
 
 namespace isaac
 {
-
-    namespace fus = boost::fusion;
-    namespace mpl = boost::mpl;
-
-
     template<
         isaac_int TInterpolation,
         typename NR,
@@ -41,8 +36,6 @@ namespace isaac
         typename TPointerArray
     >
     ISAAC_HOST_DEVICE_INLINE isaac_float
-
-
     get_value(
         const TSource & source,
         const isaac_float3 & pos,
@@ -237,7 +230,7 @@ namespace isaac
             const isaac_float3 & start_normal
         ) const
         {
-            if( mpl::at_c<
+            if( boost::mpl::at_c<
                 TFilter,
                 NR::value
             >::type::value )
@@ -952,7 +945,7 @@ namespace isaac
                     particle_sources,
                     merge_particle_iterator<
                         Ttransfer_size,
-                        mpl::size< TSourceList >::type::value,
+                        boost::mpl::size< TSourceList >::type::value,
                         TFilter
                     >( ),
                     local_start,
@@ -1171,8 +1164,8 @@ namespace isaac
             const ao_struct & ambientOcclusion
         )
         {
-            if( sourceWeight.value[mpl::size< TSourceList >::type::value
-                                   + mpl::size< TParticleList >::type::value
+            if( sourceWeight.value[boost::mpl::size< TSourceList >::type::value
+                                   + boost::mpl::size< TParticleList >::type::value
                                    - N] == isaac_float( 0 ) )
             {
                 IsaacRenderKernelCaller<
@@ -1181,9 +1174,9 @@ namespace isaac
                     TTransferArray,
                     TSourceWeight,
                     TPointerArray,
-                    typename mpl::push_back<
+                    typename boost::mpl::push_back<
                         TFilter,
-                        mpl::false_
+                        boost::mpl::false_
                     >::type,
                     TTransfer_size,
                     TAccDim,
@@ -1221,9 +1214,9 @@ namespace isaac
                     TTransferArray,
                     TSourceWeight,
                     TPointerArray,
-                    typename mpl::push_back<
+                    typename boost::mpl::push_back<
                         TFilter,
-                        mpl::true_
+                        boost::mpl::true_
                     >::type,
                     TTransfer_size,
                     TAccDim,
@@ -1315,7 +1308,7 @@ namespace isaac
                 ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
             };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+            if ( boost::mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
             {
                 grid_size.x = ISAAC_IDX_TYPE( readback_viewport[2] );

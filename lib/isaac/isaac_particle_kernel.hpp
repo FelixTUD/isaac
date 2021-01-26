@@ -62,7 +62,7 @@ namespace isaac
         ) const
         {
             const int sourceNumber = NR::value + TOffset;
-            if( mpl::at_c<
+            if( boost::mpl::at_c<
                 TFilter,
                 NR::value
             >::type::value )
@@ -493,16 +493,16 @@ namespace isaac
             const ao_struct & ambientOcclusion
         )
         {
-            if( sourceWeight.value[TSourceOffset + mpl::size< TParticleList >::type::value - N] == isaac_float( 0 ) )
+            if( sourceWeight.value[TSourceOffset + boost::mpl::size< TParticleList >::type::value - N] == isaac_float( 0 ) )
             {
                 ParticleRenderKernelCaller<
                     TParticleList,
                     TTransferArray,
                     TSourceWeight,
                     TPointerArray,
-                    typename mpl::push_back<
+                    typename boost::mpl::push_back<
                         TFilter,
-                        mpl::false_
+                        boost::mpl::false_
                     >::type,
                     TTransfer_size,
                     TAccDim,
@@ -536,9 +536,9 @@ namespace isaac
                     TTransferArray,
                     TSourceWeight,
                     TPointerArray,
-                    typename mpl::push_back<
+                    typename boost::mpl::push_back<
                         TFilter,
-                        mpl::true_
+                        boost::mpl::true_
                     >::type,
                     TTransfer_size,
                     TAccDim,
@@ -623,7 +623,7 @@ namespace isaac
                 ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
             };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+            if ( boost::mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
             {
                 grid_size.x = ISAAC_IDX_TYPE( readback_viewport[2] );
