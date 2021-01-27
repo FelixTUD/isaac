@@ -232,8 +232,7 @@ public:
 
 
     ISAAC_HOST_INLINE void update(
-        bool enabled,
-        void * pointer
+        bool enabled
     )
     {}
 

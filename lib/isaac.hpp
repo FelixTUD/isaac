@@ -308,8 +308,7 @@ namespace isaac
             /** Update iterator for particle sources
              *
              * Iterator for updating the particle sources with a boolean if the
-             * Particle Source is enabled and further user defined information
-             * in the pointer
+             * Particle Source is enabled
              *
              * @tparam TParticleSource is the particle source type
              * @tparam TWeight is weight type
@@ -319,28 +318,23 @@ namespace isaac
              * @param particle_source is the current particle source
              * @param weight is the array with all source weights
              * @param weightArrayOffset is the offset in the array to the particle sources
-             * @param pointer is the pointer to the user defined additional information
              *
              */
             template<
                 typename TParticleSource,
-                typename TWeight,
-                typename TOffset,
-                typename TPointer
+                typename TWeight
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 TParticleSource & particle_source,
                 const TWeight & weight,
-                const TOffset & weightArrayOffset,
-                const TPointer & pointer
+                const int weightArrayOffset
             ) const
             {
                 bool enabled =
                     weight.value[I + weightArrayOffset] != isaac_float( 0 );
                 particle_source.update(
-                    enabled,
-                    pointer
+                    enabled
                 );
             }
 
@@ -351,7 +345,6 @@ namespace isaac
             template<
                 typename TSource,
                 typename TArray,
-                typename TLocalSize,
                 typename TWeight,
                 typename TPointer,
                 typename TStream__
@@ -360,7 +353,7 @@ namespace isaac
                 const int I,
                 TSource & source,
                 TArray & pointer_array,
-                const TLocalSize & local_size,
+                const isaac_size3 & local_size,
                 const TWeight & weight,
                 const TPointer & pointer,
                 TStream__ & stream
@@ -1949,8 +1942,7 @@ namespace isaac
                     particle_sources,
                     update_particle_source_iterator( ),
                     source_weight,
-                    boost::mpl::size< TSourceList >::type::value,
-                    pointer
+                    boost::mpl::size< TSourceList >::type::value
                 );
                 ISAAC_STOP_TIME_MEASUREMENT ( buffer_time,
                     +=,
@@ -3200,27 +3192,13 @@ namespace isaac
                 isaac_uint( readback_viewport[1] )
             };
 
+            const int SourceListLength = boost::mpl::size< TSourceList >::type::value
+                                        + boost::mpl::size< TParticleList >::type::value;
                         //call render kernel
             ParticleRenderKernelCaller<
                 TParticleList,
-                transfer_d_struct<
-                    (
-                        boost::mpl::size< TSourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
-                    )
-                >,
-                source_weight_struct<
-                    (
-                        boost::mpl::size< TSourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
-                    )
-                >,
-                pointer_array_struct<
-                    (
-                        boost::mpl::size< TSourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
-                    )
-                >,
+                transfer_d_struct<SourceListLength>,
+                source_weight_struct<SourceListLength>,
                 mpl::vector< >,
                 TTransfer_size,
                 TAccDim, 
@@ -3246,7 +3224,6 @@ namespace isaac
                 bg_color,
                 myself->transfer_d,
                 myself->source_weight,
-                myself->pointer_array,
                 readback_viewport,
                 isaac_float3( size_h.local_size_scaled ) / isaac_float3( size_h.local_particle_size ),
                 myself->clipping,
@@ -4135,7 +4112,6 @@ namespace isaac
         pointer_array_struct<
             (
                 boost::mpl::size< TSourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
             )
         > pointer_array;
         minmax_array_struct<

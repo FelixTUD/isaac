@@ -135,7 +135,6 @@ namespace isaac
         typename TParticleList,
         typename TTransferArray,
         typename TSourceWeight,
-        typename TPointerArray,
         typename TFilter,
         ISAAC_IDX_TYPE Ttransfer_size,
         int TSourceOffset
@@ -154,9 +153,8 @@ namespace isaac
             isaac_uint2 framebuffer_start,    //framebuffer offset
             TParticleList particle_sources,   //source simulation particles
             isaac_float4 background_color,    //color of render background
-            TTransferArray transferArray,     //mapping to simulation memory
-            TSourceWeight sourceWeight,       //weights of sources for blending
-            TPointerArray pointerArray,
+            TTransferArray transferArray,     //array of pointers to transfer functions
+            TSourceWeight sourceWeight,       //weights of all sources 
             isaac_float3 scale,               //isaac set scaling
             clipping_struct input_clipping,   //clipping planes
             ao_struct ambientOcclusion        //ambient occlusion params
@@ -463,7 +461,6 @@ namespace isaac
         typename TParticleList,
         typename TTransferArray,
         typename TSourceWeight,
-        typename TPointerArray,
         typename TFilter,
         ISAAC_IDX_TYPE TTransfer_size,
         typename TAccDim,
@@ -486,7 +483,6 @@ namespace isaac
             const isaac_float4 & background_color,
             const TTransferArray & transferArray,
             const TSourceWeight & sourceWeight,
-            const TPointerArray & pointerArray,
             IceTInt const * const readback_viewport,
             const isaac_float3 & scale,
             const clipping_struct & clipping,
@@ -499,7 +495,6 @@ namespace isaac
                     TParticleList,
                     TTransferArray,
                     TSourceWeight,
-                    TPointerArray,
                     typename boost::mpl::push_back<
                         TFilter,
                         boost::mpl::false_
@@ -522,7 +517,6 @@ namespace isaac
                     background_color,
                     transferArray,
                     sourceWeight,
-                    pointerArray,
                     readback_viewport,
                     scale,
                     clipping,
@@ -535,7 +529,6 @@ namespace isaac
                     TParticleList,
                     TTransferArray,
                     TSourceWeight,
-                    TPointerArray,
                     typename boost::mpl::push_back<
                         TFilter,
                         boost::mpl::true_
@@ -558,7 +551,6 @@ namespace isaac
                     background_color,
                     transferArray,
                     sourceWeight,
-                    pointerArray,
                     readback_viewport,
                     scale,
                     clipping,
@@ -572,7 +564,6 @@ namespace isaac
         typename TParticleList,
         typename TTransferArray,
         typename TSourceWeight,
-        typename TPointerArray,
         typename TFilter,
         ISAAC_IDX_TYPE TTransfer_size,
         typename TAccDim,
@@ -585,7 +576,6 @@ namespace isaac
         TParticleList,
         TTransferArray,
         TSourceWeight,
-        TPointerArray,
         TFilter,
         TTransfer_size,
         TAccDim,
@@ -607,7 +597,6 @@ namespace isaac
             const isaac_float4 & background_color,
             const TTransferArray & transferArray,
             const TSourceWeight & sourceWeight,
-            const TPointerArray & pointerArray,
             IceTInt const * const readback_viewport,
             const isaac_float3 & scale,
             const clipping_struct & clipping,
@@ -661,7 +650,6 @@ namespace isaac
                 TParticleList,
                 TTransferArray,
                 TSourceWeight,
-                TPointerArray,
                 TFilter,
                 TTransfer_size,
                 TSourceOffset
@@ -682,7 +670,6 @@ namespace isaac
                     background_color,
                     transferArray,
                     sourceWeight,
-                    pointerArray,
                     scale,
                     clipping,
                     ambientOcclusion
