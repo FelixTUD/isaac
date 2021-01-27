@@ -233,7 +233,7 @@ namespace isaac
             //scale position to global size
             for( isaac_int i = 0; i < input_clipping.count; i++ )
             {
-                clipping.elem[i].position = input_clipping.elem[i].position * isaac_float3( isaac_size_d.global_size ) * scale * isaac_float( 0.5 );
+                clipping.elem[i].position = input_clipping.elem[i].position * isaac_float3( isaac_size_d.global_size_scaled ) * isaac_float( 0.5 );
                 clipping.elem[i].normal = input_clipping.elem[i].normal;
             }
 
@@ -257,7 +257,7 @@ namespace isaac
 
             //clip ray on volume bounding box
             isaac_float3 bb_intersection_min = -start / ray_dir;
-            isaac_float3 bb_intersection_max = ( isaac_float3( isaac_size_d.local_size ) * scale - start ) / ray_dir;
+            isaac_float3 bb_intersection_max = ( isaac_float3( isaac_size_d.local_size_scaled ) - start ) / ray_dir;
 
             //bb_intersection_min shall have the smaller values
             ISAAC_SWITCH_IF_SMALLER ( bb_intersection_max.x, bb_intersection_min.x )
@@ -303,7 +303,7 @@ namespace isaac
                     }
                 }
             }
-            first_f = glm::max( first_f, 0.0f );
+            first_f = glm::max( first_f, isaac_float( 0 ) );
 
             if( first_f > last_f )
             {
@@ -451,7 +451,7 @@ namespace isaac
             isaac_float3 depth_value = {
                 0.0f,
                 1.0f,
-                depth
+                depth + first_f
             };
             gDepth[pixel.x + pixel.y * framebuffer_size.x] = depth_value;
         }

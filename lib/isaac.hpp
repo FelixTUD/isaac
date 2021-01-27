@@ -3248,7 +3248,7 @@ namespace isaac
                 myself->source_weight,
                 myself->pointer_array,
                 readback_viewport,
-                isaac_scale,
+                isaac_float3( size_h.local_size_scaled ) / isaac_float3( size_h.local_particle_size ),
                 myself->clipping,
                 myself->ambientOcclusion
             );
