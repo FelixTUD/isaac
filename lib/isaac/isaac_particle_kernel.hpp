@@ -57,7 +57,7 @@ namespace isaac
             isaac_float4 & out_color,                 //resulting particle color
             isaac_float3 & out_normal,                //resulting particle normal
             isaac_float3 & out_position,              //resulting particle hit position
-            bool & out_particle_hit,                  //true or false if particle has been hit or not
+            bool & out_particleHit,                  //true or false if particle has been hit or not
             isaac_float & out_depth                       //resulting particle depth
         ) const
         {
@@ -111,7 +111,7 @@ namespace isaac
                             {
                                 out_color = value;
                                 out_depth = t0;
-                                out_particle_hit = 1;
+                                out_particleHit = 1;
                                 out_position = particle_pos;
                                 out_normal = start + t0 * dir - particle_pos;
                                 if( t0 < 0 && is_clipped )
@@ -149,15 +149,15 @@ namespace isaac
             uint32_t * const pixels,          //ptr to output pixels
             isaac_float3 * const gDepth,      //depth buffer
             isaac_float3 * const gNormal,     //normal buffer
-            isaac_size2 framebuffer_size,     //size of framebuffer
-            isaac_uint2 framebuffer_start,    //framebuffer offset
-            TParticleList particle_sources,   //source simulation particles
-            isaac_float4 background_color,    //color of render background
-            TTransferArray transferArray,     //array of pointers to transfer functions
-            TSourceWeight sourceWeight,       //weights of all sources 
-            isaac_float3 scale,               //isaac set scaling
-            clipping_struct input_clipping,   //clipping planes
-            ao_struct ambientOcclusion        //ambient occlusion params
+            const isaac_size2 framebuffer_size,     //size of framebuffer
+            const isaac_uint2 framebuffer_start,    //framebuffer offset
+            const TParticleList particle_sources,   //source simulation particles
+            const isaac_float4 background_color,    //color of render background
+            const TTransferArray transferArray,     //array of pointers to transfer functions
+            const TSourceWeight sourceWeight,       //weights of all sources 
+            const isaac_float3 scale,               //isaac set scaling
+            const clipping_struct input_clipping,   //clipping planes
+            const ao_struct ambientOcclusion        //ambient occlusion params
         ) const
         {
             //get pixel values from thread ids
@@ -195,35 +195,7 @@ namespace isaac
                 return;
             }
 
-            //relative pixel position in framebuffer [-1.0 ... 1.0]
-            isaac_float2 pixel_f = isaac_float2( pixel ) / isaac_float2( framebuffer_size ) * isaac_float( 2 ) - isaac_float( 1 );
-
-            //ray start position
-            isaac_float4 start_p;
-            start_p.x = pixel_f.x;
-            start_p.y = pixel_f.y;
-            start_p.z = -1.0f;
-            start_p.w = 1.0f;
-
-            //ray end position
-            isaac_float4 end_p;
-            end_p.x = pixel_f.x;
-            end_p.y = pixel_f.y;
-            end_p.z = 1.0f;
-            end_p.w = 1.0f;
-
-            //apply inverse modelview transform to ray start/end and get ray start/end as worldspace
-            isaac_float4 start_w = isaac_inverse_d * start_p;
-            isaac_float4 end_w = isaac_inverse_d * end_p;
-            isaac_float3 start = start_w / start_w.w;
-            isaac_float3 end = end_w / end_w.w;
-
-            isaac_float max_size = isaac_size_d.max_global_size_scaled * isaac_float( 0.5 );
-
-            //scale to globale grid size
-            start = start * max_size;
-            end = end * max_size;
-
+            Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( framebuffer_size ) );
 
             //clipping planes with transformed positions
             clipping_struct clipping;
@@ -240,8 +212,8 @@ namespace isaac
             isaac_float3 position_offset = isaac_float3( isaac_int3( isaac_size_d.global_size_scaled ) / 2 - isaac_int3( isaac_size_d.position_scaled ) );
 
             //apply subvolume offset to start and end
-            start = start + position_offset;
-            end = end + position_offset;
+            ray.start = ray.start + position_offset;
+            ray.end = ray.end + position_offset;
 
             //apply subvolume offset to position checked clipping plane
             for( isaac_int i = 0; i < input_clipping.count; i++ )
@@ -250,60 +222,58 @@ namespace isaac
                     clipping.elem[i].position + position_offset;
             }
 
-            //get step vector
-            isaac_float3 ray_dir = glm::normalize( end - start );
-
             //clip ray on volume bounding box
-            isaac_float3 bb_intersection_min = -start / ray_dir;
-            isaac_float3 bb_intersection_max = ( isaac_float3( isaac_size_d.local_size_scaled ) - start ) / ray_dir;
+            isaac_float3 bb_intersection_min = -ray.start / ray.dir;
+            isaac_float3 bb_intersection_max = ( isaac_float3( isaac_size_d.local_size_scaled ) - ray.start ) / ray.dir;
 
             //bb_intersection_min shall have the smaller values
             ISAAC_SWITCH_IF_SMALLER ( bb_intersection_max.x, bb_intersection_min.x )
             ISAAC_SWITCH_IF_SMALLER ( bb_intersection_max.y, bb_intersection_min.y )
             ISAAC_SWITCH_IF_SMALLER ( bb_intersection_max.z, bb_intersection_min.z )
 
-            isaac_float first_f = glm::max( bb_intersection_min.x, glm::max( bb_intersection_min.y, bb_intersection_min.z ) );
-            isaac_float last_f = glm::min( bb_intersection_max.x, glm::min( bb_intersection_max.y, bb_intersection_max.z ) );
+            isaac_float start_distance = glm::max( bb_intersection_min.x, glm::max( bb_intersection_min.y, bb_intersection_min.z ) );
+            isaac_float end_distance = glm::min( bb_intersection_max.x, glm::min( bb_intersection_max.y, bb_intersection_max.z ) );
 
             bool is_clipped = false;
             isaac_float3 clipping_normal;
             //Iterate over clipping planes and adjust ray
             for( isaac_int i = 0; i < input_clipping.count; i++ )
             {
-                isaac_float d = glm::dot( ray_dir, clipping.elem[i].normal);
+                isaac_float d = glm::dot( ray.dir, clipping.elem[i].normal);
 
                 isaac_float intersection_depth = ( glm::dot( clipping.elem[i].position, clipping.elem[i].normal )
-                                                    - glm::dot( start, clipping.elem[i].normal ) ) / d;
+                                                    - glm::dot( ray.start, clipping.elem[i].normal ) ) / d;
                 if( d > 0 )
                 {
-                    if( last_f < intersection_depth )
+                    if( end_distance < intersection_depth )
                     {
                         ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
                         return;
                     }
-                    if( first_f <= intersection_depth )
+                    if( start_distance <= intersection_depth )
                     {
                         clipping_normal = clipping.elem[i].normal;
                         is_clipped = true;
-                        first_f = intersection_depth;
+                        start_distance = intersection_depth;
                     }
                 }
                 else
                 {
-                    if( first_f > intersection_depth )
+                    if( start_distance > intersection_depth )
                     {
                         ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
                         return;
                     }
-                    if( last_f > intersection_depth )
+                    if( end_distance > intersection_depth )
                     {
-                        last_f = intersection_depth;
+                        end_distance = intersection_depth;
                     }
                 }
             }
-            first_f = glm::max( first_f, isaac_float( 0 ) );
+            start_distance = glm::max( start_distance, isaac_float( 0 ) );
 
-            if( first_f > last_f )
+            //return if the ray doesn't hit the volume
+            if( start_distance > end_distance )
             {
                 ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
 
@@ -320,13 +290,13 @@ namespace isaac
             isaac_float depth = std::numeric_limits<isaac_float>::max( );
             bool particle_hit = false;
             // light direction is camera direction
-            isaac_float3 light_dir = -ray_dir;
+            isaac_float3 light_dir = -ray.dir;
 
             // get the signs of the direction for the raymarch
-            isaac_int3 dir_sign = glm::sign( ray_dir );
+            isaac_int3 dir_sign = glm::sign( ray.dir );
 
             // calculate current position in scaled object space
-            isaac_float3 current_pos = start + ray_dir * first_f;
+            isaac_float3 current_pos = ray.start + ray.dir * start_distance;
 
             // calculate current local cell coordinates
             isaac_uint3 current_cell = isaac_uint3( glm::clamp( 
@@ -335,29 +305,29 @@ namespace isaac
                                     isaac_int3( isaac_size_d.local_particle_size - ISAAC_IDX_TYPE( 1 ) ) 
                                 ) );
 
-            isaac_float ray_length = last_f - first_f;
+            isaac_float ray_length = end_distance - start_distance;
             isaac_float tested_length = 0;
 
 
             // calculate next intersection with each dimension
             isaac_float3 t = ( ( isaac_float3( current_cell ) + isaac_float3( glm::max( dir_sign, 0 ) ) ) 
-                    * scale - current_pos ) / ray_dir;
+                    * scale - current_pos ) / ray.dir;
 
             // calculate delta length to next intersection in the same dimension
-            isaac_float3 delta_t = scale / ray_dir * isaac_float3( dir_sign );
+            isaac_float3 delta_t = scale / ray.dir * isaac_float3( dir_sign );
 
             isaac_float3 particle_hitposition(0);
 
             // check for 0 to stop infinite looping
-            if( ray_dir.x == 0 )
+            if( ray.dir.x == 0 )
             {
                 t.x = std::numeric_limits<isaac_float>::max( );
             }
-            if( ray_dir.y == 0 )
+            if( ray.dir.y == 0 )
             {
                 t.y = std::numeric_limits<isaac_float>::max( );
             }
-            if( ray_dir.z == 0 )
+            if( ray.dir.z == 0 )
             {
                 t.z = std::numeric_limits<isaac_float>::max( );
             }
@@ -382,7 +352,7 @@ namespace isaac
                         TFilter
                     >( ),
                     current_pos,
-                    ray_dir,
+                    ray.dir,
                     current_cell,
                     transferArray,
                     sourceWeight,
@@ -427,7 +397,7 @@ namespace isaac
 
                 isaac_float light_factor = glm::dot( particle_normal, light_dir );
 
-                isaac_float3 half_vector = glm::normalize( -ray_dir + light_dir );
+                isaac_float3 half_vector = glm::normalize( -ray.dir + light_dir );
 
                 isaac_float specular = glm::dot( particle_normal, half_vector );
 
@@ -449,7 +419,7 @@ namespace isaac
             isaac_float3 depth_value = {
                 0.0f,
                 1.0f,
-                depth + first_f
+                depth + start_distance
             };
             gDepth[pixel.x + pixel.y * framebuffer_size.x] = depth_value;
         }

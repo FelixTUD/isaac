@@ -71,14 +71,8 @@ namespace isaac
                                )];
                 };
                 isaac_float value = applyFunctorChain<TSource::feature_dim>(&data, nr);
-                if( value > max )
-                {
-                    max = value;
-                }
-                if( value < min )
-                {
-                    min = value;
-                }
+                min = glm::min( min, value );
+                max = glm::max( max, value );
             }
             result[coord.x + coord.y * local_size.x].min = min;
             result[coord.x + coord.y * local_size.x].max = max;
@@ -127,14 +121,8 @@ namespace isaac
                     data = particle_iterator.getAttribute( );
 
                     isaac_float value = applyFunctorChain<TParticleSource::feature_dim>(&data, nr);
-                    if( value > max )
-                    {
-                        max = value;
-                    }
-                    if( value < min )
-                    {
-                        min = value;
-                    }
+                    min = glm::min( min, value );
+                    max = glm::max( max, value );
                 }
 
             }

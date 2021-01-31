@@ -3194,7 +3194,8 @@ namespace isaac
 
             const int SourceListLength = boost::mpl::size< TSourceList >::type::value
                                         + boost::mpl::size< TParticleList >::type::value;
-                        //call render kernel
+            /*
+            //call render kernel
             ParticleRenderKernelCaller<
                 TParticleList,
                 transfer_d_struct<SourceListLength>,
@@ -3229,29 +3230,14 @@ namespace isaac
                 myself->clipping,
                 myself->ambientOcclusion
             );
-            /*
+            */
+            
             //call render kernel
-            IsaacRenderKernelCaller<
-                TParticleList,
+            IsoRenderKernelCaller<
                 TSourceList,
-                transfer_d_struct<
-                    (
-                        boost::mpl::size< TSourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
-                    )
-                >,
-                source_weight_struct<
-                    (
-                        boost::mpl::size< TSourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
-                    )
-                >,
-                pointer_array_struct<
-                    (
-                        boost::mpl::size< TSourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
-                    )
-                >,
+                transfer_d_struct<SourceListLength>,
+                source_weight_struct<SourceListLength>,
+                pointer_array_struct<boost::mpl::size< TSourceList >::type::value>,
                 mpl::vector< >,
                 TTransfer_size,
                 TAccDim, 
@@ -3263,10 +3249,7 @@ namespace isaac
                     TFraDim,
                     ISAAC_IDX_TYPE 
                 >, 
-                (
-                    boost::mpl::size< TSourceList >::type::value +
-                    boost::mpl::size< TParticleList >::type::value
-                ) 
+                boost::mpl::size< TSourceList >::type::value
             > 
             ::call(
                 myself->stream,
@@ -3275,7 +3258,6 @@ namespace isaac
                 alpaka::getPtrNative(myself->framebufferNormal),
                 myself->framebuffer_size,
                 framebuffer_start,
-                myself->particle_sources,
                 myself->sources,
                 myself->step,
                 bg_color,
@@ -3289,7 +3271,8 @@ namespace isaac
                 myself->clipping,
                 myself->ambientOcclusion
             );
-            */
+
+            
             //wait until render kernel has finished
             alpaka::wait( myself->stream );
 

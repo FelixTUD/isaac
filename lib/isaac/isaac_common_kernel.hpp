@@ -35,8 +35,60 @@ namespace isaac
     //simulation size properties
     ISAAC_CONSTANT isaac_size_struct isaac_size_d;
 
+    struct Ray
+    {
+        isaac_float3 dir;
+        isaac_float3 start;
+        isaac_float3 end;
+    };
+
+    ISAAC_DEVICE_INLINE Ray pixelToRay( 
+        const isaac_float2 pixel, 
+        const isaac_float2 framebuffer_size 
+        )
+    {
+        //relative pixel position in framebuffer [0.0 ... 1.0]
+        //get normalized pixel position in framebuffer
+        isaac_float2 pixel_f = isaac_float2( pixel ) / isaac_float2( framebuffer_size ) * isaac_float( 2 ) - isaac_float( 1 );
+        
+        //ray start position
+        isaac_float4 start_p;
+        start_p.x = pixel_f.x;
+        start_p.y = pixel_f.y;
+        start_p.z = -1.0f;
+        start_p.w = 1.0f;
+
+        //ray end position
+        isaac_float4 end_p;
+        end_p.x = pixel_f.x;
+        end_p.y = pixel_f.y;
+        end_p.z = 1.0f;
+        end_p.w = 1.0f;
+
+        //apply inverse modelview transform to ray start/end and get ray start/end as worldspace
+        isaac_float4 start_w = isaac_inverse_d * start_p;
+        isaac_float4 end_w = isaac_inverse_d * end_p;
+
+        Ray ray;
+        //apply the w-clip
+        ray.start = start_w / start_w.w;
+        ray.end = end_w / end_w.w;
+
+        isaac_float max_size = isaac_size_d.max_global_size_scaled * isaac_float( 0.5 );
+
+        //scale to globale grid size
+        ray.start = ray.start * max_size;
+        ray.end = ray.end * max_size;
+
+        //get step vector
+        ray.dir = glm::normalize( ray.end - ray.start );
+        return ray;
+    }
+
     template <int N, typename Type1, typename Type2>
-    ISAAC_DEVICE_INLINE bool isInLowerBounds(const isaac_vec_dim<N, Type1>& vec, const isaac_vec_dim<N, Type2>& lBounds)
+    ISAAC_DEVICE_INLINE bool isInLowerBounds( 
+        const isaac_vec_dim<N, Type1>& vec, 
+        const isaac_vec_dim<N, Type2>& lBounds )
     {
         for( int i = 0; i < N; ++i)
         {
@@ -47,7 +99,9 @@ namespace isaac
     }
 
     template <int N, typename Type1, typename Type2>
-    ISAAC_DEVICE_INLINE bool isInUpperBounds(const isaac_vec_dim<N, Type1>& vec, const isaac_vec_dim<N, Type2>& uBounds)
+    ISAAC_DEVICE_INLINE bool isInUpperBounds( 
+        const isaac_vec_dim<N, Type1>& vec, 
+        const isaac_vec_dim<N, Type2>& uBounds )
     {
         for( int i = 0; i < N; ++i)
         {
