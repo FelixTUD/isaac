@@ -75,11 +75,11 @@ namespace isaac
 
     template<
         typename THost,
-        typename TAcc,
-        typename TStream,
-        typename TAccDim,
+        typename T_Acc,
+        typename T_Stream,
+        typename T_AccDim,
         typename TParticleList,
-        typename TSourceList,
+        typename T_SourceList,
         ISAAC_IDX_TYPE TTransfer_size,
         typename TController,
         typename TCompositor
@@ -94,19 +94,19 @@ namespace isaac
         }
 
 
-        using TDevAcc = alpaka::Dev< TAcc >;
+        using TDevAcc = alpaka::Dev< T_Acc >;
         using TFraDim = alpaka::DimInt< 1 >;
         using TTexDim = alpaka::DimInt< 1 >;
 
         struct source_2_json_iterator
         {
             template<
-                typename TSource,
+                typename T_Source,
                 typename TJsonRoot
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                const TSource & s,
+                const T_Source & s,
                 TJsonRoot & jsonRoot
             ) const
             {
@@ -118,7 +118,7 @@ namespace isaac
                 json_object_set_new(
                     content,
                     "name",
-                    json_string( TSource::getName( ).c_str( ) )
+                    json_string( T_Source::getName( ).c_str( ) )
                 );
                 json_object_set_new(
                     content,
@@ -131,12 +131,12 @@ namespace isaac
         struct particle_source_2_json_iterator
         {
             template<
-                typename TSource,
+                typename T_Source,
                 typename TJsonRoot
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                const TSource & s,
+                const T_Source & s,
                 TJsonRoot & jsonRoot
             ) const
             {
@@ -148,7 +148,7 @@ namespace isaac
                 json_object_set_new(
                     content,
                     "name",
-                    json_string( TSource::getName( ).c_str( ) )
+                    json_string( T_Source::getName( ).c_str( ) )
                 );
                 json_object_set_new(
                     content,
@@ -220,17 +220,17 @@ namespace isaac
         struct update_functor_chain_iterator
         {
             template<
-                typename TSource,
+                typename T_Source,
                 typename TFunctions,
                 typename TOffset,
-                typename TDest
+                typename T_Dest
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                const TSource & source,
+                const T_Source & source,
                 const TFunctions & functions,
                 const TOffset & offset,
-                TDest & dest
+                T_Dest & dest
             ) const
             {
                 isaac_int chain_nr = 0;
@@ -239,14 +239,14 @@ namespace isaac
                     chain_nr *= ISAAC_FUNCTOR_COUNT;
                     chain_nr += functions[I + offset].bytecode[i];
                 }
-                dest.nr[I + offset] = chain_nr * 4 + TSource::feature_dim - 1;
+                dest.nr[I + offset] = chain_nr * 4 + T_Source::feature_dim - 1;
             }
         };
 
         struct allocate_pointer_array_iterator
         {
             template<
-                typename TSource,
+                typename T_Source,
                 typename TArray,
                 typename TLocalSize,
                 typename TVector,
@@ -254,14 +254,14 @@ namespace isaac
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                const TSource & source,
+                const T_Source & source,
                 TArray & pointer_array,
-                const TLocalSize & local_size,
+                const TLocalSize & localSize,
                 TVector & alpaka_vector,
                 const TDevAcc__ & acc
             ) const
             {
-                if( TSource::persistent )
+                if( T_Source::persistent )
                 {
                     pointer_array.pointer[I] = NULL;
                 }
@@ -284,12 +284,12 @@ namespace isaac
                                     ISAAC_IDX_TYPE
                                 >(
                                     ISAAC_IDX_TYPE(
-                                        TSource::feature_dim * (
-                                            local_size[0] + 2 * ISAAC_GUARD_SIZE
+                                        T_Source::feature_dim * (
+                                            localSize[0] + 2 * ISAAC_GUARD_SIZE
                                         ) * (
-                                            local_size[1] + 2 * ISAAC_GUARD_SIZE
+                                            localSize[1] + 2 * ISAAC_GUARD_SIZE
                                         ) * (
-                                            local_size[2] + 2 * ISAAC_GUARD_SIZE
+                                            localSize[2] + 2 * ISAAC_GUARD_SIZE
                                         )
                                     )
                                 )
@@ -310,7 +310,7 @@ namespace isaac
              * Iterator for updating the particle sources with a boolean if the
              * Particle Source is enabled
              *
-             * @tparam TParticleSource is the particle source type
+             * @tparam T_ParticleSource is the particle source type
              * @tparam TWeight is weight type
              * @tparam TOffset is the offset type
              * @tparam TPointer is the pointer type
@@ -321,12 +321,12 @@ namespace isaac
              *
              */
             template<
-                typename TParticleSource,
+                typename T_ParticleSource,
                 typename TWeight
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                TParticleSource & particle_source,
+                T_ParticleSource & particle_source,
                 const TWeight & weight,
                 const int weightArrayOffset
             ) const
@@ -343,7 +343,7 @@ namespace isaac
         struct update_pointer_array_iterator
         {
             template<
-                typename TSource,
+                typename T_Source,
                 typename TArray,
                 typename TWeight,
                 typename TPointer,
@@ -351,9 +351,9 @@ namespace isaac
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                TSource & source,
+                T_Source & source,
                 TArray & pointer_array,
-                const isaac_size3 & local_size,
+                const isaac_size3 & localSize,
                 const TWeight & weight,
                 const TPointer & pointer,
                 TStream__ & stream
@@ -364,14 +364,14 @@ namespace isaac
                     enabled,
                     pointer
                 );
-                if( !TSource::persistent && enabled )
+                if( !T_Source::persistent && enabled )
                 {
                     isaac_size2 grid_size = {
                         ISAAC_IDX_TYPE(
-                            ( local_size[0] + ISAAC_GUARD_SIZE * 2 + 15 ) / 16
+                            ( localSize[0] + ISAAC_GUARD_SIZE * 2 + 15 ) / 16
                         ),
                         ISAAC_IDX_TYPE(
-                            ( local_size[1] + ISAAC_GUARD_SIZE * 2 + 15 ) / 16
+                            ( localSize[1] + ISAAC_GUARD_SIZE * 2 + 15 ) / 16
                         ),
                     };
                     isaac_size2 block_size = {
@@ -379,41 +379,41 @@ namespace isaac
                         ISAAC_IDX_TYPE( 16 ),
                     };
                     isaac_int3 local_size_array = {
-                        isaac_int( local_size[0] ),
-                        isaac_int( local_size[1] ),
-                        isaac_int( local_size[2] )
+                        isaac_int( localSize[0] ),
+                        isaac_int( localSize[1] ),
+                        isaac_int( localSize[2] )
                     };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+                    if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
                         grid_size.x = ISAAC_IDX_TYPE(
-                            local_size[0] + ISAAC_GUARD_SIZE * 2
+                            localSize[0] + ISAAC_GUARD_SIZE * 2
                         );
                         grid_size.y = ISAAC_IDX_TYPE(
-                            local_size[0] + ISAAC_GUARD_SIZE * 2
+                            localSize[0] + ISAAC_GUARD_SIZE * 2
                         );
                         block_size.x = ISAAC_IDX_TYPE( 1 );
                         block_size.y = ISAAC_IDX_TYPE( 1 );
                     }
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> threads(
                         ISAAC_IDX_TYPE( 1 ),
                         ISAAC_IDX_TYPE( 1 ),
                         ISAAC_IDX_TYPE( 1 )
                     );
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> blocks(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> blocks(
                         ISAAC_IDX_TYPE( 1 ),
                         block_size.x,
                         block_size.y
                     );
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> grid(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> grid(
                         ISAAC_IDX_TYPE( 1 ),
                         grid_size.x,
                         grid_size.y
                     );
                     auto const workdiv(
                         alpaka::WorkDivMembers<
-                            TAccDim,
+                            T_AccDim,
                             ISAAC_IDX_TYPE
                         >(
                             grid,
@@ -421,9 +421,9 @@ namespace isaac
                             threads
                         )
                     );
-                    updateBufferKernel< TSource > kernel;
+                    UpdateBufferKernel< T_Source > kernel;
                     auto const instance(
-                        alpaka::createTaskKernel< TAcc >(
+                        alpaka::createTaskKernel< T_Acc >(
                             workdiv,
                             kernel,
                             source,
@@ -443,7 +443,7 @@ namespace isaac
         struct calc_minmax_iterator
         {
             template<
-                typename TSource,
+                typename T_Source,
                 typename TArray,
                 typename TMinmax,
                 typename TLocalMinmax,
@@ -453,47 +453,47 @@ namespace isaac
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                const TSource & source,
+                const T_Source & source,
                 TArray & pointer_array,
                 TMinmax & minmax,
                 TLocalMinmax & local_minmax,
-                TLocalSize & local_size,
+                TLocalSize & localSize,
                 TStream__ & stream,
                 const THost__ & host
             ) const
             {
-                isaac_size2 grid_size = ( local_size + ISAAC_IDX_TYPE( 15 ) ) / ISAAC_IDX_TYPE( 16 );
+                isaac_size2 grid_size = ( localSize + ISAAC_IDX_TYPE( 15 ) ) / ISAAC_IDX_TYPE( 16 );
                 isaac_size2 block_size( 16 );
 
-                minmax_struct local_minmax_array_h[local_size.x * local_size.y];
+                MinMax local_minmax_array_h[localSize.x * localSize.y];
 
-                if( local_size.x != 0 && local_size.y != 0 )
+                if( localSize.x != 0 && localSize.y != 0 )
                 {
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+                    if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
-                        grid_size = local_size;
+                        grid_size = localSize;
                         block_size = isaac_size2( 1 );
                     }
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> threads(
                         ISAAC_IDX_TYPE( 1 ),
                         ISAAC_IDX_TYPE( 1 ),
                         ISAAC_IDX_TYPE( 1 )
                     );
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> blocks(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> blocks(
                         ISAAC_IDX_TYPE( 1 ),
                         block_size.x,
                         block_size.y
                     );
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> grid(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> grid(
                         ISAAC_IDX_TYPE( 1 ),
                         grid_size.x,
                         grid_size.y
                     );
                     auto const workdiv(
                         alpaka::WorkDivMembers<
-                            TAccDim,
+                            T_AccDim,
                             ISAAC_IDX_TYPE
                         >(
                             grid,
@@ -501,15 +501,15 @@ namespace isaac
                             threads
                         )
                     );
-                    minMaxKernel< TSource > kernel;
+                    MinMaxKernel< T_Source > kernel;
                     auto const instance(
-                        alpaka::createTaskKernel< TAcc >(
+                        alpaka::createTaskKernel< T_Acc >(
                             workdiv,
                             kernel,
                             source,
                             I,
                             alpaka::getPtrNative( local_minmax ),
-                            local_size,
+                            localSize,
                             pointer_array.pointer[I]
                         )
                     );
@@ -518,13 +518,13 @@ namespace isaac
                         instance
                     );
                     alpaka::wait( stream );
-                    alpaka::ViewPlainPtr <THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(
+                    alpaka::ViewPlainPtr <THost, MinMax, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(
                         local_minmax_array_h,
                         host,
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >( local_size.x * local_size.y )
+                        >( localSize.x * localSize.y )
                     );
                     alpaka::memcpy(
                         stream,
@@ -533,12 +533,12 @@ namespace isaac
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >( local_size.x * local_size.y )
+                        >( localSize.x * localSize.y )
                     );
                 }
                 minmax.min[I] = FLT_MAX;
                 minmax.max[I] = -FLT_MAX;
-                for( ISAAC_IDX_TYPE i = 0; i < local_size.x * local_size.y; i++ )
+                for( ISAAC_IDX_TYPE i = 0; i < localSize.x * localSize.y; i++ )
                 {
                     if( local_minmax_array_h[i].min < minmax.min[I] )
                     {
@@ -559,7 +559,7 @@ namespace isaac
         struct calc_particle_minmax_iterator
         {
             template<
-                typename TParticleSource,
+                typename T_ParticleSource,
                 typename TMinmax,
                 typename TLocalMinmax,
                 typename TLocalSize,
@@ -568,48 +568,48 @@ namespace isaac
             >
             ISAAC_HOST_INLINE void operator()(
                 const int I,
-                const TParticleSource & particle_source,
+                const T_ParticleSource & particle_source,
                 TMinmax & minmax,
                 TLocalMinmax & local_minmax,
-                TLocalSize & local_size,
+                TLocalSize & localSize,
                 TStream__ & stream,
                 const THost__ & host
             ) const
             {
                 // iterate over all cells and the particle lists
 
-                isaac_size2 grid_size = ( local_size + ISAAC_IDX_TYPE( 15 ) ) / ISAAC_IDX_TYPE( 16 );
+                isaac_size2 grid_size = ( localSize + ISAAC_IDX_TYPE( 15 ) ) / ISAAC_IDX_TYPE( 16 );
                 isaac_size2 block_size( 16 );
 
-                minmax_struct local_minmax_array_h[local_size.x * local_size.y];
+                MinMax local_minmax_array_h[localSize.x * localSize.y];
                 
-                if( local_size.x != 0 && local_size.y != 0 )
+                if( localSize.x != 0 && localSize.y != 0 )
                 {
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+                    if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
-                        grid_size = local_size;
+                        grid_size = localSize;
                         block_size = isaac_size2( 1 );
                     }
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> threads(
                         ISAAC_IDX_TYPE( 1 ),
                         ISAAC_IDX_TYPE( 1 ),
                         ISAAC_IDX_TYPE( 1 )
                     );
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> blocks(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> blocks(
                         ISAAC_IDX_TYPE( 1 ),
                         block_size.x,
                         block_size.y
                     );
-                    const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> grid(
+                    const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> grid(
                         ISAAC_IDX_TYPE( 1 ),
                         grid_size.x,
                         grid_size.y
                     );
                     auto const workdiv(
                         alpaka::WorkDivMembers<
-                            TAccDim,
+                            T_AccDim,
                             ISAAC_IDX_TYPE
                         >(
                             grid,
@@ -617,15 +617,15 @@ namespace isaac
                             threads
                         )
                     );
-                    minMaxParticleKernel< TParticleSource > kernel;
+                    MinMaxParticleKernel< T_ParticleSource > kernel;
                     auto const instance(
-                        alpaka::createTaskKernel< TAcc >(
+                        alpaka::createTaskKernel< T_Acc >(
                             workdiv,
                             kernel,
                             particle_source,
                             I + TOffset,
                             alpaka::getPtrNative( local_minmax ),
-                            local_size
+                            localSize
                         )
                     );
                     alpaka::enqueue(
@@ -633,13 +633,13 @@ namespace isaac
                         instance
                     );
                     alpaka::wait( stream );
-                    alpaka::ViewPlainPtr <THost, minmax_struct, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(
+                    alpaka::ViewPlainPtr <THost, MinMax, TFraDim, ISAAC_IDX_TYPE> minmax_buffer(
                         local_minmax_array_h,
                         host,
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >( local_size.x * local_size.y )
+                        >( localSize.x * localSize.y )
                     );
                     alpaka::memcpy(
                         stream,
@@ -648,13 +648,13 @@ namespace isaac
                         alpaka::Vec<
                             TFraDim,
                             ISAAC_IDX_TYPE
-                        >( local_size.x * local_size.y )
+                        >( localSize.x * localSize.y )
                     );
                 }
                 minmax.min[I + TOffset] = FLT_MAX;
                 minmax.max[I + TOffset] = -FLT_MAX;
                 // find the min and max
-                for( ISAAC_IDX_TYPE i = 0; i < local_size.x * local_size.y; i++ )
+                for( ISAAC_IDX_TYPE i = 0; i < localSize.x * localSize.y; i++ )
                 {
                     if( local_minmax_array_h[i].min < minmax.min[I + TOffset] )
                     {
@@ -672,27 +672,27 @@ namespace isaac
         IsaacVisualization(
             THost host,
             TDevAcc acc,
-            TStream stream,
+            T_Stream stream,
             const std::string name,
             const isaac_int master,
             const std::string server_url,
             const isaac_uint server_port,
             const isaac_size2 framebuffer_size,
-            const isaac_size3 global_size,
-            const isaac_size3 local_size,
-            const isaac_size3 local_particle_size,
+            const isaac_size3 globalSize,
+            const isaac_size3 localSize,
+            const isaac_size3 localParticleSize,
             const isaac_size3 position,
             TParticleList & particle_sources,
-            TSourceList & sources,
+            T_SourceList & sources,
             isaac_float3 scale
 
         ) :
             host( host ),
             acc( acc ),
             stream( stream ),
-            global_size( global_size ),
-            local_size( local_size ),
-            local_particle_size( local_particle_size ),
+            globalSize( globalSize ),
+            localSize( localSize ),
+            localParticleSize( localParticleSize ),
             position( position ),
             name( name ),
             master( master ),
@@ -758,7 +758,7 @@ namespace isaac
             ),
             functor_chain_d(
                 alpaka::allocBuf<
-                    isaac_functor_chain_pointer_N,
+                    FunctorChainPointerN,
                     ISAAC_IDX_TYPE
                 >(
                     acc,
@@ -766,31 +766,31 @@ namespace isaac
             ,
 
             functor_chain_choose_d ( alpaka::allocBuf<
-                isaac_functor_chain_pointer_N,
+                FunctorChainPointerN,
                 ISAAC_IDX_TYPE
             >(
                 acc,
                 ISAAC_IDX_TYPE ( ( boost
-                ::mpl::size< TSourceList >::type::value
+                ::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value ) ) ) )
             ,
 
             local_minmax_array_d ( alpaka::allocBuf<
-                minmax_struct,
+                MinMax,
                 ISAAC_IDX_TYPE
             >(
                 acc,
-                ISAAC_IDX_TYPE ( local_size[0]
-                * local_size[1] ) ) )
+                ISAAC_IDX_TYPE ( localSize[0]
+                * localSize[1] ) ) )
             ,
 
             local_particle_minmax_array_d ( alpaka::allocBuf<
-                minmax_struct,
+                MinMax,
                 ISAAC_IDX_TYPE
             >(
                 acc,
-                ISAAC_IDX_TYPE ( local_particle_size[0]
-                * local_particle_size[1] ) ) )
+                ISAAC_IDX_TYPE ( localParticleSize[0]
+                * localParticleSize[1] ) ) )
         {
 #if ISAAC_VALGRIND_TWEAKS == 1
             //Jansson has some optimizations for 2 and 4 byte aligned
@@ -804,9 +804,9 @@ namespace isaac
             );
 #endif
             json_object_seed( 0 );
-            global_size_scaled = isaac_float3( global_size ) * scale;
-            local_size_scaled = isaac_float3( local_size ) * scale;
-            position_scaled = isaac_float3( position ) * scale;
+            globalSizeScaled = isaac_float3( globalSize ) * scale;
+            localSizeScaled = isaac_float3( localSize ) * scale;
+            positionScaled = isaac_float3( position ) * scale;
 
             background_color[0] = 0;
             background_color[1] = 0;
@@ -855,7 +855,7 @@ namespace isaac
 
             //Create functor chain pointer lookup table
             const alpaka::Vec<
-                TAccDim,
+                T_AccDim,
                 ISAAC_IDX_TYPE
             > threads(
                 ISAAC_IDX_TYPE( 1 ),
@@ -863,7 +863,7 @@ namespace isaac
                 ISAAC_IDX_TYPE( 1 )
             );
             const alpaka::Vec<
-                TAccDim,
+                T_AccDim,
                 ISAAC_IDX_TYPE
             > blocks(
                 ISAAC_IDX_TYPE( 1 ),
@@ -871,7 +871,7 @@ namespace isaac
                 ISAAC_IDX_TYPE( 1 )
             );
             const alpaka::Vec<
-                TAccDim,
+                T_AccDim,
                 ISAAC_IDX_TYPE
             > grid(
                 ISAAC_IDX_TYPE( 1 ),
@@ -880,7 +880,7 @@ namespace isaac
             );
             auto const workdiv(
                 alpaka::WorkDivMembers<
-                    TAccDim,
+                    T_AccDim,
                     ISAAC_IDX_TYPE
                 >(
                     grid,
@@ -888,9 +888,9 @@ namespace isaac
                     threads
                 )
             );
-            fillFunctorChainPointerKernel kernel;
+            FillFunctorChainPointerKernel kernel;
             auto const instance(
-                alpaka::createTaskKernel< TAcc >(
+                alpaka::createTaskKernel< T_Acc >(
                     workdiv,
                     kernel,
                     alpaka::getPtrNative( functor_chain_d )
@@ -903,7 +903,7 @@ namespace isaac
             alpaka::wait( stream );
             //Init functions:
             for( int i = 0; i < (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             ); i++ )
             {
@@ -916,14 +916,14 @@ namespace isaac
                 sources,
                 allocate_pointer_array_iterator( ),
                 pointer_array,
-                local_size,
+                localSize,
                 pointer_array_alpaka,
                 acc
             );
 
             //Transfer func memory:
             for( int i = 0; i < (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             ); i++ )
             {
@@ -971,7 +971,7 @@ namespace isaac
                 transfer_h.pointer[i] =
                     alpaka::getPtrNative( transfer_h_buf[i] );
                 //Init volume transfer func with a alpha ramp from 0 -> 1
-                if( i < boost::mpl::size< TSourceList >::type::value )
+                if( i < boost::mpl::size< T_SourceList >::type::value )
                 {
                     transfer_h.description[i].insert(
                         std::pair<
@@ -982,7 +982,7 @@ namespace isaac
                             getHSVA(
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
-                                        boost::mpl::size< TSourceList >::type::value
+                                        boost::mpl::size< T_SourceList >::type::value
                                         + boost::mpl::size< TParticleList >::type::value
                                     )
                                 ),
@@ -1001,7 +1001,7 @@ namespace isaac
                             getHSVA(
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
-                                        boost::mpl::size< TSourceList >::type::value
+                                        boost::mpl::size< T_SourceList >::type::value
                                         + boost::mpl::size< TParticleList >::type::value
                                     )
                                 ),
@@ -1024,7 +1024,7 @@ namespace isaac
                             getHSVA(
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
-                                        boost::mpl::size< TSourceList >::type::value
+                                        boost::mpl::size< T_SourceList >::type::value
                                         + boost::mpl::size< TParticleList >::type::value
                                     )
                                 ),
@@ -1043,7 +1043,7 @@ namespace isaac
                             getHSVA(
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
-                                        boost::mpl::size< TSourceList >::type::value
+                                        boost::mpl::size< T_SourceList >::type::value
                                         + boost::mpl::size< TParticleList >::type::value
                                     )
                                 ),
@@ -1058,8 +1058,8 @@ namespace isaac
             }
             updateTransfer( );
 
-            max_size = glm::max( global_size.x , glm::max( global_size.y, global_size.z ) );
-            max_size_scaled = glm::max( global_size_scaled.x , glm::max( global_size_scaled.y, global_size_scaled.z ) );
+            max_size = glm::max( globalSize.x , glm::max( globalSize.y, globalSize.z ) );
+            max_size_scaled = glm::max( globalSizeScaled.x , glm::max( globalSizeScaled.y, globalSizeScaled.z ) );
 
             //ICET:
             IceTCommunicator icetComm;
@@ -1233,17 +1233,17 @@ namespace isaac
                 json_object_set_new(
                     json_root,
                     "width",
-                    json_integer( global_size_scaled.x )
+                    json_integer( globalSizeScaled.x )
                 );
                 json_object_set_new(
                     json_root,
                     "height",
-                    json_integer( global_size_scaled.y )
+                    json_integer( globalSizeScaled.y )
                 );
                 json_object_set_new(
                     json_root,
                     "depth",
-                    json_integer( global_size_scaled.z )
+                    json_integer( globalSizeScaled.z )
                 );
                 json_t * json_version_array = json_array( );
                 json_array_append_new(
@@ -1344,7 +1344,7 @@ namespace isaac
 
             auto ssao_kernel_d_view (
                 alpaka::createStaticDevMemView(
-                    &ssao_kernel_d[0u], 
+                    &SSAOKernelArray[0u], 
                     acc, 
                     ssao_kernel_d_extent
                 )
@@ -1362,7 +1362,7 @@ namespace isaac
 
             auto ssao_noise_d_view ( 
                 alpaka::createStaticDevMemView(
-                    &ssao_noise_d[0u], 
+                    &SSAONoiseArray[0u], 
                     acc, 
                     ssao_noise_d_extent
                 )
@@ -1480,10 +1480,10 @@ namespace isaac
                 icetSetContext( icetContext[pass] );
                 if( icet_bounding_box )
                 {
-                    isaac_float3 bb_dimension = isaac_float3( local_size_scaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 );
+                    isaac_float3 bb_dimension = isaac_float3( localSizeScaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 );
 
-                    isaac_float3 bb_min = isaac_float3( position_scaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 )
-                                    - isaac_float3( global_size_scaled ) / isaac_float( max_size_scaled );
+                    isaac_float3 bb_min = isaac_float3( positionScaled ) / isaac_float( max_size_scaled ) * isaac_float( 2 )
+                                    - isaac_float3( globalSizeScaled ) / isaac_float( max_size_scaled );
 
                     icetBoundingBoxf(
                         bb_min.x,
@@ -1512,22 +1512,22 @@ namespace isaac
         {
             ISAAC_WAIT_VISUALIZATION
             this->position = position;
-            this->position_scaled = isaac_float3( position ) * scale;
+            this->positionScaled = isaac_float3( position ) * scale;
         }
 
 
-        void updateLocalSize( const isaac_size3 local_size )
+        void updateLocalSize( const isaac_size3 localSize )
         {
             ISAAC_WAIT_VISUALIZATION
-            this->local_size = local_size;
-            this->local_size_scaled = isaac_float3( local_size ) * scale;
+            this->localSize = localSize;
+            this->localSizeScaled = isaac_float3( localSize ) * scale;
         }
 
 
-        void updateLocalParticleSize( const isaac_size3 local_particle_size )
+        void updateLocalParticleSize( const isaac_size3 localParticleSize )
         {
             ISAAC_WAIT_VISUALIZATION
-            this->local_particle_size = local_particle_size;
+            this->localParticleSize = localParticleSize;
         }
 
 
@@ -1536,11 +1536,11 @@ namespace isaac
             ISAAC_WAIT_VISUALIZATION
             IsaacFunctorPool functors;
             isaac_float4 isaac_parameter_h[(
-                                               boost::mpl::size< TSourceList >::type::value
+                                               boost::mpl::size< T_SourceList >::type::value
                                                + boost::mpl::size< TParticleList >::type::value
                                            ) * ISAAC_MAX_FUNCTORS];
             for( int i = 0; i < (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             ); i++ )
             {
@@ -1705,9 +1705,9 @@ namespace isaac
             }
 
             //Calculate functor chain nr per source
-            dest_array_struct<
+            DestArrayStruct<
                 (
-                    boost::mpl::size< TSourceList >::type::value
+                    boost::mpl::size< T_SourceList >::type::value
                     + boost::mpl::size< TParticleList >::type::value
                 )
             > dest;
@@ -1723,7 +1723,7 @@ namespace isaac
                 particle_sources,
                 update_functor_chain_iterator( ),
                 functions,
-                boost::mpl::size< TSourceList >::type::value,
+                boost::mpl::size< T_SourceList >::type::value,
                 dest
             );
             alpaka::ViewPlainPtr <THost, isaac_float4, TFraDim, ISAAC_IDX_TYPE>
@@ -1736,7 +1736,7 @@ namespace isaac
                 >(
                     ISAAC_IDX_TYPE(
                         ISAAC_MAX_FUNCTORS * (
-                            boost::mpl::size< TSourceList >::type::value
+                            boost::mpl::size< T_SourceList >::type::value
                             + boost::mpl::size< TParticleList >::type::value
                         )
                     )
@@ -1746,7 +1746,7 @@ namespace isaac
             alpaka::Vec <alpaka::DimInt< 1u >, ISAAC_IDX_TYPE> const
                 parameter_d_extent( ISAAC_IDX_TYPE( 16 ) );
             auto parameter_d_view(
-                alpaka::createStaticDevMemView ( & isaac_parameter_d[0u],
+                alpaka::createStaticDevMemView ( & FunctorParameter[0u],
                 acc,
                 parameter_d_extent
             ) );
@@ -1760,31 +1760,31 @@ namespace isaac
                 >(
                     ISAAC_IDX_TYPE(
                         ISAAC_MAX_FUNCTORS * (
-                            boost::mpl::size< TSourceList >::type::value
+                            boost::mpl::size< T_SourceList >::type::value
                             + boost::mpl::size< TParticleList >::type::value
                         )
                     )
                 )
             );
 
-            const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> threads(
+            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> threads(
                 ISAAC_IDX_TYPE( 1 ),
                 ISAAC_IDX_TYPE( 1 ),
                 ISAAC_IDX_TYPE( 1 )
             );
-            const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> blocks(
+            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> blocks(
                 ISAAC_IDX_TYPE( 1 ),
                 ISAAC_IDX_TYPE( 1 ),
                 ISAAC_IDX_TYPE( 1 )
             );
-            const alpaka::Vec <TAccDim, ISAAC_IDX_TYPE> grid(
+            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> grid(
                 ISAAC_IDX_TYPE( 1 ),
                 ISAAC_IDX_TYPE( 1 ),
                 ISAAC_IDX_TYPE( 1 )
             );
             auto const workdiv(
                 alpaka::WorkDivMembers<
-                    TAccDim,
+                    T_AccDim,
                     ISAAC_IDX_TYPE
                 >(
                     grid,
@@ -1794,18 +1794,18 @@ namespace isaac
             );
             updateFunctorChainPointerKernel<
                 (
-                    boost::mpl::size< TSourceList >::type::value
+                    boost::mpl::size< T_SourceList >::type::value
                     + boost::mpl::size< TParticleList >::type::value
                 ),
-                dest_array_struct<
+                DestArrayStruct<
                     (
-                        boost::mpl::size< TSourceList >::type::value
+                        boost::mpl::size< T_SourceList >::type::value
                         + boost::mpl::size< TParticleList >::type::value
                     )
                 >
             > kernel;
             auto const instance(
-                alpaka::createTaskKernel< TAcc >(
+                alpaka::createTaskKernel< T_Acc >(
                     workdiv,
                     kernel,
                     alpaka::getPtrNative( functor_chain_choose_d ),
@@ -1822,7 +1822,7 @@ namespace isaac
             alpaka::Vec <alpaka::DimInt< 1u >, ISAAC_IDX_TYPE> const
                 function_chain_d_extent( ISAAC_IDX_TYPE( ISAAC_MAX_SOURCES ) );
             auto function_chain_d_view(
-                alpaka::createStaticDevMemView ( & isaac_function_chain_d[0u],
+                alpaka::createStaticDevMemView ( & FunctionChain[0u],
                 acc,
                 function_chain_d_extent
             ) );
@@ -1832,7 +1832,7 @@ namespace isaac
                 functor_chain_choose_d,
                 ISAAC_IDX_TYPE(
                     (
-                        boost::mpl::size< TSourceList >::type::value
+                        boost::mpl::size< T_SourceList >::type::value
                         + boost::mpl::size< TParticleList >::type::value
                     )
                 )
@@ -1844,7 +1844,7 @@ namespace isaac
         {
             ISAAC_WAIT_VISUALIZATION
             for( int i = 0; i < (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             ); i++ )
             {
@@ -1933,7 +1933,7 @@ namespace isaac
                     sources,
                     update_pointer_array_iterator( ),
                     pointer_array,
-                    local_size,
+                    localSize,
                     source_weight,
                     pointer,
                     stream
@@ -1942,7 +1942,7 @@ namespace isaac
                     particle_sources,
                     update_particle_source_iterator( ),
                     source_weight,
-                    boost::mpl::size< TSourceList >::type::value
+                    boost::mpl::size< T_SourceList >::type::value
                 );
                 ISAAC_STOP_TIME_MEASUREMENT ( buffer_time,
                     +=,
@@ -2739,16 +2739,16 @@ namespace isaac
                     pointer_array,
                     minmax_array,
                     local_minmax_array_d,
-                    local_size,
+                    localSize,
                     stream,
                     host
                 );
                 isaac_for_each_params(
                     particle_sources,
-                    calc_particle_minmax_iterator< boost::mpl::size< TSourceList >::type::value >( ),
+                    calc_particle_minmax_iterator< boost::mpl::size< T_SourceList >::type::value >( ),
                     minmax_array,
                     local_particle_minmax_array_d,
-                    local_particle_size,
+                    localParticleSize,
                     stream,
                     host
                 );
@@ -2759,7 +2759,7 @@ namespace isaac
                         MPI_IN_PLACE,
                         minmax_array.min,
                         (
-                            boost::mpl::size< TSourceList >::type::value
+                            boost::mpl::size< T_SourceList >::type::value
                             + boost::mpl::size< TParticleList >::type::value
                         ),
                         MPI_FLOAT,
@@ -2771,7 +2771,7 @@ namespace isaac
                         MPI_IN_PLACE,
                         minmax_array.max,
                         (
-                            boost::mpl::size< TSourceList >::type::value
+                            boost::mpl::size< T_SourceList >::type::value
                             + boost::mpl::size< TParticleList >::type::value
                         ),
                         MPI_FLOAT,
@@ -2786,7 +2786,7 @@ namespace isaac
                         minmax_array.min,
                         NULL,
                         (
-                            boost::mpl::size< TSourceList >::type::value
+                            boost::mpl::size< T_SourceList >::type::value
                             + boost::mpl::size< TParticleList >::type::value
                         ),
                         MPI_FLOAT,
@@ -2798,7 +2798,7 @@ namespace isaac
                         minmax_array.max,
                         NULL,
                         (
-                            boost::mpl::size< TSourceList >::type::value
+                            boost::mpl::size< T_SourceList >::type::value
                             + boost::mpl::size< TParticleList >::type::value
                         ),
                         MPI_FLOAT,
@@ -2823,8 +2823,8 @@ namespace isaac
                     ISAAC_START_TIME_MEASUREMENT ( sorting,
                         getTicksUs( ) )
                     //Every rank calculates it's distance to the camera
-                    isaac_double4 point = isaac_double4( ( isaac_double3( position_scaled ) 
-                                        + ( isaac_double3( local_size_scaled ) - isaac_double3( global_size_scaled ) ) / isaac_double(2.0) )
+                    isaac_double4 point = isaac_double4( ( isaac_double3( positionScaled ) 
+                                        + ( isaac_double3( localSizeScaled ) - isaac_double3( globalSizeScaled ) ) / isaac_double(2.0) )
                                         / isaac_double( max_size_scaled / 2 ), 0 );
                     point.w = 1.0;
 
@@ -3069,13 +3069,13 @@ namespace isaac
 
 
             //sim size values
-            alpaka::Buf <THost, isaac_size_struct, TFraDim, ISAAC_IDX_TYPE>
+            alpaka::Buf <THost, SimulationSizeStruct, TFraDim, ISAAC_IDX_TYPE>
                 size_h_buf(
-                alpaka::allocBuf <isaac_size_struct ,
+                alpaka::allocBuf <SimulationSizeStruct ,
                 ISAAC_IDX_TYPE> ( myself->host, ISAAC_IDX_TYPE( 1 ) )
             );
-            isaac_size_struct & size_h =
-                *( reinterpret_cast<isaac_size_struct*> ( alpaka::getPtrNative( size_h_buf ) ) );
+            SimulationSizeStruct & size_h =
+                *( reinterpret_cast<SimulationSizeStruct*> ( alpaka::getPtrNative( size_h_buf ) ) );
 
 
             std::copy( projection_matrix, projection_matrix + 16, glm::value_ptr( projection_h ) );
@@ -3086,27 +3086,27 @@ namespace isaac
 
 
             //set global simulation size
-            size_h.global_size = myself->global_size;
+            size_h.globalSize = myself->globalSize;
 
             size_h.position = myself->position;
 
             //set subvolume size
-            size_h.local_size = myself->local_size;
-            size_h.local_particle_size = myself->local_particle_size;
+            size_h.localSize = myself->localSize;
+            size_h.localParticleSize = myself->localParticleSize;
             
             //get maximum size from biggest dimesnion MAX(x-dim, y-dim, z-dim)
-            size_h.max_global_size = myself->max_size;
+            size_h.maxGlobalSize = myself->max_size;
 
             //set global size with cellcount scaled
-            size_h.global_size_scaled = myself->global_size_scaled;
+            size_h.globalSizeScaled = myself->globalSizeScaled;
 
             //set position in subvolume (adjusted to cellcount scale)
-            size_h.position_scaled = myself->position_scaled;
+            size_h.positionScaled = myself->positionScaled;
 
-            size_h.local_size_scaled = myself->local_size_scaled;
+            size_h.localSizeScaled = myself->localSizeScaled;
 
             //get maximum size from biggest dimesnion after scaling MAX(x-dim, y-dim, z-dim)
-            size_h.max_global_size_scaled = myself->max_size_scaled;
+            size_h.maxGlobalSizeScaled = myself->max_size_scaled;
 
             //set volume scale parameters
             isaac_float3 isaac_scale = myself->scale;
@@ -3118,7 +3118,7 @@ namespace isaac
                 inverse_d_extent( ISAAC_IDX_TYPE( 1 ) );
             //get view
             auto inverse_d_view(
-                alpaka::createStaticDevMemView ( & isaac_inverse_d,
+                alpaka::createStaticDevMemView ( & InverseMVPMatrix,
                 myself -> acc, inverse_d_extent ) );
             //copy to constant memory
             alpaka::memcpy(
@@ -3133,7 +3133,7 @@ namespace isaac
                 modelview_d_extent( ISAAC_IDX_TYPE( 1 ) );
             //get view
             auto modelview_d_view(
-                alpaka::createStaticDevMemView ( & isaac_modelview_d,
+                alpaka::createStaticDevMemView ( & ModelViewMatrix,
                 myself -> acc, modelview_d_extent ) );
             //copy to constant memory 
             alpaka::memcpy(
@@ -3149,7 +3149,7 @@ namespace isaac
                 projection_d_extent( ISAAC_IDX_TYPE( 1 ) );
             //get view
             auto projection_d_view(
-                alpaka::createStaticDevMemView ( & isaac_projection_d,
+                alpaka::createStaticDevMemView ( & ProjectionMatrix,
                 myself -> acc, projection_d_extent ) );
             //copy to constant memory
             alpaka::memcpy(
@@ -3162,7 +3162,7 @@ namespace isaac
             alpaka::Vec <alpaka::DimInt< 1u >, ISAAC_IDX_TYPE> const
                 size_d_extent( ISAAC_IDX_TYPE( 1 ) );
             auto size_d_view(
-                alpaka::createStaticDevMemView ( & isaac_size_d,
+                alpaka::createStaticDevMemView ( & SimulationSize,
                 myself -> acc, size_d_extent ) );
             alpaka::memcpy(
                 myself->stream,
@@ -3192,26 +3192,26 @@ namespace isaac
                 isaac_uint( readback_viewport[1] )
             };
 
-            const int SourceListLength = boost::mpl::size< TSourceList >::type::value
+            const int SourceListLength = boost::mpl::size< T_SourceList >::type::value
                                         + boost::mpl::size< TParticleList >::type::value;
             /*
             //call render kernel
             ParticleRenderKernelCaller<
                 TParticleList,
-                transfer_d_struct<SourceListLength>,
-                source_weight_struct<SourceListLength>,
+                TransferDeviceStruct<SourceListLength>,
+                SourceWeightStruct<SourceListLength>,
                 mpl::vector< >,
                 TTransfer_size,
-                TAccDim, 
-                TAcc, 
-                TStream,
+                T_AccDim, 
+                T_Acc, 
+                T_Stream,
                 alpaka::Buf< 
                     TDevAcc, 
-                    isaac_functor_chain_pointer_N, 
+                    FunctorChainPointerN, 
                     TFraDim,
                     ISAAC_IDX_TYPE 
                 >, 
-                boost::mpl::size< TSourceList >::type::value,
+                boost::mpl::size< T_SourceList >::type::value,
                 boost::mpl::size< TParticleList >::type::value
             > 
             ::call(
@@ -3226,7 +3226,7 @@ namespace isaac
                 myself->transfer_d,
                 myself->source_weight,
                 readback_viewport,
-                isaac_float3( size_h.local_size_scaled ) / isaac_float3( size_h.local_particle_size ),
+                isaac_float3( size_h.localSizeScaled ) / isaac_float3( size_h.localParticleSize ),
                 myself->clipping,
                 myself->ambientOcclusion
             );
@@ -3234,22 +3234,22 @@ namespace isaac
             
             //call render kernel
             IsoRenderKernelCaller<
-                TSourceList,
-                transfer_d_struct<SourceListLength>,
-                source_weight_struct<SourceListLength>,
-                pointer_array_struct<boost::mpl::size< TSourceList >::type::value>,
+                T_SourceList,
+                TransferDeviceStruct<SourceListLength>,
+                SourceWeightStruct<SourceListLength>,
+                PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
                 mpl::vector< >,
                 TTransfer_size,
-                TAccDim, 
-                TAcc, 
-                TStream,
+                T_AccDim, 
+                T_Acc, 
+                T_Stream,
                 alpaka::Buf< 
                     TDevAcc, 
-                    isaac_functor_chain_pointer_N, 
+                    FunctorChainPointerN, 
                     TFraDim,
                     ISAAC_IDX_TYPE 
                 >, 
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
             > 
             ::call(
                 myself->stream,
@@ -3288,7 +3288,7 @@ namespace isaac
                     ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
                 };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                if ( mpl::not_<boost::is_same<TAcc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
+                if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                 {
                     grid_size.x = ISAAC_IDX_TYPE ( readback_viewport[2] );
@@ -3296,16 +3296,16 @@ namespace isaac
                     block_size.x = ISAAC_IDX_TYPE ( 1 );
                     block_size.y = ISAAC_IDX_TYPE ( 1 );
                 }
-                const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ) );
-                const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> blocks ( ISAAC_IDX_TYPE ( 1 ), block_size.y, block_size.x );
-                const alpaka::Vec<TAccDim, ISAAC_IDX_TYPE> grid ( ISAAC_IDX_TYPE ( 1 ), grid_size.y, grid_size.x );
-                auto const workdiv ( alpaka::WorkDivMembers<TAccDim, ISAAC_IDX_TYPE> ( grid,blocks,threads ) );
+                const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads ( ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ), ISAAC_IDX_TYPE ( 1 ) );
+                const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks ( ISAAC_IDX_TYPE ( 1 ), block_size.y, block_size.x );
+                const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid ( ISAAC_IDX_TYPE ( 1 ), grid_size.y, grid_size.x );
+                auto const workdiv ( alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE> ( grid,blocks,threads ) );
 
                 {
-                    isaacSSAOKernel kernel;
+                    SSAOKernel kernel;
                     auto const instance
                     (
-                        alpaka::createTaskKernel<TAcc>
+                        alpaka::createTaskKernel<T_Acc>
                         (
                             workdiv,
                             kernel,
@@ -3324,10 +3324,10 @@ namespace isaac
                 alpaka::wait ( myself->stream );
 
                 {
-                    isaacSSAOFilterKernel kernel;
+                    SSAOFilterKernel kernel;
                     auto const instance
                     (
-                        alpaka::createTaskKernel<TAcc>
+                        alpaka::createTaskKernel<T_Acc>
                         (
                             workdiv,
                             kernel,
@@ -3479,7 +3479,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
-                        boost::mpl::size< TSourceList >::type::value
+                        boost::mpl::size< T_SourceList >::type::value
                         + boost::mpl::size< TParticleList >::type::value
                     ); i++ )
                     {
@@ -3543,7 +3543,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
-                        boost::mpl::size< TSourceList >::type::value
+                        boost::mpl::size< T_SourceList >::type::value
                         + boost::mpl::size< TParticleList >::type::value
                     ); i++ )
                     {
@@ -3611,7 +3611,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
-                        boost::mpl::size< TSourceList >::type::value
+                        boost::mpl::size< T_SourceList >::type::value
                         + boost::mpl::size< TParticleList >::type::value
                     ); i++ )
                     {
@@ -3643,7 +3643,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
-                        boost::mpl::size< TSourceList >::type::value
+                        boost::mpl::size< T_SourceList >::type::value
                         + boost::mpl::size< TParticleList >::type::value
                     ); i++ )
                     {
@@ -3706,7 +3706,7 @@ namespace isaac
                         matrix = json_array( )
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
-                        boost::mpl::size< TSourceList >::type::value
+                        boost::mpl::size< T_SourceList >::type::value
                         + boost::mpl::size< TParticleList >::type::value
                     ); i++ )
                     {
@@ -3935,7 +3935,7 @@ namespace isaac
 
         THost host;
         TDevAcc acc;
-        TStream stream;
+        T_Stream stream;
         std::string name;
         std::string server_url;
         isaac_uint server_port;
@@ -3980,36 +3980,36 @@ namespace isaac
 
         alpaka::Buf<
             TDevAcc,
-            isaac_functor_chain_pointer_N,
+            FunctorChainPointerN,
             TFraDim,
             ISAAC_IDX_TYPE
         > functor_chain_d;
         alpaka::Buf<
             TDevAcc,
-            isaac_functor_chain_pointer_N,
+            FunctorChainPointerN,
             TFraDim,
             ISAAC_IDX_TYPE
         > functor_chain_choose_d;
         alpaka::Buf<
             TDevAcc,
-            minmax_struct,
+            MinMax,
             TFraDim,
             ISAAC_IDX_TYPE
         > local_minmax_array_d;
         alpaka::Buf<
             TDevAcc,
-            minmax_struct,
+            MinMax,
             TFraDim,
             ISAAC_IDX_TYPE
         > local_particle_minmax_array_d;
 
-        isaac_size3 global_size;
-        isaac_size3 local_size;
-        isaac_size3 local_particle_size;
+        isaac_size3 globalSize;
+        isaac_size3 localSize;
+        isaac_size3 localParticleSize;
         isaac_size3 position;
-        isaac_size3 global_size_scaled;
-        isaac_size3 local_size_scaled;
-        isaac_size3 position_scaled;
+        isaac_size3 globalSizeScaled;
+        isaac_size3 localSizeScaled;
+        isaac_size3 positionScaled;
         MPI_Comm mpi_world;
         std::vector<isaac_dmat4> projections;
         isaac_dmat4 modelview;                           //modelview matrix
@@ -4049,11 +4049,11 @@ namespace isaac
         isaac_int numProc;
         isaac_uint metaNr;
         TParticleList & particle_sources;
-        TSourceList & sources;
+        T_SourceList & sources;
         IceTContext icetContext[TController::pass_count];
         IsaacVisualizationMetaEnum thr_metaTargets;
         pthread_t visualizationThread;
-        ao_struct ambientOcclusion;                         //state of ambient occlusion on client site
+        AmbientOcclusion ambientOcclusion;                         //state of ambient occlusion on client site
 
         std::vector <alpaka::Buf<
             TDevAcc,
@@ -4074,38 +4074,38 @@ namespace isaac
             ISAAC_IDX_TYPE
         >> pointer_array_alpaka;
 
-        transfer_d_struct<
+        TransferDeviceStruct<
             (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             )
         > transfer_d;
-        transfer_h_struct<
+        TransferHostStruct<
             (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             )
         > transfer_h;
-        source_weight_struct<
+        SourceWeightStruct<
             (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             )
         > source_weight;
-        pointer_array_struct<
+        PointerArrayStruct<
             (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
             )
         > pointer_array;
-        minmax_array_struct<
+        MinMaxArray<
             (
-                boost::mpl::size< TSourceList >::type::value
+                boost::mpl::size< T_SourceList >::type::value
                 + boost::mpl::size< TParticleList >::type::value
             )
         > minmax_array;
         const static ISAAC_IDX_TYPE transfer_size = TTransfer_size;
-        functions_struct functions[(
-            boost::mpl::size< TSourceList >::type::value
+        FunctionsStruct functions[(
+            boost::mpl::size< T_SourceList >::type::value
             + boost::mpl::size< TParticleList >::type::value
         )];
         ISAAC_IDX_TYPE max_size;
@@ -4113,7 +4113,7 @@ namespace isaac
         IceTFloat background_color[4];
         static IsaacVisualization * myself;
         isaac_float3 scale;
-        clipping_struct clipping;
+        ClippingStruct clipping;
         isaac_float3 clipping_saved_normals[ISAAC_MAX_CLIPPING];
         TController controller;
         TCompositor compositor;
@@ -4122,31 +4122,31 @@ namespace isaac
 
     template<
         typename THost,
-        typename TAcc,
-        typename TStream,
-        typename TAccDim,
+        typename T_Acc,
+        typename T_Stream,
+        typename T_AccDim,
         typename TParticleList,
-        typename TSourceList,
+        typename T_SourceList,
         ISAAC_IDX_TYPE TTransfer_size,
         typename TController,
         typename TCompositor
     > IsaacVisualization<
         THost,
-        TAcc,
-        TStream,
-        TAccDim,
+        T_Acc,
+        T_Stream,
+        T_AccDim,
         TParticleList,
-        TSourceList,
+        T_SourceList,
         TTransfer_size,
         TController,
         TCompositor
     > * IsaacVisualization<
         THost,
-        TAcc,
-        TStream,
-        TAccDim,
+        T_Acc,
+        T_Stream,
+        T_AccDim,
         TParticleList,
-        TSourceList,
+        T_SourceList,
         TTransfer_size,
         TController,
         TCompositor

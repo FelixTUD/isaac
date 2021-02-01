@@ -39,7 +39,7 @@ ISAAC_NO_HOST_DEVICE_WARNING
 template<
     typename TDevAcc,
     typename THost,
-    typename TStream
+    typename T_Stream
 >
 class TestSource1
 {
@@ -52,7 +52,7 @@ public:
     ISAAC_NO_HOST_DEVICE_WARNING TestSource1(
         TDevAcc acc,
         THost host,
-        TStream stream,
+        T_Stream stream,
         isaac_float3 * ptr
     ) :
         ptr( ptr )
@@ -92,7 +92,7 @@ ISAAC_NO_HOST_DEVICE_WARNING
 template<
     typename TDevAcc,
     typename THost,
-    typename TStream
+    typename T_Stream
 >
 class TestSource2
 {
@@ -105,7 +105,7 @@ public:
     ISAAC_NO_HOST_DEVICE_WARNING TestSource2(
         TDevAcc acc,
         THost host,
-        TStream stream,
+        T_Stream stream,
         isaac_float * ptr
     ) :
         ptr( ptr )
@@ -202,7 +202,7 @@ ISAAC_NO_HOST_DEVICE_WARNING
 template<
     typename TDevAcc,
     typename THost,
-    typename TStream
+    typename T_Stream
 >
 class ParticleSource1
 {
@@ -213,7 +213,7 @@ public:
     ISAAC_NO_HOST_DEVICE_WARNING ParticleSource1(
         TDevAcc acc,
         THost host,
-        TStream stream,
+        T_Stream stream,
         isaac_float3 * ptr,
         size_t size
     ) :
@@ -379,12 +379,12 @@ int main(
     DevHost devHost( alpaka::getDevByIdx< PltfHost >( 0u ) );
     Stream stream( devAcc );
 
-    const isaac_size_dim<SimDim::value> global_size(
+    const isaac_size_dim<SimDim::value> globalSize(
         d[0] * VOLUME_X,
         d[1] * VOLUME_Y,
         d[2] * VOLUME_Z
     );
-    const isaac_size_dim<SimDim::value> local_size(
+    const isaac_size_dim<SimDim::value> localSize(
         ISAAC_IDX_TYPE( VOLUME_X ),
         ISAAC_IDX_TYPE( VOLUME_Y ),
         ISAAC_IDX_TYPE( VOLUME_Z )
@@ -403,7 +403,7 @@ int main(
     );
 
     //The whole size of the rendered sub volumes
-    ISAAC_IDX_TYPE prod = local_size[0] * local_size[1] * local_size[2];
+    ISAAC_IDX_TYPE prod = localSize[0] * localSize[1] * localSize[2];
 
     // Init memory
 
@@ -529,9 +529,9 @@ int main(
             deviceBuffer2,
             prod,
             0.0f,
-            local_size,
+            localSize,
             position,
-            global_size
+            globalSize
         );
     }
 
@@ -557,9 +557,9 @@ int main(
             deviceBuffer2,
             prod,
             0.0f,
-            local_size,
+            localSize,
             position,
-            global_size,
+            globalSize,
             s_x,
             s_y,
             s_z
@@ -597,8 +597,8 @@ int main(
         server, //Address of the server
         port, //Inner port of the server
         framebuffer_size, //Size of the rendered image
-        global_size, //Size of the whole volumen including all nodes
-        local_size, //Local size of the subvolume
+        globalSize, //Size of the whole volumen including all nodes
+        localSize, //Local size of the subvolume
         {
             PARTICLE_VOLUME_X,
             PARTICLE_VOLUME_Y,
@@ -719,9 +719,9 @@ int main(
                     deviceBuffer2,
                     prod,
                     a,
-                    local_size,
+                    localSize,
                     position,
-                    global_size
+                    globalSize
                 );
             }
 

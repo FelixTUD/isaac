@@ -29,70 +29,70 @@
 
 namespace isaac
 {
-    typedef isaac_float( * isaac_functor_chain_pointer_4 )(
+    typedef isaac_float( * FunctorChainPointer4 )(
         isaac_float_dim< 4 >,
         isaac_int
     );
 
-    typedef isaac_float( * isaac_functor_chain_pointer_3 )(
+    typedef isaac_float( * FunctorChainPointer3 )(
         isaac_float_dim< 3 >,
         isaac_int
     );
 
-    typedef isaac_float( * isaac_functor_chain_pointer_2 )(
+    typedef isaac_float( * FunctorChainPointer2 )(
         isaac_float_dim< 2 >,
         isaac_int
     );
 
-    typedef isaac_float( * isaac_functor_chain_pointer_1 )(
+    typedef isaac_float( * FunctorChainPointer1 )(
         isaac_float_dim< 1 >,
         isaac_int
     );
 
-    typedef isaac_float( * isaac_functor_chain_pointer_N )(
+    typedef isaac_float( * FunctorChainPointerN )(
         void *,
         isaac_int
     );
 
-    ISAAC_CONSTANT isaac_float4 isaac_parameter_d[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCTORS ];
+    ISAAC_CONSTANT isaac_float4 FunctorParameter[ ISAAC_MAX_SOURCES*ISAAC_MAX_FUNCTORS ];
 
-    ISAAC_CONSTANT isaac_functor_chain_pointer_N isaac_function_chain_d[ ISAAC_MAX_SOURCES ];
+    ISAAC_CONSTANT FunctorChainPointerN FunctionChain[ ISAAC_MAX_SOURCES ];
 
     template<
-        int N
+        int T_N
     >
-    struct dest_array_struct
+    struct DestArrayStruct
     {
-        isaac_int nr[N];
+        isaac_int nr[T_N];
     };
 
-    template<int TFeatureDim>
-    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <TFeatureDim>* data, const int nr)
+    template<int T_FeatureDim>
+    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <T_FeatureDim>* data, const int nr)
     {
-        if( TFeatureDim == 1 )
+        if( T_FeatureDim == 1 )
         {
-            return reinterpret_cast<isaac_functor_chain_pointer_1> ( isaac_function_chain_d[nr] )(
+            return reinterpret_cast<FunctorChainPointer1> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 1 > * > ( data ) ),
                     nr
                 );
         }
-        if( TFeatureDim == 2 )
+        if( T_FeatureDim == 2 )
         {
-            return reinterpret_cast<isaac_functor_chain_pointer_2> ( isaac_function_chain_d[nr] )(
+            return reinterpret_cast<FunctorChainPointer2> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 2 > * > ( data ) ),
                     nr
                 );
         }
-        if( TFeatureDim == 3 )
+        if( T_FeatureDim == 3 )
         {
-            return reinterpret_cast<isaac_functor_chain_pointer_3> ( isaac_function_chain_d[nr] )(
+            return reinterpret_cast<FunctorChainPointer3> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 3 > * > ( data ) ),
                     nr
                 );
         }
-        if( TFeatureDim == 4 )
+        if( T_FeatureDim == 4 )
         {
-            return reinterpret_cast<isaac_functor_chain_pointer_4> ( isaac_function_chain_d[nr] )(
+            return reinterpret_cast<FunctorChainPointer4> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 4 > * > ( data ) ),
                     nr
                 );
@@ -101,22 +101,22 @@ namespace isaac
     }
 
     template<
-        typename TFunctorVector,
-        int TFeatureDim,
-        int NR
+        typename T_FunctorVector,
+        int T_FeatureDim,
+        int T_NR
     >
     struct FillFunctorChainPointerKernelStruct
     {
-        ISAAC_DEVICE static isaac_functor_chain_pointer_N
+        ISAAC_DEVICE static FunctorChainPointerN
         call( isaac_int const * const bytecode )
         {
 #define ISAAC_SUB_CALL( Z, I, U ) \
-            if (bytecode[ISAAC_MAX_FUNCTORS-NR] == I) \
+            if (bytecode[ISAAC_MAX_FUNCTORS-T_NR] == I) \
                 return FillFunctorChainPointerKernelStruct \
                 < \
-                    typename boost::mpl::push_back< TFunctorVector, typename boost::mpl::at_c<IsaacFunctorPool,I>::type >::type, \
-                    TFeatureDim, \
-                    NR - 1 \
+                    typename boost::mpl::push_back< T_FunctorVector, typename boost::mpl::at_c<IsaacFunctorPool,I>::type >::type, \
+                    T_FeatureDim, \
+                    T_NR - 1 \
                 > ::call( bytecode );
             BOOST_PP_REPEAT(
                 ISAAC_FUNCTOR_COUNT,
@@ -130,19 +130,19 @@ namespace isaac
 
 
     template<
-        typename TFunctorVector,
-        int TFeatureDim
+        typename T_FunctorVector,
+        int T_FeatureDim
     >
     ISAAC_DEVICE isaac_float generateFunctorChain(
-        isaac_float_dim <TFeatureDim> const value,
-        isaac_int const src_id
+        isaac_float_dim <T_FeatureDim> const value,
+        isaac_int const srcID
     )
     {
-#define  ISAAC_LEFT_DEF( Z, I, U ) boost::mpl::at_c< TFunctorVector, ISAAC_MAX_FUNCTORS - I - 1 >::type::call(
-#define ISAAC_RIGHT_DEF( Z, I, U ) , isaac_parameter_d[ src_id * ISAAC_MAX_FUNCTORS + I ] )
+#define  ISAAC_LEFT_DEF( Z, I, U ) boost::mpl::at_c< T_FunctorVector, ISAAC_MAX_FUNCTORS - I - 1 >::type::call(
+#define ISAAC_RIGHT_DEF( Z, I, U ) , FunctorParameter[ srcID * ISAAC_MAX_FUNCTORS + I ] )
 #define  ISAAC_LEFT BOOST_PP_REPEAT( ISAAC_MAX_FUNCTORS, ISAAC_LEFT_DEF, ~)
 #define ISAAC_RIGHT BOOST_PP_REPEAT( ISAAC_MAX_FUNCTORS, ISAAC_RIGHT_DEF, ~)
-        // expands to: funcN( ... func1( func0( data, p[0] ), p[1] ) ... p[N] );
+        // expands to: funcN( ... func1( func0( data, p[0] ), p[1] ) ... p[T_N] );
         return ISAAC_LEFT
         value
         ISAAC_RIGHT.x;
@@ -154,35 +154,35 @@ namespace isaac
 
 
     template<
-        typename TFunctorVector,
-        int TFeatureDim
+        typename T_FunctorVector,
+        int T_FeatureDim
     >
     struct FillFunctorChainPointerKernelStruct<
-        TFunctorVector,
-        TFeatureDim,
+        T_FunctorVector,
+        T_FeatureDim,
         0 //<- Specialization
     >
     {
-        ISAAC_DEVICE static isaac_functor_chain_pointer_N
+        ISAAC_DEVICE static FunctorChainPointerN
         call( isaac_int const * const bytecode )
         {
-            return reinterpret_cast<isaac_functor_chain_pointer_N> ( generateFunctorChain<
-                TFunctorVector,
-                TFeatureDim
+            return reinterpret_cast<FunctorChainPointerN> ( generateFunctorChain<
+                T_FunctorVector,
+                T_FeatureDim
             > );
         }
     };
 
 
 
-    struct fillFunctorChainPointerKernel
+    struct FillFunctorChainPointerKernel
     {
         template<
-            typename TAcc__
+            typename T_Acc
         >
         ALPAKA_FN_ACC void operator()(
-            TAcc__ const & acc,
-            isaac_functor_chain_pointer_N * const functor_chain_d
+            T_Acc const & acc,
+            FunctorChainPointerN * const functorChain
         ) const
         {
             isaac_int bytecode[ISAAC_MAX_FUNCTORS];
@@ -193,25 +193,25 @@ namespace isaac
             for( int i = 0; i < ISAAC_FUNCTOR_COMPLEX;
             i++ )
             {
-                functor_chain_d[i * 4 + 0] =
+                functorChain[i * 4 + 0] =
                     FillFunctorChainPointerKernelStruct<
                         boost::mpl::vector< >,
                         1,
                         ISAAC_MAX_FUNCTORS
                     >::call( bytecode );
-                functor_chain_d[i * 4 + 1] =
+                functorChain[i * 4 + 1] =
                     FillFunctorChainPointerKernelStruct<
                         boost::mpl::vector< >,
                         2,
                         ISAAC_MAX_FUNCTORS
                     >::call( bytecode );
-                functor_chain_d[i * 4 + 2] =
+                functorChain[i * 4 + 2] =
                     FillFunctorChainPointerKernelStruct<
                         boost::mpl::vector< >,
                         3,
                         ISAAC_MAX_FUNCTORS
                     >::call( bytecode );
-                functor_chain_d[i * 4 + 3] =
+                functorChain[i * 4 + 3] =
                     FillFunctorChainPointerKernelStruct<
                         boost::mpl::vector< >,
                         4,
@@ -234,24 +234,24 @@ namespace isaac
     };
 
     template<
-        int count,
-        typename TDest
+        int T_Count,
+        typename T_Dest
     >
     struct updateFunctorChainPointerKernel
     {
         template<
-            typename TAcc__
+            typename T_Acc
         >
         ALPAKA_FN_ACC void operator()(
-            TAcc__ const & acc,
-            isaac_functor_chain_pointer_N * const functor_chain_choose_d,
-            isaac_functor_chain_pointer_N const * const functor_chain_d,
-            TDest dest
+            T_Acc const & acc,
+            FunctorChainPointerN * const functor_chain_choose_d,
+            FunctorChainPointerN const * const functorChain,
+            T_Dest dest
         ) const
         {
-            for( int i = 0; i < count; i++ )
+            for( int i = 0; i < T_Count; i++ )
             {
-                functor_chain_choose_d[i] = functor_chain_d[dest.nr[i]];
+                functor_chain_choose_d[i] = functorChain[dest.nr[i]];
             }
         }
     };

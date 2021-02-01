@@ -38,20 +38,20 @@ using isaac_byte = uint8_t;
 #endif
 
 
-template <int N, typename Type>
-using isaac_vec_dim = glm::vec<N, Type, glm::defaultp>;
+template <int T_N, typename Type>
+using isaac_vec_dim = glm::vec<T_N, Type, glm::defaultp>;
 
-template <int N, typename Type>
-using isaac_mat_dim = glm::mat<N, N, Type, glm::defaultp>;
+template <int T_N, typename Type>
+using isaac_mat_dim = glm::mat<T_N, T_N, Type, glm::defaultp>;
 
-template <int N>
-using isaac_float_dim = isaac_vec_dim<N, isaac_float>;
-template <int N>
-using isaac_double_dim = isaac_vec_dim<N, isaac_double>;
-template <int N>
-using isaac_int_dim = isaac_vec_dim<N, isaac_int>;
-template <int N>
-using isaac_size_dim = isaac_vec_dim<N, ISAAC_IDX_TYPE>;
+template <int T_N>
+using isaac_float_dim = isaac_vec_dim<T_N, isaac_float>;
+template <int T_N>
+using isaac_double_dim = isaac_vec_dim<T_N, isaac_double>;
+template <int T_N>
+using isaac_int_dim = isaac_vec_dim<T_N, isaac_int>;
+template <int T_N>
+using isaac_size_dim = isaac_vec_dim<T_N, ISAAC_IDX_TYPE>;
 
 using isaac_float4 = isaac_vec_dim<4, isaac_float>;
 using isaac_float3 = isaac_vec_dim<3, isaac_float>;
@@ -93,68 +93,68 @@ using isaac_dmat2 = isaac_mat_dim<2, isaac_double>;
  * 
  * @tparam simdim 
  */
-struct isaac_size_struct
+struct SimulationSizeStruct
 {
-    isaac_size3 global_size;         //size of volume
-    ISAAC_IDX_TYPE max_global_size;                //each dimension has a size and this value contains the value of the greatest dimension
+    isaac_size3 globalSize;         //size of volume
+    ISAAC_IDX_TYPE maxGlobalSize;                //each dimension has a size and this value contains the value of the greatest dimension
     isaac_size3 position;            //local position of subvolume
-    isaac_size3 local_size;          //size of local volume grid
-    isaac_size3 local_particle_size; //size of local particle grid 
-    isaac_size3 global_size_scaled;  //scaled version of global size with cells = scale * cells
-    ISAAC_IDX_TYPE max_global_size_scaled;         //same as global_size_scaled
-    isaac_size3 position_scaled;     //scaled position of local subvolume
-    isaac_size3 local_size_scaled;   //same as global_size_scaled
+    isaac_size3 localSize;          //size of local volume grid
+    isaac_size3 localParticleSize; //size of local particle grid 
+    isaac_size3 globalSizeScaled;  //scaled version of global size with cells = scale * cells
+    ISAAC_IDX_TYPE maxGlobalSizeScaled;         //same as globalSizeScaled
+    isaac_size3 positionScaled;     //scaled position of local subvolume
+    isaac_size3 localSizeScaled;   //same as globalSizeScaled
 };
 
 
-template< int N >
-struct transfer_d_struct
+template< int T_N >
+struct TransferDeviceStruct
 {
-    isaac_float4* pointer[ N ];
+    isaac_float4* pointer[ T_N ];
 };
 
-template< int N >
-struct transfer_h_struct
+template< int T_N >
+struct TransferHostStruct
 {
-    isaac_float4* pointer[ N ];
-    std::map< isaac_uint, isaac_float4 > description[ N ];
+    isaac_float4* pointer[ T_N ];
+    std::map< isaac_uint, isaac_float4 > description[ T_N ];
 };
 
-struct functions_struct
+struct FunctionsStruct
 {
     std::string source;
     isaac_int bytecode[ISAAC_MAX_FUNCTORS];
     isaac_int error_code;
 };
 
-template< int N >
-struct source_weight_struct
+template< int T_N >
+struct SourceWeightStruct
 {
-    isaac_float value[ N ];
+    isaac_float value[ T_N ];
 };
 
-template< int N >
-struct pointer_array_struct
+template< int T_N >
+struct PointerArrayStruct
 {
-    void* pointer[ N ];
+    void* pointer[ T_N ];
 };
 
-struct minmax_struct
+struct MinMax
 {
     isaac_float min;
     isaac_float max;
 };
 
-template< int N>
-struct minmax_array_struct
+template< int T_N>
+struct MinMaxArray
 {
-    isaac_float min[ N ];
-    isaac_float max[ N ];
+    isaac_float min[ T_N ];
+    isaac_float max[ T_N ];
 };
 
-struct clipping_struct
+struct ClippingStruct
 {
-    ISAAC_HOST_DEVICE_INLINE clipping_struct() :
+    ISAAC_HOST_DEVICE_INLINE ClippingStruct() :
         count(0)
     {}
     isaac_uint count;
@@ -169,8 +169,8 @@ struct clipping_struct
  * @brief Container for ambient occlusion parameters
  * 
  */
-struct ao_struct {
-    ISAAC_HOST_DEVICE_INLINE ao_struct() {}
+struct AmbientOcclusion {
+    ISAAC_HOST_DEVICE_INLINE AmbientOcclusion() {}
 
     //weight value (0.0-1.0) for mixing color with depth component (darken) 
     //1.0 = 100% depth component 0.0 = 0% depth component  

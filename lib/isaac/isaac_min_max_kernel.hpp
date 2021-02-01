@@ -20,19 +20,19 @@
 namespace isaac
 {
     template<
-        typename TSource
+        typename T_Source
     >
-    struct minMaxKernel
+    struct MinMaxKernel
     {
         template<
-            typename TAcc__
+            typename T_Acc
         >
         ALPAKA_FN_ACC void operator()(
-            TAcc__ const & acc,
-            const TSource source,
+            T_Acc const & acc,
+            const T_Source source,
             const int nr,
-            minmax_struct * const result,
-            const isaac_size3 local_size,
+            MinMax * const result,
+            const isaac_size3 localSize,
             void const * const pointer
         ) const
         {
@@ -46,36 +46,36 @@ namespace isaac
                 0
             };
 
-            if( !isInUpperBounds(coord, local_size) )
+            if( !isInUpperBounds(coord, localSize) )
                 return;
             isaac_float min = FLT_MAX;
             isaac_float max = -FLT_MAX;
-            for( ; coord.z < local_size.z; coord.z++ )
+            for( ; coord.z < localSize.z; coord.z++ )
             {
-                isaac_float_dim <TSource::feature_dim> data;
-                if( TSource::persistent )
+                isaac_float_dim <T_Source::feature_dim> data;
+                if( T_Source::persistent )
                 {
                     data = source[coord];
                 }
                 else
                 {
-                    isaac_float_dim <TSource::feature_dim> * ptr = (
-                        isaac_float_dim < TSource::feature_dim > *
+                    isaac_float_dim <T_Source::feature_dim> * ptr = (
+                        isaac_float_dim < T_Source::feature_dim > *
                     )( pointer );
                     data = ptr[coord.x + ISAAC_GUARD_SIZE
                                + ( coord.y + ISAAC_GUARD_SIZE )
-                                 * ( local_size.x + 2 * ISAAC_GUARD_SIZE )
+                                 * ( localSize.x + 2 * ISAAC_GUARD_SIZE )
                                + ( coord.z + ISAAC_GUARD_SIZE ) * (
-                                   ( local_size.x + 2 * ISAAC_GUARD_SIZE )
-                                   * ( local_size.y + 2 * ISAAC_GUARD_SIZE )
+                                   ( localSize.x + 2 * ISAAC_GUARD_SIZE )
+                                   * ( localSize.y + 2 * ISAAC_GUARD_SIZE )
                                )];
                 };
-                isaac_float value = applyFunctorChain<TSource::feature_dim>(&data, nr);
+                isaac_float value = applyFunctorChain<T_Source::feature_dim>(&data, nr);
                 min = glm::min( min, value );
                 max = glm::max( max, value );
             }
-            result[coord.x + coord.y * local_size.x].min = min;
-            result[coord.x + coord.y * local_size.x].max = max;
+            result[coord.x + coord.y * localSize.x].min = min;
+            result[coord.x + coord.y * localSize.x].max = max;
         }
 
     };
@@ -83,19 +83,19 @@ namespace isaac
 
 
     template<
-        typename TParticleSource
+        typename T_ParticleSource
     >
-    struct minMaxParticleKernel
+    struct MinMaxParticleKernel
     {
         template<
-            typename TAcc__
+            typename T_Acc
         >
         ALPAKA_FN_ACC void operator()(
-            TAcc__ const & acc,
-            const TParticleSource particle_source,
+            T_Acc const & acc,
+            const T_ParticleSource particleSource,
             const int nr,
-            minmax_struct * const result,
-            const isaac_size3 local_size
+            MinMax * const result,
+            const isaac_size3 localSize
         ) const
         {
             auto alpThreadIdx = alpaka::getIdx<
@@ -107,27 +107,27 @@ namespace isaac
                 isaac_uint( alpThreadIdx[2] ),
                 0
             };
-            if( !isInUpperBounds(coord, local_size) )
+            if( !isInUpperBounds(coord, localSize) )
                 return;
             isaac_float min = FLT_MAX;
             isaac_float max = -FLT_MAX;
-            for( ; coord.z < local_size.z; coord.z++ )
+            for( ; coord.z < localSize.z; coord.z++ )
             {
-                auto particle_iterator = particle_source.getIterator( coord );
-                for( int i = 0; i < particle_iterator.size; i++ )
+                auto particleIterator = particleSource.getIterator( coord );
+                for( int i = 0; i < particleIterator.size; i++ )
                 {
-                    isaac_float_dim <TParticleSource::feature_dim> data;
+                    isaac_float_dim <T_ParticleSource::feature_dim> data;
 
-                    data = particle_iterator.getAttribute( );
+                    data = particleIterator.getAttribute( );
 
-                    isaac_float value = applyFunctorChain<TParticleSource::feature_dim>(&data, nr);
+                    isaac_float value = applyFunctorChain<T_ParticleSource::feature_dim>(&data, nr);
                     min = glm::min( min, value );
                     max = glm::max( max, value );
                 }
 
             }
-            result[coord.x + coord.y * local_size.x].min = min;
-            result[coord.x + coord.y * local_size.x].max = max;
+            result[coord.x + coord.y * localSize.x].min = min;
+            result[coord.x + coord.y * localSize.x].max = max;
         }
 
     };
