@@ -584,9 +584,9 @@ namespace isaac
             }
             //indicates how strong particle ao should be when gas is overlapping
             //isaac_float ao_blend = 0.0f;
-            if (!isInLowerBounds(startUnscaled + stepVec * isaac_float(startSteps), isaac_float3(0))
-                || !isInUpperBounds(startUnscaled + stepVec * isaac_float(endSteps), isaac_float3( SimulationSize.localSize )))
-                color = isaac_float4(1, 1, 1, 1);
+            //if (!isInLowerBounds(startUnscaled + stepVec * isaac_float(startSteps), isaac_float3(0))
+            //    || !isInUpperBounds(startUnscaled + stepVec * isaac_float(endSteps), isaac_float3( SimulationSize.localSize )))
+            //    color = isaac_float4(1, 1, 1, 1);
 #if ISAAC_SHOWBORDER == 1
             if ( color.w <= isaac_float ( 0.99 ) ) {
                 oma = isaac_float ( 1 ) - color.w;
