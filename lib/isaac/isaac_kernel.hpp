@@ -155,7 +155,7 @@ namespace isaac
      * @brief Clamps coordinates to min/max
      * 
      * @tparam T_interpolation 
-     * @tparam TLocalSize 
+     * @tparam T_LocalSize 
      * @param coord 
      * @param localSize 
      * @return ISAAC_HOST_DEVICE_INLINE check_coord clamped coordiantes
@@ -178,7 +178,7 @@ namespace isaac
      * @brief Clamps coordinates to min/max +- Guard margin
      * 
      * @tparam T_interpolation 
-     * @tparam TLocalSize 
+     * @tparam T_LocalSize 
      * @param coord 
      * @param localSize 
      * @return ISAAC_HOST_DEVICE_INLINE check_coord_with_guard clamped coordinate
@@ -533,10 +533,10 @@ namespace isaac
             isaac_float3 * const gNormal,           //normal buffer
             const isaac_size2 framebuffer_size,     //size of framebuffer
             const isaac_uint2 framebuffer_start,    //framebuffer offset
-            const T_ParticleList particle_sources,   //source simulation particles
+            const T_ParticleList particleSources,   //source simulation particles
             const T_SourceList sources,              //source of volumes
             isaac_float step,                       //ray step length
-            const isaac_float4 background_color,    //color of render background
+            const isaac_float4 backgroundColor,    //color of render background
             const T_TransferArray transferArray,     //mapping to simulation memory
             const T_SourceWeight sourceWeight,       //weights of sources for blending
             const T_PointerArray pointerArray,
@@ -562,9 +562,9 @@ namespace isaac
             isaac_float3 default_depth = {1.0, 1.0, 1.0};
 
             //set background color
-            isaac_float4 color = background_color;
+            isaac_float4 color = backgroundColor;
             bool at_least_one = true;
-            isaac_for_each_with_mpl_params(
+            forEachWithMplParams(
                 sources,
                 CheckNoSourceIterator< T_Filter >( ),
                 at_least_one
@@ -605,11 +605,11 @@ namespace isaac
             isaac_float3 start = InverseMVPMatrix * start_p;
             isaac_float3 end = InverseMVPMatrix * end_p;
 
-            isaac_float max_size = SimulationSize.maxGlobalSizeScaled / 2.0f;
+            isaac_float maxSize = SimulationSize.maxGlobalSizeScaled / 2.0f;
 
             //scale to globale grid size
-            start = start * max_size;
-            end = end * max_size;
+            start = start * maxSize;
+            end = end * maxSize;
 
 
             //clipping planes with transformed positions
@@ -619,7 +619,7 @@ namespace isaac
             for( isaac_int i = 0; i < input_clipping.count; i++ )
             {
                 clipping.elem[i].position =
-                    input_clipping.elem[i].position * max_size;
+                    input_clipping.elem[i].position * maxSize;
                 clipping.elem[i].normal = input_clipping.elem[i].normal;
             }
 
@@ -943,8 +943,8 @@ namespace isaac
             {
 
                 // calculate particle intersections for each particle source
-                isaac_for_each_with_mpl_params(
-                    particle_sources,
+                forEachWithMplParams(
+                    particleSources,
                     merge_particle_iterator<
                         T_transferSize,
                         boost::mpl::size< T_SourceList >::type::value,
@@ -1044,7 +1044,7 @@ namespace isaac
                 value = isaac_float4( 0 );
                 result = 0;
                 bool firstRound = ( global_front && i == first );
-                isaac_for_each_with_mpl_params(
+                forEachWithMplParams(
                     sources,
                     merge_source_iterator<
                         T_transferSize,
@@ -1151,16 +1151,16 @@ namespace isaac
             isaac_float3 * normalBuffer,
             const isaac_size2 & framebuffer_size,
             const isaac_uint2 & framebuffer_start,
-            const T_ParticleList & particle_sources,
+            const T_ParticleList & particleSources,
             const T_SourceList & sources,
             const isaac_float & step,
-            const isaac_float4 & background_color,
+            const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             const T_PointerArray & pointerArray,
             IceTInt const * const readback_viewport,
             const isaac_int interpolation,
-            const isaac_int iso_surface,
+            const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
             const AOParams & ambientOcclusion
@@ -1193,16 +1193,16 @@ namespace isaac
                     normalBuffer,
                     framebuffer_size,
                     framebuffer_start,
-                    particle_sources,
+                    particleSources,
                     sources,
                     step,
-                    background_color,
+                    backgroundColor,
                     transferArray,
                     sourceWeight,
                     pointerArray,
                     readback_viewport,
                     interpolation,
-                    iso_surface,
+                    isoSurface,
                     scale,
                     clipping,
                     ambientOcclusion
@@ -1233,16 +1233,16 @@ namespace isaac
                     normalBuffer,
                     framebuffer_size,
                     framebuffer_start,
-                    particle_sources,
+                    particleSources,
                     sources,
                     step,
-                    background_color,
+                    backgroundColor,
                     transferArray,
                     sourceWeight,
                     pointerArray,
                     readback_viewport,
                     interpolation,
-                    iso_surface,
+                    isoSurface,
                     scale,
                     clipping,
                     ambientOcclusion
@@ -1286,16 +1286,16 @@ namespace isaac
             isaac_float3 * normalBuffer,
             const isaac_size2 & framebuffer_size,
             const isaac_uint2 & framebuffer_start,
-            const T_ParticleList & particle_sources,
+            const T_ParticleList & particleSources,
             const T_SourceList & sources,
             const isaac_float & step,
-            const isaac_float4 & background_color,
+            const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             const T_PointerArray & pointerArray,
             IceTInt const * const readback_viewport,
             const isaac_int interpolation,
-            const isaac_int iso_surface,
+            const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
             const AOParams & ambientOcclusion
@@ -1368,10 +1368,10 @@ namespace isaac
                         normalBuffer, \
                         framebuffer_size, \
                         framebuffer_start, \
-                        particle_sources, \
+                        particleSources, \
                         sources, \
                         step, \
-                        background_color, \
+                        backgroundColor, \
                         transferArray, \
                         sourceWeight, \
                         pointerArray, \
@@ -1384,7 +1384,7 @@ namespace isaac
             }
             if( interpolation )
             {
-                if( iso_surface )
+                if( isoSurface )
                 ISAAC_KERNEL_START 1,
                         1 ISAAC_KERNEL_END
                 else
@@ -1393,7 +1393,7 @@ namespace isaac
             }
             else
             {
-                if( iso_surface )
+                if( isoSurface )
                 ISAAC_KERNEL_START 0,
                         1 ISAAC_KERNEL_END
                 else

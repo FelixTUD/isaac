@@ -178,7 +178,7 @@ namespace isaac
             //set background color
             isaac_float4 color = backgroundColor;
             bool atLeastOne = true;
-            isaac_for_each_with_mpl_params(
+            forEachWithMplParams(
                 particleSources,
                 CheckNoSourceIterator< T_Filter >( ),
                 atLeastOne
@@ -219,7 +219,7 @@ namespace isaac
             isaac_int3 dirSign = glm::sign( ray.dir );
 
             // calculate current position in scaled object space
-            isaac_float3 currentPos = ray.start + ray.dir * startDepth;
+            isaac_float3 currentPos = ray.start + ray.dir * ray.startDepth;
 
             // calculate current local cell coordinates
             isaac_uint3 currentCell = isaac_uint3( glm::clamp( 
@@ -228,7 +228,7 @@ namespace isaac
                                     isaac_int3( SimulationSize.localParticleSize - ISAAC_IDX_TYPE( 1 ) ) 
                                 ) );
 
-            isaac_float rayLength = endDepth - startDepth;
+            isaac_float rayLength = ray.endDepth - ray.startDepth;
             isaac_float testedLength = 0;
 
 
@@ -267,7 +267,7 @@ namespace isaac
             {
 
                 // calculate particle intersections for each particle source
-                isaac_for_each_with_mpl_params(
+                forEachWithMplParams(
                     particleSources,
                     MergeParticleSourceIterator<
                         T_transferSize,
@@ -280,8 +280,8 @@ namespace isaac
                     transferArray,
                     sourceWeight,
                     scale,
-                    clippingNormal,
-                    isClipped,
+                    ray.clippingNormal,
+                    ray.isClipped,
                     particleColor,
                     particleNormal,
                     particleHitposition,
@@ -342,7 +342,7 @@ namespace isaac
             isaac_float3 depthValue = {
                 0.0f,
                 1.0f,
-                depth + startDepth
+                depth + ray.startDepth
             };
             gDepth[pixel.x + pixel.y * framebufferSize.x] = depthValue;
         }

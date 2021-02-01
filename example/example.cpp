@@ -38,7 +38,7 @@ using namespace isaac;
 ISAAC_NO_HOST_DEVICE_WARNING
 template<
     typename TDevAcc,
-    typename THost,
+    typename T_Host,
     typename T_Stream
 >
 class TestSource1
@@ -51,7 +51,7 @@ public:
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource1(
         TDevAcc acc,
-        THost host,
+        T_Host host,
         T_Stream stream,
         isaac_float3 * ptr
     ) :
@@ -91,7 +91,7 @@ public:
 ISAAC_NO_HOST_DEVICE_WARNING
 template<
     typename TDevAcc,
-    typename THost,
+    typename T_Host,
     typename T_Stream
 >
 class TestSource2
@@ -104,7 +104,7 @@ public:
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource2(
         TDevAcc acc,
-        THost host,
+        T_Host host,
         T_Stream stream,
         isaac_float * ptr
     ) :
@@ -201,7 +201,7 @@ private:
 ISAAC_NO_HOST_DEVICE_WARNING
 template<
     typename TDevAcc,
-    typename THost,
+    typename T_Host,
     typename T_Stream
 >
 class ParticleSource1
@@ -212,7 +212,7 @@ public:
 
     ISAAC_NO_HOST_DEVICE_WARNING ParticleSource1(
         TDevAcc acc,
-        THost host,
+        T_Host host,
         T_Stream stream,
         isaac_float3 * ptr,
         size_t size
@@ -513,7 +513,7 @@ int main(
         >
     >;
 
-    ParticleList particle_sources( particleTestSource1 );
+    ParticleList particleSources( particleTestSource1 );
     SourceList sources(
         testSource1,
         testSource2
@@ -605,7 +605,7 @@ int main(
             PARTICLE_VOLUME_Z
         },
         position, //Position of the subvolume in the globale volume
-        particle_sources,
+        particleSources,
         sources, //instances of the sources to render
         scaling
     );
@@ -765,49 +765,49 @@ int main(
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "sorting_time",
-                    json_integer( visualization->sorting_time )
+                    json_integer( visualization->sortingTime )
                 );
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "merge_time",
-                    json_integer( visualization->merge_time )
+                    json_integer( visualization->mergeTime )
                 );
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "kernel_time",
-                    json_integer( visualization->kernel_time )
+                    json_integer( visualization->kernelTime )
                 );
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "copy_time",
-                    json_integer( visualization->copy_time )
+                    json_integer( visualization->copyTime )
                 );
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "video_send_time",
-                    json_integer( visualization->video_send_time )
+                    json_integer( visualization->videoSendTime )
                 );
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "buffer_time",
-                    json_integer( visualization->buffer_time )
+                    json_integer( visualization->bufferTime )
                 );
                 full_drawing_time += drawing_time;
                 full_simulation_time += simulation_time;
-                sorting_time += visualization->sorting_time;
-                merge_time += visualization->merge_time;
-                kernel_time += visualization->kernel_time;
-                copy_time += visualization->copy_time;
-                video_send_time += visualization->video_send_time;
-                buffer_time += visualization->buffer_time;
+                sorting_time += visualization->sortingTime;
+                merge_time += visualization->mergeTime;
+                kernel_time += visualization->kernelTime;
+                copy_time += visualization->copyTime;
+                video_send_time += visualization->videoSendTime;
+                buffer_time += visualization->bufferTime;
                 drawing_time = 0;
                 simulation_time = 0;
-                visualization->sorting_time = 0;
-                visualization->merge_time = 0;
-                visualization->kernel_time = 0;
-                visualization->copy_time = 0;
-                visualization->video_send_time = 0;
-                visualization->buffer_time = 0;
+                visualization->sortingTime = 0;
+                visualization->mergeTime = 0;
+                visualization->kernelTime = 0;
+                visualization->copyTime = 0;
+                visualization->videoSendTime = 0;
+                visualization->bufferTime = 0;
             }
 
             // Visualization

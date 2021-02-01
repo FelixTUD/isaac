@@ -237,21 +237,21 @@ namespace isaac
         int T_count,
         typename T_Dest
     >
-    struct updateFunctorChainPointerKernel
+    struct UpdateFunctorChainPointerKernel
     {
         template<
             typename T_Acc
         >
         ALPAKA_FN_ACC void operator()(
             T_Acc const & acc,
-            FunctorChainPointerN * const functor_chain_choose_d,
+            FunctorChainPointerN * const functorChainChooseDevice,
             FunctorChainPointerN const * const functorChain,
             T_Dest dest
         ) const
         {
             for( int i = 0; i < T_count; i++ )
             {
-                functor_chain_choose_d[i] = functorChain[dest.nr[i]];
+                functorChainChooseDevice[i] = functorChain[dest.nr[i]];
             }
         }
     };

@@ -457,7 +457,7 @@ namespace isaac
             //set background color
             isaac_float4 color = backgroundColor;
             bool atLeastOne = true;
-            isaac_for_each_with_mpl_params(
+            forEachWithMplParams(
                 sources,
                 CheckNoSourceIterator< T_Filter >( ),
                 atLeastOne
@@ -540,7 +540,7 @@ namespace isaac
                 pos = startUnscaled + stepVec * isaac_float( i );
                 result = 0;
                 bool first = ray.isClipped && i == startSteps;
-                isaac_for_each_with_mpl_params(
+                forEachWithMplParams(
                     sources,
                     MergeIsoSourceIterator<
                         T_transferSize,
@@ -565,7 +565,7 @@ namespace isaac
                 {
                     if( result )
                     {
-                        depth = i * step;
+                        depth = ray.startDepth + i * step;
                         color = value;
                         break;
                     }

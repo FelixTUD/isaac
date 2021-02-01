@@ -78,11 +78,11 @@ namespace isaac
         ray.start = startPos / startPos.w;
         ray.end = endPos / endPos.w;
 
-        isaac_float max_size = SimulationSize.maxGlobalSizeScaled * isaac_float( 0.5 );
+        isaac_float maxSize = SimulationSize.maxGlobalSizeScaled * isaac_float( 0.5 );
 
         //scale to globale grid size
-        ray.start = ray.start * max_size;
-        ray.end = ray.end * max_size;
+        ray.start = ray.start * maxSize;
+        ray.end = ray.end * maxSize;
 
         //get step vector
         ray.dir = glm::normalize( ray.end - ray.start );

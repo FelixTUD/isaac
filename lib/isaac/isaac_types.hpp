@@ -124,7 +124,7 @@ struct FunctionsStruct
 {
     std::string source;
     isaac_int bytecode[ISAAC_MAX_FUNCTORS];
-    isaac_int error_code;
+    isaac_int errorCode;
 };
 
 template< int T_n >
