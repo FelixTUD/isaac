@@ -38,20 +38,20 @@ using isaac_byte = uint8_t;
 #endif
 
 
-template <int T_N, typename Type>
-using isaac_vec_dim = glm::vec<T_N, Type, glm::defaultp>;
+template <int T_n, typename Type>
+using isaac_vec_dim = glm::vec<T_n, Type, glm::defaultp>;
 
-template <int T_N, typename Type>
-using isaac_mat_dim = glm::mat<T_N, T_N, Type, glm::defaultp>;
+template <int T_n, typename Type>
+using isaac_mat_dim = glm::mat<T_n, T_n, Type, glm::defaultp>;
 
-template <int T_N>
-using isaac_float_dim = isaac_vec_dim<T_N, isaac_float>;
-template <int T_N>
-using isaac_double_dim = isaac_vec_dim<T_N, isaac_double>;
-template <int T_N>
-using isaac_int_dim = isaac_vec_dim<T_N, isaac_int>;
-template <int T_N>
-using isaac_size_dim = isaac_vec_dim<T_N, ISAAC_IDX_TYPE>;
+template <int T_n>
+using isaac_float_dim = isaac_vec_dim<T_n, isaac_float>;
+template <int T_n>
+using isaac_double_dim = isaac_vec_dim<T_n, isaac_double>;
+template <int T_n>
+using isaac_int_dim = isaac_vec_dim<T_n, isaac_int>;
+template <int T_n>
+using isaac_size_dim = isaac_vec_dim<T_n, ISAAC_IDX_TYPE>;
 
 using isaac_float4 = isaac_vec_dim<4, isaac_float>;
 using isaac_float3 = isaac_vec_dim<3, isaac_float>;
@@ -107,17 +107,17 @@ struct SimulationSizeStruct
 };
 
 
-template< int T_N >
+template< int T_n >
 struct TransferDeviceStruct
 {
-    isaac_float4* pointer[ T_N ];
+    isaac_float4* pointer[ T_n ];
 };
 
-template< int T_N >
+template< int T_n >
 struct TransferHostStruct
 {
-    isaac_float4* pointer[ T_N ];
-    std::map< isaac_uint, isaac_float4 > description[ T_N ];
+    isaac_float4* pointer[ T_n ];
+    std::map< isaac_uint, isaac_float4 > description[ T_n ];
 };
 
 struct FunctionsStruct
@@ -127,16 +127,16 @@ struct FunctionsStruct
     isaac_int error_code;
 };
 
-template< int T_N >
+template< int T_n >
 struct SourceWeightStruct
 {
-    isaac_float value[ T_N ];
+    isaac_float value[ T_n ];
 };
 
-template< int T_N >
+template< int T_n >
 struct PointerArrayStruct
 {
-    void* pointer[ T_N ];
+    void* pointer[ T_n ];
 };
 
 struct MinMax
@@ -145,11 +145,11 @@ struct MinMax
     isaac_float max;
 };
 
-template< int T_N>
+template< int T_n>
 struct MinMaxArray
 {
-    isaac_float min[ T_N ];
-    isaac_float max[ T_N ];
+    isaac_float min[ T_n ];
+    isaac_float max[ T_n ];
 };
 
 struct ClippingStruct
@@ -169,8 +169,8 @@ struct ClippingStruct
  * @brief Container for ambient occlusion parameters
  * 
  */
-struct AmbientOcclusion {
-    ISAAC_HOST_DEVICE_INLINE AmbientOcclusion() {}
+struct AOParams {
+    ISAAC_HOST_DEVICE_INLINE AOParams() {}
 
     //weight value (0.0-1.0) for mixing color with depth component (darken) 
     //1.0 = 100% depth component 0.0 = 0% depth component  

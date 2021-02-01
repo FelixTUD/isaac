@@ -32,7 +32,7 @@ namespace isaac
 {
 #if 0
     template<
-        isaac_int T_Interpolation,
+        isaac_int T_interpolation,
         typename T_NR,
         typename T_Source,
         typename T_PointerArray
@@ -50,7 +50,7 @@ namespace isaac
         isaac_float_dim <T_Source::feature_dim> * ptr = (
         isaac_float_dim < T_Source::feature_dim > *
         )( pointerArray.pointer[T_NR::value] );
-        if( T_Interpolation == 0 )
+        if( T_interpolation == 0 )
         {
             isaac_int3 coord = pos;
             if( T_Source::persistent )
@@ -154,14 +154,14 @@ namespace isaac
     /**
      * @brief Clamps coordinates to min/max
      * 
-     * @tparam T_Interpolation 
+     * @tparam T_interpolation 
      * @tparam TLocalSize 
      * @param coord 
      * @param localSize 
      * @return ISAAC_HOST_DEVICE_INLINE check_coord clamped coordiantes
      */
     template<
-        bool T_Interpolation
+        bool T_interpolation
     >
     ISAAC_HOST_DEVICE_INLINE void
     check_coord(
@@ -169,7 +169,7 @@ namespace isaac
         const isaac_size3 &  localSize
     )
     {
-        constexpr ISAAC_IDX_TYPE extra_border = static_cast<ISAAC_IDX_TYPE>(T_Interpolation);
+        constexpr ISAAC_IDX_TYPE extra_border = static_cast<ISAAC_IDX_TYPE>(T_interpolation);
 
         coord = glm::clamp(coord, isaac_float3(0), isaac_float3( localSize - extra_border ) - std::numeric_limits<isaac_float>::min( ) );
     }
@@ -177,14 +177,14 @@ namespace isaac
     /**
      * @brief Clamps coordinates to min/max +- Guard margin
      * 
-     * @tparam T_Interpolation 
+     * @tparam T_interpolation 
      * @tparam TLocalSize 
      * @param coord 
      * @param localSize 
      * @return ISAAC_HOST_DEVICE_INLINE check_coord_with_guard clamped coordinate
      */
     template<
-        bool T_Interpolation
+        bool T_interpolation
     >
     ISAAC_HOST_DEVICE_INLINE void
     check_coord_with_guard(
@@ -192,7 +192,7 @@ namespace isaac
         const isaac_size3 & localSize
     )
     {
-        constexpr ISAAC_IDX_TYPE extra_border = static_cast<ISAAC_IDX_TYPE>(T_Interpolation);
+        constexpr ISAAC_IDX_TYPE extra_border = static_cast<ISAAC_IDX_TYPE>(T_interpolation);
 
         coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), 
                             isaac_float3( localSize + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE ) - extra_border )
@@ -200,10 +200,10 @@ namespace isaac
     }
 
     template<
-        ISAAC_IDX_TYPE Ttransfer_size,
+        ISAAC_IDX_TYPE T_transferSize,
         typename T_Filter,
-        isaac_int T_Interpolation,
-        isaac_int T_IsoSurface
+        isaac_int T_interpolation,
+        isaac_int T_isoSurface
     >
     struct merge_source_iterator
     {
@@ -238,7 +238,7 @@ namespace isaac
             >::type::value )
             {
                 isaac_float result = get_value<
-                    T_Interpolation,
+                    T_interpolation,
                     T_NR
                 >(
                     source,
@@ -248,11 +248,11 @@ namespace isaac
                     scale
                 );
                 ISAAC_IDX_TYPE lookup_value = ISAAC_IDX_TYPE(
-                    glm::round( result * isaac_float( Ttransfer_size ) )
+                    glm::round( result * isaac_float( T_transferSize ) )
                 );
-                lookup_value = glm::clamp( lookup_value, ISAAC_IDX_TYPE( 0 ), Ttransfer_size - 1 );
+                lookup_value = glm::clamp( lookup_value, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
                 isaac_float4 value = transferArray.pointer[T_NR::value][lookup_value];
-                if( T_IsoSurface )
+                if( T_isoSurface )
                 {
                     if( value.w >= isaac_float( 0.5 ) )
                     {
@@ -264,14 +264,14 @@ namespace isaac
                         left = left + pos;
                         if( !T_Source::has_guard && T_Source::persistent )
                         {
-                            check_coord< T_Interpolation >(
+                            check_coord< T_interpolation >(
                                 left,
                                 localSize
                             );
                         }
                         else
                         {
-                            check_coord_with_guard< T_Interpolation >(
+                            check_coord_with_guard< T_interpolation >(
                                 left,
                                 localSize
                             );
@@ -284,20 +284,20 @@ namespace isaac
                         right = right + pos;
                         if( !T_Source::has_guard && T_Source::persistent )
                         {
-                            check_coord< T_Interpolation >(
+                            check_coord< T_interpolation >(
                                 right,
                                 localSize
                             );
                         }
                         else
                         {
-                            check_coord_with_guard< T_Interpolation >(
+                            check_coord_with_guard< T_interpolation >(
                                 right,
                                 localSize
                             );
                         }
                         isaac_float d1;
-                        if( T_Interpolation )
+                        if( T_interpolation )
                         {
                             d1 = right.x - left.x;
                         }
@@ -314,14 +314,14 @@ namespace isaac
                         up = up + pos;
                         if( !T_Source::has_guard && T_Source::persistent )
                         {
-                            check_coord< T_Interpolation >(
+                            check_coord< T_interpolation >(
                                 up,
                                 localSize
                             );
                         }
                         else
                         {
-                            check_coord_with_guard< T_Interpolation >(
+                            check_coord_with_guard< T_interpolation >(
                                 up,
                                 localSize
                             );
@@ -334,20 +334,20 @@ namespace isaac
                         down = down + pos;
                         if( !T_Source::has_guard && T_Source::persistent )
                         {
-                            check_coord< T_Interpolation >(
+                            check_coord< T_interpolation >(
                                 down,
                                 localSize
                             );
                         }
                         else
                         {
-                            check_coord_with_guard< T_Interpolation >(
+                            check_coord_with_guard< T_interpolation >(
                                 down,
                                 localSize
                             );
                         }
                         isaac_float d2;
-                        if( T_Interpolation )
+                        if( T_interpolation )
                         {
                             d2 = down.y - up.y;
                         }
@@ -364,14 +364,14 @@ namespace isaac
                         front = front + pos;
                         if( !T_Source::has_guard && T_Source::persistent )
                         {
-                            check_coord< T_Interpolation >(
+                            check_coord< T_interpolation >(
                                 front,
                                 localSize
                             );
                         }
                         else
                         {
-                            check_coord_with_guard< T_Interpolation >(
+                            check_coord_with_guard< T_interpolation >(
                                 front,
                                 localSize
                             );
@@ -384,20 +384,20 @@ namespace isaac
                         back = back + pos;
                         if( !T_Source::has_guard && T_Source::persistent )
                         {
-                            check_coord< T_Interpolation >(
+                            check_coord< T_interpolation >(
                                 back,
                                 localSize
                             );
                         }
                         else
                         {
-                            check_coord_with_guard< T_Interpolation >(
+                            check_coord_with_guard< T_interpolation >(
                                 back,
                                 localSize
                             );
                         }
                         isaac_float d3;
-                        if( T_Interpolation )
+                        if( T_interpolation )
                         {
                             d3 = back.z - front.z;
                         }
@@ -409,7 +409,7 @@ namespace isaac
                         isaac_float3 gradient = {
                             (
                                 get_value<
-                                    T_Interpolation,
+                                    T_interpolation,
                                     T_NR
                                 >(
                                     source,
@@ -418,7 +418,7 @@ namespace isaac
                                     localSize,
                                     scale
                                 ) - get_value<
-                                    T_Interpolation,
+                                    T_interpolation,
                                     T_NR
                                 >(
                                     source,
@@ -430,7 +430,7 @@ namespace isaac
                             ) / d1,
                             (
                                 get_value<
-                                    T_Interpolation,
+                                    T_interpolation,
                                     T_NR
                                 >(
                                     source,
@@ -439,7 +439,7 @@ namespace isaac
                                     localSize,
                                     scale
                                 ) - get_value<
-                                    T_Interpolation,
+                                    T_interpolation,
                                     T_NR
                                 >(
                                     source,
@@ -451,7 +451,7 @@ namespace isaac
                             ) / d2,
                             (
                                 get_value<
-                                    T_Interpolation,
+                                    T_interpolation,
                                     T_NR
                                 >(
                                     source,
@@ -460,7 +460,7 @@ namespace isaac
                                     localSize,
                                     scale
                                 ) - get_value<
-                                    T_Interpolation,
+                                    T_interpolation,
                                     T_NR
                                 >(
                                     source,
@@ -511,15 +511,15 @@ namespace isaac
 
 
     template<
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_SourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
         typename T_Filter,
-        ISAAC_IDX_TYPE Ttransfer_size,
-        isaac_int T_Interpolation,
-        isaac_int T_IsoSurface
+        ISAAC_IDX_TYPE T_transferSize,
+        isaac_int T_interpolation,
+        isaac_int T_isoSurface
     >
     struct isaacRenderKernel
     {
@@ -533,7 +533,7 @@ namespace isaac
             isaac_float3 * const gNormal,           //normal buffer
             const isaac_size2 framebuffer_size,     //size of framebuffer
             const isaac_uint2 framebuffer_start,    //framebuffer offset
-            const TParticleList particle_sources,   //source simulation particles
+            const T_ParticleList particle_sources,   //source simulation particles
             const T_SourceList sources,              //source of volumes
             isaac_float step,                       //ray step length
             const isaac_float4 background_color,    //color of render background
@@ -542,7 +542,7 @@ namespace isaac
             const T_PointerArray pointerArray,
             const isaac_float3 scale,                     //isaac set scaling
             const ClippingStruct input_clipping,   //clipping planes
-            const AmbientOcclusion ambientOcclusion        //ambient occlusion params
+            const AOParams ambientOcclusion        //ambient occlusion params
         ) const
         {
             //get pixel values from thread ids
@@ -946,7 +946,7 @@ namespace isaac
                 isaac_for_each_with_mpl_params(
                     particle_sources,
                     merge_particle_iterator<
-                        Ttransfer_size,
+                        T_transferSize,
                         boost::mpl::size< T_SourceList >::type::value,
                         T_Filter
                     >( ),
@@ -1047,10 +1047,10 @@ namespace isaac
                 isaac_for_each_with_mpl_params(
                     sources,
                     merge_source_iterator<
-                        Ttransfer_size,
+                        T_transferSize,
                         T_Filter,
-                        T_Interpolation,
-                        T_IsoSurface
+                        T_interpolation,
+                        T_isoSurface
                     >( ),
                     value,
                     pos,
@@ -1065,7 +1065,7 @@ namespace isaac
                     firstRound,
                     start_normal
                 );
-                if( T_IsoSurface )
+                if( T_isoSurface )
                 {
                     if( result )
                     {
@@ -1129,13 +1129,13 @@ namespace isaac
     };
 
     template<
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_SourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
         typename T_Filter,
-        ISAAC_IDX_TYPE TTransfer_size,
+        ISAAC_IDX_TYPE T_transferSize,
         typename TAccDim,
         typename T_Acc,
         typename T_Stream,
@@ -1151,7 +1151,7 @@ namespace isaac
             isaac_float3 * normalBuffer,
             const isaac_size2 & framebuffer_size,
             const isaac_uint2 & framebuffer_start,
-            const TParticleList & particle_sources,
+            const T_ParticleList & particle_sources,
             const T_SourceList & sources,
             const isaac_float & step,
             const isaac_float4 & background_color,
@@ -1163,15 +1163,15 @@ namespace isaac
             const isaac_int iso_surface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
-            const AmbientOcclusion & ambientOcclusion
+            const AOParams & ambientOcclusion
         )
         {
             if( sourceWeight.value[boost::mpl::size< T_SourceList >::type::value
-                                   + boost::mpl::size< TParticleList >::type::value
+                                   + boost::mpl::size< T_ParticleList >::type::value
                                    - N] == isaac_float( 0 ) )
             {
                 IsaacRenderKernelCaller<
-                    TParticleList,
+                    T_ParticleList,
                     T_SourceList,
                     T_TransferArray,
                     T_SourceWeight,
@@ -1180,7 +1180,7 @@ namespace isaac
                         T_Filter,
                         boost::mpl::false_
                     >::type,
-                    TTransfer_size,
+                    T_transferSize,
                     TAccDim,
                     T_Acc,
                     T_Stream,
@@ -1211,7 +1211,7 @@ namespace isaac
             else
             {
                 IsaacRenderKernelCaller<
-                    TParticleList,
+                    T_ParticleList,
                     T_SourceList,
                     T_TransferArray,
                     T_SourceWeight,
@@ -1220,7 +1220,7 @@ namespace isaac
                         T_Filter,
                         boost::mpl::true_
                     >::type,
-                    TTransfer_size,
+                    T_transferSize,
                     TAccDim,
                     T_Acc,
                     T_Stream,
@@ -1252,26 +1252,26 @@ namespace isaac
     };
 
     template<
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_SourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
         typename T_Filter,
-        ISAAC_IDX_TYPE TTransfer_size,
+        ISAAC_IDX_TYPE T_transferSize,
         typename TAccDim,
         typename T_Acc,
         typename T_Stream,
         typename T_FunctionChain
     >
     struct IsaacRenderKernelCaller<
-        TParticleList,
+        T_ParticleList,
         T_SourceList,
         T_TransferArray,
         T_SourceWeight,
         T_PointerArray,
         T_Filter,
-        TTransfer_size,
+        T_transferSize,
         TAccDim,
         T_Acc,
         T_Stream,
@@ -1286,7 +1286,7 @@ namespace isaac
             isaac_float3 * normalBuffer,
             const isaac_size2 & framebuffer_size,
             const isaac_uint2 & framebuffer_start,
-            const TParticleList & particle_sources,
+            const T_ParticleList & particle_sources,
             const T_SourceList & sources,
             const isaac_float & step,
             const isaac_float4 & background_color,
@@ -1298,7 +1298,7 @@ namespace isaac
             const isaac_int iso_surface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
-            const AmbientOcclusion & ambientOcclusion
+            const AOParams & ambientOcclusion
         )
         {
             isaac_size2 block_size = {
@@ -1347,13 +1347,13 @@ namespace isaac
             { \
                 isaacRenderKernel \
                 < \
-                    TParticleList, \
+                    T_ParticleList, \
                     T_SourceList, \
                     T_TransferArray, \
                     T_SourceWeight, \
                     T_PointerArray, \
                     T_Filter, \
-                    TTransfer_size,
+                    T_transferSize,
 #define ISAAC_KERNEL_END \
                 > \
                 kernel; \

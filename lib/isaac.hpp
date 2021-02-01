@@ -78,9 +78,9 @@ namespace isaac
         typename T_Acc,
         typename T_Stream,
         typename T_AccDim,
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_SourceList,
-        ISAAC_IDX_TYPE TTransfer_size,
+        ISAAC_IDX_TYPE T_transferSize,
         typename TController,
         typename TCompositor
     >
@@ -554,7 +554,7 @@ namespace isaac
 
         // calculate minmax for particles
         template<
-            int TOffset
+            int T_offset
         >
         struct calc_particle_minmax_iterator
         {
@@ -623,7 +623,7 @@ namespace isaac
                             workdiv,
                             kernel,
                             particle_source,
-                            I + TOffset,
+                            I + T_offset,
                             alpaka::getPtrNative( local_minmax ),
                             localSize
                         )
@@ -651,18 +651,18 @@ namespace isaac
                         >( localSize.x * localSize.y )
                     );
                 }
-                minmax.min[I + TOffset] = FLT_MAX;
-                minmax.max[I + TOffset] = -FLT_MAX;
+                minmax.min[I + T_offset] = FLT_MAX;
+                minmax.max[I + T_offset] = -FLT_MAX;
                 // find the min and max
                 for( ISAAC_IDX_TYPE i = 0; i < localSize.x * localSize.y; i++ )
                 {
-                    if( local_minmax_array_h[i].min < minmax.min[I + TOffset] )
+                    if( local_minmax_array_h[i].min < minmax.min[I + T_offset] )
                     {
-                        minmax.min[I + TOffset] = local_minmax_array_h[i].min;
+                        minmax.min[I + T_offset] = local_minmax_array_h[i].min;
                     }
-                    if( local_minmax_array_h[i].max > minmax.max[I + TOffset] )
+                    if( local_minmax_array_h[i].max > minmax.max[I + T_offset] )
                     {
-                        minmax.max[I + TOffset] = local_minmax_array_h[i].max;
+                        minmax.max[I + T_offset] = local_minmax_array_h[i].max;
                     }
                 }
             }
@@ -682,7 +682,7 @@ namespace isaac
             const isaac_size3 localSize,
             const isaac_size3 localParticleSize,
             const isaac_size3 position,
-            TParticleList & particle_sources,
+            T_ParticleList & particle_sources,
             T_SourceList & sources,
             isaac_float3 scale
 
@@ -772,7 +772,7 @@ namespace isaac
                 acc,
                 ISAAC_IDX_TYPE ( ( boost
                 ::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value ) ) ) )
+                + boost::mpl::size< T_ParticleList >::type::value ) ) ) )
             ,
 
             local_minmax_array_d ( alpaka::allocBuf<
@@ -904,7 +904,7 @@ namespace isaac
             //Init functions:
             for( int i = 0; i < (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             ); i++ )
             {
                 functions[i].source = std::string( "idem" );
@@ -924,7 +924,7 @@ namespace isaac
             //Transfer func memory:
             for( int i = 0; i < (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             ); i++ )
             {
                 source_weight.value[i] = ISAAC_DEFAULT_WEIGHT;
@@ -943,7 +943,7 @@ namespace isaac
                             alpaka::Vec<
                                 TTexDim,
                                 ISAAC_IDX_TYPE
-                            >( TTransfer_size )
+                            >( T_transferSize )
                         )
                     )
                 );
@@ -962,7 +962,7 @@ namespace isaac
                             alpaka::Vec<
                                 TTexDim,
                                 ISAAC_IDX_TYPE
-                            >( TTransfer_size )
+                            >( T_transferSize )
                         )
                     )
                 );
@@ -983,7 +983,7 @@ namespace isaac
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
                                         boost::mpl::size< T_SourceList >::type::value
-                                        + boost::mpl::size< TParticleList >::type::value
+                                        + boost::mpl::size< T_ParticleList >::type::value
                                     )
                                 ),
                                 1,
@@ -997,12 +997,12 @@ namespace isaac
                             isaac_uint,
                             isaac_float4
                         >(
-                            TTransfer_size,
+                            T_transferSize,
                             getHSVA(
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
                                         boost::mpl::size< T_SourceList >::type::value
-                                        + boost::mpl::size< TParticleList >::type::value
+                                        + boost::mpl::size< T_ParticleList >::type::value
                                     )
                                 ),
                                 1,
@@ -1025,7 +1025,7 @@ namespace isaac
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
                                         boost::mpl::size< T_SourceList >::type::value
-                                        + boost::mpl::size< TParticleList >::type::value
+                                        + boost::mpl::size< T_ParticleList >::type::value
                                     )
                                 ),
                                 1,
@@ -1039,12 +1039,12 @@ namespace isaac
                             isaac_uint,
                             isaac_float4
                         >(
-                            TTransfer_size,
+                            T_transferSize,
                             getHSVA(
                                 isaac_float( 2 * i ) * M_PI / isaac_float(
                                     (
                                         boost::mpl::size< T_SourceList >::type::value
-                                        + boost::mpl::size< TParticleList >::type::value
+                                        + boost::mpl::size< T_ParticleList >::type::value
                                     )
                                 ),
                                 1,
@@ -1537,11 +1537,11 @@ namespace isaac
             IsaacFunctorPool functors;
             isaac_float4 isaac_parameter_h[(
                                                boost::mpl::size< T_SourceList >::type::value
-                                               + boost::mpl::size< TParticleList >::type::value
+                                               + boost::mpl::size< T_ParticleList >::type::value
                                            ) * ISAAC_MAX_FUNCTORS];
             for( int i = 0; i < (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             ); i++ )
             {
                 functions[i].error_code = 0;
@@ -1708,7 +1708,7 @@ namespace isaac
             DestArrayStruct<
                 (
                     boost::mpl::size< T_SourceList >::type::value
-                    + boost::mpl::size< TParticleList >::type::value
+                    + boost::mpl::size< T_ParticleList >::type::value
                 )
             > dest;
             int zero = 0;
@@ -1737,7 +1737,7 @@ namespace isaac
                     ISAAC_IDX_TYPE(
                         ISAAC_MAX_FUNCTORS * (
                             boost::mpl::size< T_SourceList >::type::value
-                            + boost::mpl::size< TParticleList >::type::value
+                            + boost::mpl::size< T_ParticleList >::type::value
                         )
                     )
                 )
@@ -1761,7 +1761,7 @@ namespace isaac
                     ISAAC_IDX_TYPE(
                         ISAAC_MAX_FUNCTORS * (
                             boost::mpl::size< T_SourceList >::type::value
-                            + boost::mpl::size< TParticleList >::type::value
+                            + boost::mpl::size< T_ParticleList >::type::value
                         )
                     )
                 )
@@ -1795,12 +1795,12 @@ namespace isaac
             updateFunctorChainPointerKernel<
                 (
                     boost::mpl::size< T_SourceList >::type::value
-                    + boost::mpl::size< TParticleList >::type::value
+                    + boost::mpl::size< T_ParticleList >::type::value
                 ),
                 DestArrayStruct<
                     (
                         boost::mpl::size< T_SourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
+                        + boost::mpl::size< T_ParticleList >::type::value
                     )
                 >
             > kernel;
@@ -1833,7 +1833,7 @@ namespace isaac
                 ISAAC_IDX_TYPE(
                     (
                         boost::mpl::size< T_SourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
+                        + boost::mpl::size< T_ParticleList >::type::value
                     )
                 )
             );
@@ -1845,7 +1845,7 @@ namespace isaac
             ISAAC_WAIT_VISUALIZATION
             for( int i = 0; i < (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             ); i++ )
             {
                 auto next = transfer_h.description[i].begin( );
@@ -1856,7 +1856,7 @@ namespace isaac
                     for( ISAAC_IDX_TYPE j = 0;
                         j < ISAAC_IDX_TYPE( width )
                         && ISAAC_IDX_TYPE( j + before->first )
-                           < ISAAC_IDX_TYPE( TTransfer_size );
+                           < ISAAC_IDX_TYPE( T_transferSize );
                         j++ )
                     {
                         transfer_h.pointer[i][before->first + j] = (
@@ -1876,7 +1876,7 @@ namespace isaac
                     stream,
                     transfer_d_buf[i],
                     transfer_h_buf[i],
-                    TTransfer_size
+                    T_transferSize
                 );
             }
         }
@@ -2760,7 +2760,7 @@ namespace isaac
                         minmax_array.min,
                         (
                             boost::mpl::size< T_SourceList >::type::value
-                            + boost::mpl::size< TParticleList >::type::value
+                            + boost::mpl::size< T_ParticleList >::type::value
                         ),
                         MPI_FLOAT,
                         MPI_MIN,
@@ -2772,7 +2772,7 @@ namespace isaac
                         minmax_array.max,
                         (
                             boost::mpl::size< T_SourceList >::type::value
-                            + boost::mpl::size< TParticleList >::type::value
+                            + boost::mpl::size< T_ParticleList >::type::value
                         ),
                         MPI_FLOAT,
                         MPI_MAX,
@@ -2787,7 +2787,7 @@ namespace isaac
                         NULL,
                         (
                             boost::mpl::size< T_SourceList >::type::value
-                            + boost::mpl::size< TParticleList >::type::value
+                            + boost::mpl::size< T_ParticleList >::type::value
                         ),
                         MPI_FLOAT,
                         MPI_MIN,
@@ -2799,7 +2799,7 @@ namespace isaac
                         NULL,
                         (
                             boost::mpl::size< T_SourceList >::type::value
-                            + boost::mpl::size< TParticleList >::type::value
+                            + boost::mpl::size< T_ParticleList >::type::value
                         ),
                         MPI_FLOAT,
                         MPI_MAX,
@@ -3193,15 +3193,15 @@ namespace isaac
             };
 
             const int SourceListLength = boost::mpl::size< T_SourceList >::type::value
-                                        + boost::mpl::size< TParticleList >::type::value;
+                                        + boost::mpl::size< T_ParticleList >::type::value;
             /*
             //call render kernel
             ParticleRenderKernelCaller<
-                TParticleList,
+                T_ParticleList,
                 TransferDeviceStruct<SourceListLength>,
                 SourceWeightStruct<SourceListLength>,
                 mpl::vector< >,
-                TTransfer_size,
+                T_transferSize,
                 T_AccDim, 
                 T_Acc, 
                 T_Stream,
@@ -3212,7 +3212,7 @@ namespace isaac
                     ISAAC_IDX_TYPE 
                 >, 
                 boost::mpl::size< T_SourceList >::type::value,
-                boost::mpl::size< TParticleList >::type::value
+                boost::mpl::size< T_ParticleList >::type::value
             > 
             ::call(
                 myself->stream,
@@ -3239,7 +3239,7 @@ namespace isaac
                 SourceWeightStruct<SourceListLength>,
                 PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
                 mpl::vector< >,
-                TTransfer_size,
+                T_transferSize,
                 T_AccDim, 
                 T_Acc, 
                 T_Stream,
@@ -3480,7 +3480,7 @@ namespace isaac
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
                         boost::mpl::size< T_SourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
+                        + boost::mpl::size< T_ParticleList >::type::value
                     ); i++ )
                     {
                         json_t * transfer = json_array( );
@@ -3488,7 +3488,7 @@ namespace isaac
                             matrix,
                             transfer
                         );
-                        for( ISAAC_IDX_TYPE j = 0; j < TTransfer_size; j++ )
+                        for( ISAAC_IDX_TYPE j = 0; j < T_transferSize; j++ )
                         {
                             json_t * color = json_array( );
                             json_array_append_new(
@@ -3544,7 +3544,7 @@ namespace isaac
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
                         boost::mpl::size< T_SourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
+                        + boost::mpl::size< T_ParticleList >::type::value
                     ); i++ )
                     {
                         json_t * points = json_array( );
@@ -3612,7 +3612,7 @@ namespace isaac
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
                         boost::mpl::size< T_SourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
+                        + boost::mpl::size< T_ParticleList >::type::value
                     ); i++ )
                     {
                         json_t * f = json_object( );
@@ -3644,7 +3644,7 @@ namespace isaac
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
                         boost::mpl::size< T_SourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
+                        + boost::mpl::size< T_ParticleList >::type::value
                     ); i++ )
                     {
                         json_array_append_new(
@@ -3707,7 +3707,7 @@ namespace isaac
                     );
                     for( ISAAC_IDX_TYPE i = 0; i < (
                         boost::mpl::size< T_SourceList >::type::value
-                        + boost::mpl::size< TParticleList >::type::value
+                        + boost::mpl::size< T_ParticleList >::type::value
                     ); i++ )
                     {
                         json_t * v = json_object( );
@@ -4048,12 +4048,12 @@ namespace isaac
         isaac_int master;
         isaac_int numProc;
         isaac_uint metaNr;
-        TParticleList & particle_sources;
+        T_ParticleList & particle_sources;
         T_SourceList & sources;
         IceTContext icetContext[TController::pass_count];
         IsaacVisualizationMetaEnum thr_metaTargets;
         pthread_t visualizationThread;
-        AmbientOcclusion ambientOcclusion;                         //state of ambient occlusion on client site
+        AOParams ambientOcclusion;                         //state of ambient occlusion on client site
 
         std::vector <alpaka::Buf<
             TDevAcc,
@@ -4077,19 +4077,19 @@ namespace isaac
         TransferDeviceStruct<
             (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             )
         > transfer_d;
         TransferHostStruct<
             (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             )
         > transfer_h;
         SourceWeightStruct<
             (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             )
         > source_weight;
         PointerArrayStruct<
@@ -4100,13 +4100,13 @@ namespace isaac
         MinMaxArray<
             (
                 boost::mpl::size< T_SourceList >::type::value
-                + boost::mpl::size< TParticleList >::type::value
+                + boost::mpl::size< T_ParticleList >::type::value
             )
         > minmax_array;
-        const static ISAAC_IDX_TYPE transfer_size = TTransfer_size;
+        const static ISAAC_IDX_TYPE transfer_size = T_transferSize;
         FunctionsStruct functions[(
             boost::mpl::size< T_SourceList >::type::value
-            + boost::mpl::size< TParticleList >::type::value
+            + boost::mpl::size< T_ParticleList >::type::value
         )];
         ISAAC_IDX_TYPE max_size;
         ISAAC_IDX_TYPE max_size_scaled;
@@ -4125,9 +4125,9 @@ namespace isaac
         typename T_Acc,
         typename T_Stream,
         typename T_AccDim,
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_SourceList,
-        ISAAC_IDX_TYPE TTransfer_size,
+        ISAAC_IDX_TYPE T_transferSize,
         typename TController,
         typename TCompositor
     > IsaacVisualization<
@@ -4135,9 +4135,9 @@ namespace isaac
         T_Acc,
         T_Stream,
         T_AccDim,
-        TParticleList,
+        T_ParticleList,
         T_SourceList,
-        TTransfer_size,
+        T_transferSize,
         TController,
         TCompositor
     > * IsaacVisualization<
@@ -4145,9 +4145,9 @@ namespace isaac
         T_Acc,
         T_Stream,
         T_AccDim,
-        TParticleList,
+        T_ParticleList,
         T_SourceList,
-        TTransfer_size,
+        T_transferSize,
         TController,
         TCompositor
     >::myself = NULL;

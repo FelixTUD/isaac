@@ -59,38 +59,38 @@ namespace isaac
     ISAAC_CONSTANT FunctorChainPointerN FunctionChain[ ISAAC_MAX_SOURCES ];
 
     template<
-        int T_N
+        int T_n
     >
     struct DestArrayStruct
     {
-        isaac_int nr[T_N];
+        isaac_int nr[T_n];
     };
 
-    template<int T_FeatureDim>
-    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <T_FeatureDim>* data, const int nr)
+    template<int T_featureDim>
+    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <T_featureDim>* data, const int nr)
     {
-        if( T_FeatureDim == 1 )
+        if( T_featureDim == 1 )
         {
             return reinterpret_cast<FunctorChainPointer1> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 1 > * > ( data ) ),
                     nr
                 );
         }
-        if( T_FeatureDim == 2 )
+        if( T_featureDim == 2 )
         {
             return reinterpret_cast<FunctorChainPointer2> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 2 > * > ( data ) ),
                     nr
                 );
         }
-        if( T_FeatureDim == 3 )
+        if( T_featureDim == 3 )
         {
             return reinterpret_cast<FunctorChainPointer3> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 3 > * > ( data ) ),
                     nr
                 );
         }
-        if( T_FeatureDim == 4 )
+        if( T_featureDim == 4 )
         {
             return reinterpret_cast<FunctorChainPointer4> ( FunctionChain[nr] )(
                     *( reinterpret_cast< isaac_float_dim< 4 > * > ( data ) ),
@@ -102,7 +102,7 @@ namespace isaac
 
     template<
         typename T_FunctorVector,
-        int T_FeatureDim,
+        int T_featureDim,
         int T_NR
     >
     struct FillFunctorChainPointerKernelStruct
@@ -115,7 +115,7 @@ namespace isaac
                 return FillFunctorChainPointerKernelStruct \
                 < \
                     typename boost::mpl::push_back< T_FunctorVector, typename boost::mpl::at_c<IsaacFunctorPool,I>::type >::type, \
-                    T_FeatureDim, \
+                    T_featureDim, \
                     T_NR - 1 \
                 > ::call( bytecode );
             BOOST_PP_REPEAT(
@@ -131,10 +131,10 @@ namespace isaac
 
     template<
         typename T_FunctorVector,
-        int T_FeatureDim
+        int T_featureDim
     >
     ISAAC_DEVICE isaac_float generateFunctorChain(
-        isaac_float_dim <T_FeatureDim> const value,
+        isaac_float_dim <T_featureDim> const value,
         isaac_int const srcID
     )
     {
@@ -142,7 +142,7 @@ namespace isaac
 #define ISAAC_RIGHT_DEF( Z, I, U ) , FunctorParameter[ srcID * ISAAC_MAX_FUNCTORS + I ] )
 #define  ISAAC_LEFT BOOST_PP_REPEAT( ISAAC_MAX_FUNCTORS, ISAAC_LEFT_DEF, ~)
 #define ISAAC_RIGHT BOOST_PP_REPEAT( ISAAC_MAX_FUNCTORS, ISAAC_RIGHT_DEF, ~)
-        // expands to: funcN( ... func1( func0( data, p[0] ), p[1] ) ... p[T_N] );
+        // expands to: funcN( ... func1( func0( data, p[0] ), p[1] ) ... p[T_n] );
         return ISAAC_LEFT
         value
         ISAAC_RIGHT.x;
@@ -155,11 +155,11 @@ namespace isaac
 
     template<
         typename T_FunctorVector,
-        int T_FeatureDim
+        int T_featureDim
     >
     struct FillFunctorChainPointerKernelStruct<
         T_FunctorVector,
-        T_FeatureDim,
+        T_featureDim,
         0 //<- Specialization
     >
     {
@@ -168,7 +168,7 @@ namespace isaac
         {
             return reinterpret_cast<FunctorChainPointerN> ( generateFunctorChain<
                 T_FunctorVector,
-                T_FeatureDim
+                T_featureDim
             > );
         }
     };
@@ -234,7 +234,7 @@ namespace isaac
     };
 
     template<
-        int T_Count,
+        int T_count,
         typename T_Dest
     >
     struct updateFunctorChainPointerKernel
@@ -249,7 +249,7 @@ namespace isaac
             T_Dest dest
         ) const
         {
-            for( int i = 0; i < T_Count; i++ )
+            for( int i = 0; i < T_count; i++ )
             {
                 functor_chain_choose_d[i] = functorChain[dest.nr[i]];
             }

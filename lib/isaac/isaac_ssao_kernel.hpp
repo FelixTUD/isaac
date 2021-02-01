@@ -47,7 +47,7 @@ namespace isaac
             isaac_float3 * const gNormal,        //normal buffer
             const isaac_size2 framebufferSize,  //size of framebuffer
             const isaac_uint2 framebufferStart, //framebuffer offset
-            AmbientOcclusion aoProperties              //properties for ambient occlusion
+            AOParams aoProperties              //properties for ambient occlusion
             ) const
         {
 
@@ -206,7 +206,7 @@ namespace isaac
             isaac_float3 * const gDepthBuffer,   //depth and blending values
             const isaac_size2 framebufferSize,  //size of framebuffer
             const isaac_uint2 framebufferStart, //framebuffer offset
-            AmbientOcclusion aoProperties              //properties for ambient occlusion
+            AOParams aoProperties              //properties for ambient occlusion
             ) const
         {
 

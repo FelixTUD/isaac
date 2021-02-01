@@ -25,13 +25,13 @@ namespace isaac
      * 
      * Returns color, normal, position of particle
      * 
-     * @tparam Ttransfer_size 
-     * @tparam TOffset 
+     * @tparam T_transferSize 
+     * @tparam T_offset 
      * @tparam T_Filter 
      */
     template<
-        ISAAC_IDX_TYPE Ttransfer_size,
-        int TOffset,
+        ISAAC_IDX_TYPE T_transferSize,
+        int T_offset,
         typename T_Filter
     >
     struct MergeParticleSourceIterator
@@ -40,8 +40,7 @@ namespace isaac
             typename T_NR,
             typename T_Source,
             typename T_TransferArray,
-            typename T_SourceWeight,
-            typename TParticleScale
+            typename T_SourceWeight
         >
         ISAAC_HOST_DEVICE_INLINE void operator()(
             const T_NR & nr,
@@ -51,7 +50,7 @@ namespace isaac
             const isaac_uint3 & cellPos,             //cell to test in local volume
             const T_TransferArray & transferArray,     //transfer function
             const T_SourceWeight & sourceWeight,       //weight of this particle source for radius
-            const TParticleScale & particleScale,    //scale of volume to prevent stretched particles
+            const isaac_float3 & particleScale,    //scale of volume to prevent stretched particles
             const isaac_float3 & clippingNormal,     //normal of the intersecting clipping plane
             const bool & isClipped,
             isaac_float4 & out_color,                 //resulting particle color
@@ -61,7 +60,7 @@ namespace isaac
             isaac_float & out_depth                       //resulting particle depth
         ) const
         {
-            const int sourceNumber = T_NR::value + TOffset;
+            const int sourceNumber = T_NR::value + T_offset;
             if( boost::mpl::at_c<
                 T_Filter,
                 T_NR::value
@@ -78,7 +77,7 @@ namespace isaac
                         * particleScale;
                     isaac_float3 L = particlePos - start;
                     isaac_float radius = particleIterator.getRadius( )
-                                         * sourceWeight.value[T_NR::value + TOffset];
+                                         * sourceWeight.value[T_NR::value + T_offset];
                     isaac_float radius2 = radius * radius;
                     isaac_float tca = glm::dot( L, dir );
                     isaac_float d2 = glm::dot( L, L ) - tca * tca;
@@ -101,9 +100,9 @@ namespace isaac
 
                             // apply transferfunction
                             ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(
-                                glm::round( result * isaac_float( Ttransfer_size ) )
+                                glm::round( result * isaac_float( T_transferSize ) )
                             );
-                            lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), Ttransfer_size - 1 );
+                            lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
                             isaac_float4 value = transferArray.pointer[sourceNumber][lookupValue];
 
                             // check if the alpha value is greater or equal than 0.5
@@ -132,12 +131,12 @@ namespace isaac
 
 
     template<
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_Filter,
-        ISAAC_IDX_TYPE Ttransfer_size,
-        int TSourceOffset
+        ISAAC_IDX_TYPE T_transferSize,
+        int T_sourceOffset
     >
     struct ParticleRenderKernel
     {
@@ -151,13 +150,13 @@ namespace isaac
             isaac_float3 * const gNormal,     //normal buffer
             const isaac_size2 framebufferSize,     //size of framebuffer
             const isaac_uint2 framebufferStart,    //framebuffer offset
-            const TParticleList particleSources,   //source simulation particles
+            const T_ParticleList particleSources,   //source simulation particles
             const isaac_float4 backgroundColor,    //color of render background
             const T_TransferArray transferArray,     //array of pointers to transfer functions
             const T_SourceWeight sourceWeight,       //weights of all sources 
             const isaac_float3 scale,               //isaac set scaling
             const ClippingStruct inputClipping,   //clipping planes
-            const AmbientOcclusion ambientOcclusion        //ambient occlusion params
+            const AOParams ambientOcclusion        //ambient occlusion params
         ) const
         {
             //get pixel values from thread ids
@@ -197,83 +196,7 @@ namespace isaac
 
             Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( framebufferSize ) );
 
-            //clipping planes with transformed positions
-            ClippingStruct clipping;
-            //set values for clipping planes
-            //scale position to global size
-            for( isaac_int i = 0; i < inputClipping.count; i++ )
-            {
-                clipping.elem[i].position = inputClipping.elem[i].position * isaac_float3( SimulationSize.globalSizeScaled ) * isaac_float( 0.5 );
-                clipping.elem[i].normal = inputClipping.elem[i].normal;
-            }
-
-            //move to local (scaled) grid
-            //get offset of subvolume in global volume
-            isaac_float3 positionOffset = isaac_float3( isaac_int3( SimulationSize.globalSizeScaled ) / 2 - isaac_int3( SimulationSize.positionScaled ) );
-
-            //apply subvolume offset to start and end
-            ray.start = ray.start + positionOffset;
-            ray.end = ray.end + positionOffset;
-
-            //apply subvolume offset to position checked clipping plane
-            for( isaac_int i = 0; i < inputClipping.count; i++ )
-            {
-                clipping.elem[i].position =
-                    clipping.elem[i].position + positionOffset;
-            }
-
-            //clip ray on volume bounding box
-            isaac_float3 bbIntersectionMin = -ray.start / ray.dir;
-            isaac_float3 bbIntersectionMax = ( isaac_float3( SimulationSize.localSizeScaled ) - ray.start ) / ray.dir;
-
-            //bbIntersectionMin shall have the smaller values
-            ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.x, bbIntersectionMin.x )
-            ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.y, bbIntersectionMin.y )
-            ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.z, bbIntersectionMin.z )
-
-            isaac_float startDepth = glm::max( bbIntersectionMin.x, glm::max( bbIntersectionMin.y, bbIntersectionMin.z ) );
-            isaac_float endDepth = glm::min( bbIntersectionMax.x, glm::min( bbIntersectionMax.y, bbIntersectionMax.z ) );
-
-            bool isClipped = false;
-            isaac_float3 clippingNormal;
-            //Iterate over clipping planes and adjust ray
-            for( isaac_int i = 0; i < inputClipping.count; i++ )
-            {
-                isaac_float d = glm::dot( ray.dir, clipping.elem[i].normal);
-
-                isaac_float intersection_depth = ( glm::dot( clipping.elem[i].position, clipping.elem[i].normal )
-                                                    - glm::dot( ray.start, clipping.elem[i].normal ) ) / d;
-                if( d > 0 )
-                {
-                    if( endDepth < intersection_depth )
-                    {
-                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
-                        return;
-                    }
-                    if( startDepth <= intersection_depth )
-                    {
-                        clippingNormal = clipping.elem[i].normal;
-                        isClipped = true;
-                        startDepth = intersection_depth;
-                    }
-                }
-                else
-                {
-                    if( startDepth > intersection_depth )
-                    {
-                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
-                        return;
-                    }
-                    if( endDepth > intersection_depth )
-                    {
-                        endDepth = intersection_depth;
-                    }
-                }
-            }
-            startDepth = glm::max( startDepth, isaac_float( 0 ) );
-
-            //return if the ray doesn't hit the volume
-            if( startDepth > endDepth )
+            if( !clipRay(ray, inputClipping ) )
             {
                 ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
 
@@ -347,8 +270,8 @@ namespace isaac
                 isaac_for_each_with_mpl_params(
                     particleSources,
                     MergeParticleSourceIterator<
-                        Ttransfer_size,
-                        TSourceOffset,
+                        T_transferSize,
+                        T_sourceOffset,
                         T_Filter
                     >( ),
                     currentPos,
@@ -428,17 +351,17 @@ namespace isaac
 
 
     template<
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_Filter,
-        ISAAC_IDX_TYPE TTransfer_size,
+        ISAAC_IDX_TYPE T_transferSize,
         typename T_AccDim,
         typename T_Acc,
         typename T_Stream,
         typename T_FunctionChain,
-        int TSourceOffset,
-        int N
+        int T_sourceOffset,
+        int T_n
     >
     struct ParticleRenderKernelCaller
     {
@@ -449,33 +372,33 @@ namespace isaac
             isaac_float3 * normalBuffer,
             const isaac_size2 & framebufferSize,
             const isaac_uint2 & framebufferStart,
-            const TParticleList & particleSources,
+            const T_ParticleList & particleSources,
             const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             IceTInt const * const readback_viewport,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
-            const AmbientOcclusion & ambientOcclusion
+            const AOParams & ambientOcclusion
         )
         {
-            if( sourceWeight.value[TSourceOffset + boost::mpl::size< TParticleList >::type::value - N] == isaac_float( 0 ) )
+            if( sourceWeight.value[T_sourceOffset + boost::mpl::size< T_ParticleList >::type::value - T_n] == isaac_float( 0 ) )
             {
                 ParticleRenderKernelCaller<
-                    TParticleList,
+                    T_ParticleList,
                     T_TransferArray,
                     T_SourceWeight,
                     typename boost::mpl::push_back<
                         T_Filter,
                         boost::mpl::false_
                     >::type,
-                    TTransfer_size,
+                    T_transferSize,
                     T_AccDim,
                     T_Acc,
                     T_Stream,
                     T_FunctionChain,
-                    TSourceOffset,
-                    N - 1
+                    T_sourceOffset,
+                    T_n - 1
                 >::call(
                     stream,
                     framebuffer,
@@ -496,20 +419,20 @@ namespace isaac
             else
             {
                 ParticleRenderKernelCaller<
-                    TParticleList,
+                    T_ParticleList,
                     T_TransferArray,
                     T_SourceWeight,
                     typename boost::mpl::push_back<
                         T_Filter,
                         boost::mpl::true_
                     >::type,
-                    TTransfer_size,
+                    T_transferSize,
                     T_AccDim,
                     T_Acc,
                     T_Stream,
                     T_FunctionChain,
-                    TSourceOffset,
-                    N - 1
+                    T_sourceOffset,
+                    T_n - 1
                 >::call(
                     stream,
                     framebuffer,
@@ -531,28 +454,28 @@ namespace isaac
     };
 
     template<
-        typename TParticleList,
+        typename T_ParticleList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_Filter,
-        ISAAC_IDX_TYPE TTransfer_size,
+        ISAAC_IDX_TYPE T_transferSize,
         typename T_AccDim,
         typename T_Acc,
         typename T_Stream,
         typename T_FunctionChain,
-        int TSourceOffset
+        int T_sourceOffset
     >
     struct ParticleRenderKernelCaller<
-        TParticleList,
+        T_ParticleList,
         T_TransferArray,
         T_SourceWeight,
         T_Filter,
-        TTransfer_size,
+        T_transferSize,
         T_AccDim,
         T_Acc,
         T_Stream,
         T_FunctionChain,
-        TSourceOffset,
+        T_sourceOffset,
         0 //<-- spezialisation
     >
     {
@@ -563,14 +486,14 @@ namespace isaac
             isaac_float3 * normalBuffer,
             const isaac_size2 & framebufferSize,
             const isaac_uint2 & framebufferStart,
-            const TParticleList & particleSources,
+            const T_ParticleList & particleSources,
             const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             IceTInt const * const readback_viewport,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
-            const AmbientOcclusion & ambientOcclusion
+            const AOParams & ambientOcclusion
         )
         {
             isaac_size2 block_size = {
@@ -617,12 +540,12 @@ namespace isaac
             );
             ParticleRenderKernel
             <
-                TParticleList,
+                T_ParticleList,
                 T_TransferArray,
                 T_SourceWeight,
                 T_Filter,
-                TTransfer_size,
-                TSourceOffset
+                T_transferSize,
+                T_sourceOffset
             >
             kernel;
             auto const instance

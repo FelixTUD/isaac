@@ -22,7 +22,7 @@ namespace isaac
 {
 
     template<
-        isaac_int T_Interpolation,
+        isaac_int T_interpolation,
         typename T_NR,
         typename T_Source,
         typename T_PointerArray
@@ -40,7 +40,7 @@ namespace isaac
         isaac_float_dim <T_Source::feature_dim> * ptr = (
         isaac_float_dim < T_Source::feature_dim > *
         )( pointerArray.pointer[T_NR::value] );
-        if( T_Interpolation == 0 )
+        if( T_interpolation == 0 )
         {
             isaac_int3 coord = pos;
             if( T_Source::persistent )
@@ -104,7 +104,7 @@ namespace isaac
                     }
                 }
             }
-            isaac_float_dim< 3 > posInCube = pos - glm::floor( pos );
+            isaac_float3 posInCube = pos - glm::floor( pos );
             
             isaac_float_dim <T_Source::feature_dim> data4[2][2];
             for( int x = 0; x < 2; x++ )
@@ -144,13 +144,13 @@ namespace isaac
     /**
      * @brief Clamps coordinates to min/max
      * 
-     * @tparam T_Interpolation 
+     * @tparam T_interpolation 
      * @param coord 
      * @param localSize 
      * @return ISAAC_HOST_DEVICE_INLINE check_coord clamped coordiantes
      */
     template<
-        bool T_Interpolation,
+        bool T_interpolation,
         typename T_Source
     >
     ISAAC_HOST_DEVICE_INLINE void
@@ -159,7 +159,7 @@ namespace isaac
         const isaac_size3 &  localSize
     )
     {
-        constexpr ISAAC_IDX_TYPE extraBorder = static_cast<ISAAC_IDX_TYPE>(T_Interpolation);
+        constexpr ISAAC_IDX_TYPE extraBorder = static_cast<ISAAC_IDX_TYPE>(T_interpolation);
 
         if( T_Source::has_guard || !T_Source::persistent )
         {
@@ -174,8 +174,8 @@ namespace isaac
     }
 
     template<
-        isaac_int T_Interpolation,
-        isaac_int T_Index,
+        isaac_int T_interpolation,
+        isaac_int T_index,
         typename T_NR,
         typename T_Source,
         typename T_PointerArray
@@ -190,10 +190,10 @@ namespace isaac
     )
     {
         isaac_float3 front = { 0, 0, 0 };
-        front[T_Index] = -1;
+        front[T_index] = -1;
         front = front + pos;
         checkCoord< 
-            T_Interpolation,
+            T_interpolation,
             T_Source
         >(
             front,
@@ -201,10 +201,10 @@ namespace isaac
         );
 
         isaac_float3 back = { 0, 0, 0 };
-        back[T_Index] = 1;
+        back[T_index] = 1;
         back = back + pos;
         checkCoord< 
-            T_Interpolation,
+            T_interpolation,
             T_Source
         >(
             back,
@@ -212,18 +212,18 @@ namespace isaac
         );
 
         isaac_float d;
-        if( T_Interpolation )
+        if( T_interpolation )
         {
-            d = back[T_Index] - front[T_Index];
+            d = back[T_index] - front[T_index];
         }
         else
         {
-            d = isaac_int( back[T_Index] ) - isaac_int( front[T_Index] );
+            d = isaac_int( back[T_index] ) - isaac_int( front[T_index] );
         }
 
         return (
             getValue<
-                T_Interpolation,
+                T_interpolation,
                 T_NR
             >(
                 source,
@@ -232,7 +232,7 @@ namespace isaac
                 localSize,
                 scale
             ) - getValue<
-                T_Interpolation,
+                T_interpolation,
                 T_NR
             >(
                 source,
@@ -245,7 +245,7 @@ namespace isaac
     }
 
     template<
-        isaac_int T_Interpolation,
+        isaac_int T_interpolation,
         typename T_NR,
         typename T_Source,
         typename T_PointerArray
@@ -262,7 +262,7 @@ namespace isaac
 
         isaac_float3 gradient = {
             getCompGradient<
-                T_Interpolation,
+                T_interpolation,
                 0,
                 T_NR
             >(
@@ -273,7 +273,7 @@ namespace isaac
                 scale
             ),
             getCompGradient<
-                T_Interpolation,
+                T_interpolation,
                 1,
                 T_NR
             >(
@@ -284,7 +284,7 @@ namespace isaac
                 scale
             ),
             getCompGradient<
-                T_Interpolation,
+                T_interpolation,
                 2,
                 T_NR
             >(
@@ -299,10 +299,10 @@ namespace isaac
     }
 
     template<
-        ISAAC_IDX_TYPE T_TransferSize,
+        ISAAC_IDX_TYPE T_transferSize,
         typename T_Filter,
-        isaac_int T_Interpolation,
-        isaac_int T_IsoSurface
+        isaac_int T_interpolation,
+        isaac_int T_isoSurface
     >
     struct MergeIsoSourceIterator
     {
@@ -337,7 +337,7 @@ namespace isaac
             >::type::value )
             {
                 isaac_float result = getValue<
-                    T_Interpolation,
+                    T_interpolation,
                     T_NR
                 >(
                     source,
@@ -347,16 +347,16 @@ namespace isaac
                     scale
                 );
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(
-                    glm::round( result * isaac_float( T_TransferSize ) )
+                    glm::round( result * isaac_float( T_transferSize ) )
                 );
-                lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_TransferSize - 1 );
+                lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
                 isaac_float4 value = transferArray.pointer[T_NR::value][lookupValue];
-                if( T_IsoSurface )
+                if( T_isoSurface )
                 {
                     if( value.w >= isaac_float( 0.5 ) )
                     {
                         isaac_float3 gradient = getGradient<
-                            T_Interpolation,
+                            T_interpolation,
                             T_NR
                         >(
                             source,
@@ -411,9 +411,9 @@ namespace isaac
         typename T_SourceWeight,
         typename T_PointerArray,
         typename T_Filter,
-        ISAAC_IDX_TYPE T_TransferSize,
-        isaac_int T_Interpolation,
-        isaac_int T_IsoSurface
+        ISAAC_IDX_TYPE T_transferSize,
+        isaac_int T_interpolation,
+        isaac_int T_isoSurface
     >
     struct IsoRenderKernel
     {
@@ -435,7 +435,7 @@ namespace isaac
             const T_PointerArray pointerArray,
             const isaac_float3 scale,               //isaac set scaling
             const ClippingStruct inputClipping,   //clipping planes
-            const AmbientOcclusion ambientOcclusion        //ambient occlusion params
+            const AOParams ambientOcclusion        //ambient occlusion params
         ) const
         {
             //get pixel values from thread ids
@@ -477,83 +477,7 @@ namespace isaac
             Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( framebufferSize ) );
 
 
-            //clipping planes with transformed positions
-            ClippingStruct clipping;
-            //set values for clipping planes
-            //scale position to global size
-            for( isaac_int i = 0; i < inputClipping.count; i++ )
-            {
-                clipping.elem[i].position = inputClipping.elem[i].position * isaac_float3( SimulationSize.globalSizeScaled ) * isaac_float( 0.5 );
-                clipping.elem[i].normal = inputClipping.elem[i].normal;
-            }
-
-            //move to local (scaled) grid
-            //get offset of subvolume in global volume
-            isaac_float3 position_offset = isaac_float3( isaac_int3( SimulationSize.globalSizeScaled ) / 2 - isaac_int3( SimulationSize.positionScaled ) );
-
-            //apply subvolume offset to start and end
-            ray.start = ray.start + position_offset;
-            ray.end = ray.end + position_offset;
-
-            //apply subvolume offset to position checked clipping plane
-            for( isaac_int i = 0; i < inputClipping.count; i++ )
-            {
-                clipping.elem[i].position =
-                    clipping.elem[i].position + position_offset;
-            }
-
-            //clip ray on volume bounding box
-            isaac_float3 bbIntersectionMin = -ray.start / ray.dir;
-            isaac_float3 bbIntersectionMax = ( isaac_float3( SimulationSize.localSizeScaled ) - ray.start ) / ray.dir;
-
-            //bbIntersectionMin shall have the smaller values
-            ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.x, bbIntersectionMin.x )
-            ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.y, bbIntersectionMin.y )
-            ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.z, bbIntersectionMin.z )
-
-            isaac_float startDepth = glm::max( bbIntersectionMin.x, glm::max( bbIntersectionMin.y, bbIntersectionMin.z ) );
-            isaac_float endDepth = glm::min( bbIntersectionMax.x, glm::min( bbIntersectionMax.y, bbIntersectionMax.z ) );
-
-            bool isClipped = false;
-            isaac_float3 clippingNormal;
-            //Iterate over clipping planes and adjust ray
-            for( isaac_int i = 0; i < inputClipping.count; i++ )
-            {
-                isaac_float d = glm::dot( ray.dir, clipping.elem[i].normal);
-
-                isaac_float intersectionDepth = ( glm::dot( clipping.elem[i].position, clipping.elem[i].normal )
-                                                    - glm::dot( ray.start, clipping.elem[i].normal ) ) / d;
-                if( d > 0 )
-                {
-                    if( endDepth < intersectionDepth )
-                    {
-                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
-                        return;
-                    }
-                    if( startDepth <= intersectionDepth )
-                    {
-                        clippingNormal = clipping.elem[i].normal;
-                        isClipped = true;
-                        startDepth = intersectionDepth;
-                    }
-                }
-                else
-                {
-                    if( startDepth > intersectionDepth )
-                    {
-                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
-                        return;
-                    }
-                    if( endDepth > intersectionDepth )
-                    {
-                        endDepth = intersectionDepth;
-                    }
-                }
-            }
-            startDepth = glm::max( startDepth, isaac_float( 0 ) );
-
-            //return if the ray doesn't hit the volume
-            if( startDepth > endDepth )
+            if( !clipRay(ray, inputClipping ) )
             {
                 ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
 
@@ -584,45 +508,45 @@ namespace isaac
             isaac_float4 value = isaac_float4(0);
             isaac_int result = 0;
             isaac_float oma;
-            isaac_float4 color_add;
-            isaac_int start_steps = glm::ceil( startDepth / step );
-            isaac_int end_steps = glm::floor( endDepth / step );
-            isaac_float3 step_vec = ray.dir * step;
+            isaac_float4 colorSdd;
+            isaac_int startSteps = glm::ceil( ray.startDepth / step );
+            isaac_int endSteps = glm::floor( ray.endDepth / step );
+            isaac_float3 stepVec = ray.dir * step;
             //unscale all data for correct memory access
-            isaac_float3 start_unscaled = ray.start / scale;
-            step_vec /= scale;
+            isaac_float3 startUnscaled = ray.start / scale;
+            stepVec /= scale;
 
-            //move start_steps and end_steps to valid positions in the volume
-            isaac_float3 pos = start_unscaled + step_vec * isaac_float( start_steps );
+            //move startSteps and endSteps to valid positions in the volume
+            isaac_float3 pos = startUnscaled + stepVec * isaac_float( startSteps );
             while( ( !isInLowerBounds( pos, isaac_float3(0) )
                     || !isInUpperBounds( pos, SimulationSize.localSize ) )
-                    && start_steps <= end_steps)
+                    && startSteps <= endSteps)
             {
-                start_steps++;
-                pos = start_unscaled + step_vec * isaac_float( start_steps );
+                startSteps++;
+                pos = startUnscaled + stepVec * isaac_float( startSteps );
             }
-            pos = start_unscaled + step_vec * isaac_float( end_steps );
+            pos = startUnscaled + stepVec * isaac_float( endSteps );
             while( ( !isInLowerBounds( pos, isaac_float3(0) )
                     || !isInUpperBounds( pos, SimulationSize.localSize ) )
-                    && start_steps <= end_steps)
+                    && startSteps <= endSteps)
             {
-                end_steps--;
-                pos = start_unscaled + step_vec * isaac_float( end_steps );
+                endSteps--;
+                pos = startUnscaled + stepVec * isaac_float( endSteps );
             }
             isaac_float depth = std::numeric_limits<isaac_float>::max();
             //iterate over the volume
-            for( isaac_int i = start_steps; i <= end_steps; i++ )
+            for( isaac_int i = startSteps; i <= endSteps; i++ )
             {
-                pos = start_unscaled + step_vec * isaac_float( i );
+                pos = startUnscaled + stepVec * isaac_float( i );
                 result = 0;
-                bool first = isClipped && i == start_steps;
+                bool first = ray.isClipped && i == startSteps;
                 isaac_for_each_with_mpl_params(
                     sources,
                     MergeIsoSourceIterator<
-                        T_TransferSize,
+                        T_transferSize,
                         T_Filter,
-                        T_Interpolation,
-                        T_IsoSurface
+                        T_interpolation,
+                        T_isoSurface
                     >( ),
                     value,
                     pos,
@@ -631,13 +555,13 @@ namespace isaac
                     sourceWeight,
                     pointerArray,
                     result,
-                    step_vec,
+                    stepVec,
                     step,
                     scale,
                     first,
-                    clippingNormal
+                    ray.clippingNormal
                 );
-                if( T_IsoSurface )
+                if( T_isoSurface )
                 {
                     if( result )
                     {
@@ -650,8 +574,8 @@ namespace isaac
                 {
                     oma = isaac_float( 1 ) - color.w;
                     value *= factor;
-                    color_add = oma * value;
-                    color += color_add;
+                    colorSdd = oma * value;
+                    color += colorSdd;
                     if( color.w > isaac_float( 0.99 ) )
                     {
                         break;
@@ -660,17 +584,17 @@ namespace isaac
             }
             //indicates how strong particle ao should be when gas is overlapping
             //isaac_float ao_blend = 0.0f;
-            //if (!isInLowerBounds(start_unscaled + step_vec * isaac_float(start_steps), isaac_float3(0))
-            //    || !isInUpperBounds(start_unscaled + step_vec * isaac_float(end_steps), isaac_float3( SimulationSize.localSize )))
-            //    color = isaac_float4(1, 1, 1, 1);
+            if (!isInLowerBounds(startUnscaled + stepVec * isaac_float(startSteps), isaac_float3(0))
+                || !isInUpperBounds(startUnscaled + stepVec * isaac_float(endSteps), isaac_float3( SimulationSize.localSize )))
+                color = isaac_float4(1, 1, 1, 1);
 #if ISAAC_SHOWBORDER == 1
             if ( color.w <= isaac_float ( 0.99 ) ) {
                 oma = isaac_float ( 1 ) - color.w;
-                color_add.x = 0;
-                color_add.y = 0;
-                color_add.z = 0;
-                color_add.w = oma * factor * isaac_float ( 10 );
-                color += color_add;
+                colorSdd.x = 0;
+                colorSdd.y = 0;
+                colorSdd.z = 0;
+                colorSdd.w = oma * factor * isaac_float ( 10 );
+                color += colorSdd;
             }
 #endif
 
@@ -685,7 +609,7 @@ namespace isaac
             //the w component stores the particle depth and will be replaced later by new alpha values and 
             //is therefore stored in march_length
             //LINE 2044
-            if( T_IsoSurface )
+            if( T_isoSurface )
             {
                 isaac_float3 depth_value = {
                     0.0f,
@@ -704,12 +628,12 @@ namespace isaac
         typename T_SourceWeight,
         typename T_PointerArray,
         typename T_Filter,
-        ISAAC_IDX_TYPE T_TransferSize,
+        ISAAC_IDX_TYPE T_transferSize,
         typename T_AccDim,
         typename T_Acc,
         typename T_Stream,
         typename T_FunctionChain,
-        int T_N
+        int T_n
     >
     struct IsoRenderKernelCaller
     {
@@ -731,11 +655,11 @@ namespace isaac
             const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
-            const AmbientOcclusion & ambientOcclusion
+            const AOParams & ambientOcclusion
         )
         {
             if( sourceWeight.value[boost::mpl::size< T_SourceList >::type::value
-                                   - T_N] == isaac_float( 0 ) )
+                                   - T_n] == isaac_float( 0 ) )
             {
                 IsoRenderKernelCaller<
                     T_SourceList,
@@ -746,12 +670,12 @@ namespace isaac
                         T_Filter,
                         boost::mpl::false_
                     >::type,
-                    T_TransferSize,
+                    T_transferSize,
                     T_AccDim,
                     T_Acc,
                     T_Stream,
                     T_FunctionChain,
-                    T_N - 1
+                    T_n - 1
                 >::call(
                     stream,
                     framebuffer,
@@ -784,12 +708,12 @@ namespace isaac
                         T_Filter,
                         boost::mpl::true_
                     >::type,
-                    T_TransferSize,
+                    T_transferSize,
                     T_AccDim,
                     T_Acc,
                     T_Stream,
                     T_FunctionChain,
-                    T_N - 1
+                    T_n - 1
                 >::call(
                     stream,
                     framebuffer,
@@ -820,7 +744,7 @@ namespace isaac
         typename T_SourceWeight,
         typename T_PointerArray,
         typename T_Filter,
-        ISAAC_IDX_TYPE T_TransferSize,
+        ISAAC_IDX_TYPE T_transferSize,
         typename T_AccDim,
         typename T_Acc,
         typename T_Stream,
@@ -832,7 +756,7 @@ namespace isaac
         T_SourceWeight,
         T_PointerArray,
         T_Filter,
-        T_TransferSize,
+        T_transferSize,
         T_AccDim,
         T_Acc,
         T_Stream,
@@ -858,7 +782,7 @@ namespace isaac
             const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
-            const AmbientOcclusion & ambientOcclusion
+            const AOParams & ambientOcclusion
         )
         {
             isaac_size2 block_size = {
@@ -912,7 +836,7 @@ namespace isaac
                     T_SourceWeight, \
                     T_PointerArray, \
                     T_Filter, \
-                    T_TransferSize,
+                    T_transferSize,
 #define ISAAC_KERNEL_END \
                 > \
                 kernel; \
