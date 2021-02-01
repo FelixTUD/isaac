@@ -3193,12 +3193,6 @@ namespace isaac
                 T_AccDim, 
                 T_Acc, 
                 T_Stream,
-                alpaka::Buf< 
-                    T_DevAcc, 
-                    FunctorChainPointerN, 
-                    TFraDim,
-                    ISAAC_IDX_TYPE 
-                >, 
                 boost::mpl::size< T_SourceList >::type::value,
                 boost::mpl::size< T_ParticleList >::type::value
             > 
@@ -3231,12 +3225,6 @@ namespace isaac
                 T_AccDim, 
                 T_Acc, 
                 T_Stream,
-                alpaka::Buf< 
-                    T_DevAcc, 
-                    FunctorChainPointerN, 
-                    TFraDim,
-                    ISAAC_IDX_TYPE 
-                >, 
                 boost::mpl::size< T_SourceList >::type::value
             > 
             ::call(

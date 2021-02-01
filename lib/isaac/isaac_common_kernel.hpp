@@ -132,6 +132,19 @@ namespace isaac
         ray.endDepth = glm::min( bbIntersectionMax.x, glm::min( bbIntersectionMax.y, bbIntersectionMax.z ) );
 
         ray.isClipped = false;
+        ray.clippingNormal = isaac_float3( 0 );
+
+        for( int i = 0; i < 3; ++i)
+        {
+            if( glm::ceil( bbIntersectionMin[i] ) == glm::ceil( ray.startDepth )
+                && ( SimulationSize.position[i] == 0 
+                || SimulationSize.position[i] == SimulationSize.globalSize[i] - SimulationSize.localSize[i] ) )
+            {
+                ray.isClipped = true;
+                ray.clippingNormal[i] = glm::sign( ray.dir[i] );
+            }
+        }
+
         //Iterate over clipping planes and adjust ray start and end depth
         for( isaac_int i = 0; i < inputClipping.count; i++ )
         {

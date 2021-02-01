@@ -359,7 +359,6 @@ namespace isaac
         typename T_AccDim,
         typename T_Acc,
         typename T_Stream,
-        typename T_FunctionChain,
         int T_sourceOffset,
         int T_n
     >
@@ -396,7 +395,6 @@ namespace isaac
                     T_AccDim,
                     T_Acc,
                     T_Stream,
-                    T_FunctionChain,
                     T_sourceOffset,
                     T_n - 1
                 >::call(
@@ -430,7 +428,6 @@ namespace isaac
                     T_AccDim,
                     T_Acc,
                     T_Stream,
-                    T_FunctionChain,
                     T_sourceOffset,
                     T_n - 1
                 >::call(
@@ -462,7 +459,6 @@ namespace isaac
         typename T_AccDim,
         typename T_Acc,
         typename T_Stream,
-        typename T_FunctionChain,
         int T_sourceOffset
     >
     struct ParticleRenderKernelCaller<
@@ -474,7 +470,6 @@ namespace isaac
         T_AccDim,
         T_Acc,
         T_Stream,
-        T_FunctionChain,
         T_sourceOffset,
         0 //<-- spezialisation
     >

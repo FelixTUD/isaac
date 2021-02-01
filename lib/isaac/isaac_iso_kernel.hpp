@@ -632,7 +632,6 @@ namespace isaac
         typename T_AccDim,
         typename T_Acc,
         typename T_Stream,
-        typename T_FunctionChain,
         int T_n
     >
     struct IsoRenderKernelCaller
@@ -674,7 +673,6 @@ namespace isaac
                     T_AccDim,
                     T_Acc,
                     T_Stream,
-                    T_FunctionChain,
                     T_n - 1
                 >::call(
                     stream,
@@ -712,7 +710,6 @@ namespace isaac
                     T_AccDim,
                     T_Acc,
                     T_Stream,
-                    T_FunctionChain,
                     T_n - 1
                 >::call(
                     stream,
@@ -747,8 +744,7 @@ namespace isaac
         ISAAC_IDX_TYPE T_transferSize,
         typename T_AccDim,
         typename T_Acc,
-        typename T_Stream,
-        typename T_FunctionChain
+        typename T_Stream
     >
     struct IsoRenderKernelCaller<
         T_SourceList,
@@ -760,7 +756,6 @@ namespace isaac
         T_AccDim,
         T_Acc,
         T_Stream,
-        T_FunctionChain,
         0 //<-- spezialisation
     >
     {
