@@ -134,9 +134,10 @@ namespace isaac
         ray.isClipped = false;
         ray.clippingNormal = isaac_float3( 0 );
 
+        //clip on the simulation volume edges for each dimension
         for( int i = 0; i < 3; ++i)
         {
-            if( glm::ceil( bbIntersectionMin[i] ) == glm::ceil( ray.startDepth )
+            if( bbIntersectionMin[i] == ray.startDepth
                 && ( SimulationSize.position[i] == 0 
                 || SimulationSize.position[i] == SimulationSize.globalSize[i] - SimulationSize.localSize[i] ) )
             {
