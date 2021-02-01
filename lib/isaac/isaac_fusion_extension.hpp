@@ -24,74 +24,74 @@ namespace isaac
 {
 
 template<int N,int I>
-struct forEachUnrolledParams
+struct ForEachUnrolledParams
 {
-	ISAAC_NO_HOST_DEVICE_WARNING
-	template<typename I0, typename F, typename... P>
-	ISAAC_HOST_DEVICE_INLINE static void call(I0 const& i0, F const& f, P&... p)
-	{
-		f(N - I,*i0,p...);
-		forEachUnrolledParams<N,I-1>::call(boost::fusion::next(i0), f, p...);
-	}
+    ISAAC_NO_HOST_DEVICE_WARNING
+    template<typename I0, typename F, typename... P>
+    ISAAC_HOST_DEVICE_INLINE static void call(I0 const& i0, F const& f, P&... p)
+    {
+        f(N - I,*i0,p...);
+        ForEachUnrolledParams<N,I-1>::call(boost::fusion::next(i0), f, p...);
+    }
 };
 
 template<int N>
-struct forEachUnrolledParams<N,0>
+struct ForEachUnrolledParams<N,0>
 {
-	ISAAC_NO_HOST_DEVICE_WARNING
-	template<typename It, typename F, typename... P>
-	ISAAC_HOST_DEVICE_INLINE static void call(It const&, F const&, P&... p)
-	{
-	}
+    ISAAC_NO_HOST_DEVICE_WARNING
+    template<typename It, typename F, typename... P>
+    ISAAC_HOST_DEVICE_INLINE static void call(It const&, F const&, P&... p)
+    {
+    }
 };
 
 ISAAC_NO_HOST_DEVICE_WARNING
 template <typename Sequence, typename F,typename... P>
 ISAAC_HOST_DEVICE_INLINE void forEachParams(Sequence& seq, F const& f, P&... p)
 {
-	typedef typename boost::fusion::result_of::begin<Sequence>::type begin;
-	typedef typename boost::fusion::result_of::end<Sequence>::type end;
-	forEachUnrolledParams
-	<
-		boost::fusion::result_of::distance<begin, end>::type::value,
-		boost::fusion::result_of::distance<begin, end>::type::value
-	>::call(boost::fusion::begin(seq), f, p...);
+    typedef typename boost::fusion::result_of::begin<Sequence>::type begin;
+    typedef typename boost::fusion::result_of::end<Sequence>::type end;
+    ForEachUnrolledParams
+    <
+        boost::fusion::result_of::distance<begin, end>::type::value,
+        boost::fusion::result_of::distance<begin, end>::type::value
+    >::call(boost::fusion::begin(seq), f, p...);
 }
 
 template<int N,int I>
-struct forEachWithMplUnrolledParams
+struct ForEachWithMplUnrolledParams
 {
-	ISAAC_NO_HOST_DEVICE_WARNING
-	template<typename I0, typename F, typename... P>
-	ISAAC_HOST_DEVICE_INLINE static void call( I0 const& i0, F const& f, P&... p)
-	{
-		boost::mpl::int_<N - I> nr;
-		f(nr,*i0,p...);
-		forEachWithMplUnrolledParams<N,I-1>::call(boost::fusion::next(i0), f, p...);
-	}
+    ISAAC_NO_HOST_DEVICE_WARNING
+    template<typename I0, typename F, typename... P>
+    ISAAC_HOST_DEVICE_INLINE static void call( I0 const& i0, F const& f, P&... p)
+    {
+        boost::mpl::int_<N - I> nr;
+        f(nr,*i0,p...);
+        ForEachWithMplUnrolledParams<N,I-1>::call(boost::fusion::next(i0), f, p...);
+    }
 };
 
 template<int N>
-struct forEachWithMplUnrolledParams<N,0>
+struct ForEachWithMplUnrolledParams<N,0>
 {
-	ISAAC_NO_HOST_DEVICE_WARNING
-	template<typename It, typename F, typename... P>
-	ISAAC_HOST_DEVICE_INLINE static void call(It const&, F const&, P&... p)
-	{
-	}
+    ISAAC_NO_HOST_DEVICE_WARNING
+    template<typename It, typename F, typename... P>
+    ISAAC_HOST_DEVICE_INLINE static void call(It const&, F const&, P&... p)
+    {
+    }
 };
 
 ISAAC_NO_HOST_DEVICE_WARNING
 template <typename Sequence, typename F,typename... P>
 ISAAC_HOST_DEVICE_INLINE void forEachWithMplParams(Sequence& seq, F const& f, P&... p)
 {
-	typedef typename boost::fusion::result_of::begin<Sequence>::type begin;
-	typedef typename boost::fusion::result_of::end<Sequence>::type end;
-	forEachWithMplUnrolledParams
-	<
-		boost::fusion::result_of::distance<begin, end>::type::value,
-		boost::fusion::result_of::distance<begin, end>::type::value
-	>::call( boost::fusion::begin(seq), f, p...);
+    typedef typename boost::fusion::result_of::begin<Sequence>::type begin;
+    typedef typename boost::fusion::result_of::end<Sequence>::type end;
+    ForEachWithMplUnrolledParams
+    <
+        boost::fusion::result_of::distance<begin, end>::type::value,
+        boost::fusion::result_of::distance<begin, end>::type::value
+    >::call( boost::fusion::begin(seq), f, p...);
 }
 
 } //namespace isaac;
