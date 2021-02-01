@@ -359,7 +359,7 @@ void read_vtk_to_memory(
     if( size_t( x ) != globalSize[0] )
     {
         printf(
-            "Width needs to be %lu instead of %i!\n",
+            "Width needs to be %i instead of %i!\n",
             globalSize[0],
             x
         );
@@ -368,7 +368,7 @@ void read_vtk_to_memory(
     if( size_t( y ) != globalSize[1] )
     {
         printf(
-            "Width needs to be %lu instead of %i!\n",
+            "Width needs to be %i instead of %i!\n",
             globalSize[1],
             y
         );
@@ -377,7 +377,7 @@ void read_vtk_to_memory(
     if( size_t( z ) != globalSize[2] )
     {
         printf(
-            "Width needs to be %lu instead of %i!\n",
+            "Width needs to be %i instead of %i!\n",
             globalSize[2],
             z
         );
