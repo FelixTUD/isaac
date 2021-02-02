@@ -290,7 +290,7 @@ namespace isaac
                 );
 
 
-                // adds the delta t value to the smallest dimension t and increment the cell index in the dimension
+                // adds the deltaT value to the smallest dimension t and increment the cell index in the dimension
                 if( t.x < t.y && t.x < t.z )
                 {
                     currentCell.x += dirSign.x;
