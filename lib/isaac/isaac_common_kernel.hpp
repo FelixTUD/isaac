@@ -46,14 +46,41 @@ namespace isaac
         isaac_float3 clippingNormal;
     };
 
+    struct ClearBufferKernel {
+        template <typename T_Acc>
+        ALPAKA_FN_ACC void operator() (
+            T_Acc const &acc,
+            const GBuffer gBuffer,
+            const isaac_float4 bgColor
+            ) const
+        {
+
+            isaac_uint2 pixel;
+            //get pixel values from thread ids
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads> ( acc );
+            pixel.x = isaac_uint ( alpThreadIdx[2] );
+            pixel.y = isaac_uint ( alpThreadIdx[1] );
+
+            pixel = pixel + gBuffer.startOffset;
+
+            if( pixel.x >= gBuffer.size.x || pixel.y >= gBuffer.size.y )
+                return;
+            
+            ISAAC_SET_COLOR(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], bgColor);
+            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = isaac_float3(0, 0, 0);
+            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = std::numeric_limits<isaac_float>::max();
+            gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = 0;
+        }
+    };
+
     ISAAC_DEVICE_INLINE Ray pixelToRay( 
         const isaac_float2 pixel, 
-        const isaac_float2 framebuffer_size 
+        const isaac_float2 framebufferSize 
         )
     {
         //relative pixel position in framebuffer [-1.0 ... 1.0]
         //get normalized pixel position in framebuffer
-        isaac_float2 viewportPos = isaac_float2( pixel ) / isaac_float2( framebuffer_size ) * isaac_float( 2 ) - isaac_float( 1 );
+        isaac_float2 viewportPos = isaac_float2( pixel ) / isaac_float2( framebufferSize ) * isaac_float( 2 ) - isaac_float( 1 );
         
         //ray start position
         isaac_float4 startPos;
@@ -137,12 +164,16 @@ namespace isaac
         //clip on the simulation volume edges for each dimension
         for( int i = 0; i < 3; ++i)
         {
+            float sign = glm::sign( ray.dir[i] );
+
             if( bbIntersectionMin[i] == ray.startDepth
-                && ( SimulationSize.position[i] == 0 
-                || SimulationSize.position[i] == SimulationSize.globalSize[i] - SimulationSize.localSize[i] ) )
+                && ( ( SimulationSize.position[i] == 0 
+                && sign + 1 )
+                || ( SimulationSize.position[i] + SimulationSize.localSize[i] == SimulationSize.globalSize[i] 
+                && sign - 1 ) ) )
             {
                 ray.isClipped = true;
-                ray.clippingNormal[i] = glm::sign( ray.dir[i] );
+                ray.clippingNormal[i] = sign;
             }
         }
 

@@ -145,18 +145,13 @@ namespace isaac
         >
         ALPAKA_FN_ACC void operator()(
             T_Acc const & acc,
-            uint32_t * const pixels,          //ptr to output pixels
-            isaac_float3 * const gDepth,      //depth buffer
-            isaac_float3 * const gNormal,     //normal buffer
-            const isaac_size2 framebufferSize,     //size of framebuffer
-            const isaac_uint2 framebufferStart,    //framebuffer offset
+            const GBuffer gBuffer,
             const T_ParticleList particleSources,   //source simulation particles
-            const isaac_float4 backgroundColor,    //color of render background
-            const T_TransferArray transferArray,     //array of pointers to transfer functions
-            const T_SourceWeight sourceWeight,       //weights of all sources 
+            const T_TransferArray transferArray,    //array of pointers to transfer functions
+            const T_SourceWeight sourceWeight,      //weights of all sources 
             const isaac_float3 scale,               //isaac set scaling
-            const ClippingStruct inputClipping,   //clipping planes
-            const AOParams ambientOcclusion        //ambient occlusion params
+            const ClippingStruct inputClipping,     //clipping planes
+            const AOParams ambientOcclusion         //ambient occlusion params
         ) const
         {
             //get pixel values from thread ids
@@ -167,49 +162,28 @@ namespace isaac
             isaac_uint2 pixel = isaac_uint2( alpThreadIdx[2], alpThreadIdx[1] );
             //apply framebuffer offset to pixel
             //stop if pixel position is out of bounds
-            pixel = pixel + framebufferStart;
-            if( pixel.x >= framebufferSize.x || pixel.y >= framebufferSize.y )
+            pixel = pixel + gBuffer.startOffset;
+            if( !isInUpperBounds( pixel, gBuffer.size ) )
                 return;
 
-            //gNormalBuffer default value
-            isaac_float3 defaultNormal = {0.0, 0.0, 0.0};
-            isaac_float3 defaultDepth = {0.0, 0.0, 1.0};
-
-            //set background color
-            isaac_float4 color = backgroundColor;
             bool atLeastOne = true;
             forEachWithMplParams(
                 particleSources,
                 CheckNoSourceIterator< T_Filter >( ),
                 atLeastOne
             );
-            if( !atLeastOne )
-            {
-                ISAAC_SET_COLOR ( 
-                    pixels[pixel.x + pixel.y * framebufferSize.x], 
-                    color 
-                )
-                gNormal[pixel.x + pixel.y * framebufferSize.x] = defaultNormal;
-                gDepth[pixel.x + pixel.y * framebufferSize.x] = defaultDepth;
-                return;
-            }
 
-            Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( framebufferSize ) );
+            if( !atLeastOne )
+                return;
+
+            Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( gBuffer.size ) );
 
             if( !clipRay(ray, inputClipping ) )
-            {
-                ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
-
-                //this function aborts drawing and therfore wont set any normal or depth values
-                //defaults will be applied for clean images
-                gNormal[pixel.x + pixel.y * framebufferSize.x] = defaultNormal;
-                gDepth[pixel.x + pixel.y * framebufferSize.x] = defaultDepth;
-
                 return;
-            }
 
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
 
-            isaac_float4 particleColor = backgroundColor;
+            isaac_float4 particleColor;
             isaac_float depth = std::numeric_limits<isaac_float>::max( );
             bool particleHit = false;
             // light direction is camera direction
@@ -243,21 +217,17 @@ namespace isaac
 
             // check for 0 to stop infinite looping
             if( ray.dir.x == 0 )
-            {
                 t.x = std::numeric_limits<isaac_float>::max( );
-            }
+
             if( ray.dir.y == 0 )
-            {
                 t.y = std::numeric_limits<isaac_float>::max( );
-            }
+
             if( ray.dir.z == 0 )
-            {
                 t.z = std::numeric_limits<isaac_float>::max( );
-            }
 
 
             //normal at particle hit position
-            isaac_float3 particleNormal = defaultNormal;
+            isaac_float3 particleNormal;
 
             // iterate over all cells on the ray path
             // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
@@ -312,39 +282,32 @@ namespace isaac
 
             }
             // if there was a hit set maximum volume raycast distance to particle hit distance and set particle color
-            if( particleHit )
-            {
+            if( !particleHit )
+                return;
 
-                // calculate lighting properties for the last hit particle
-                particleNormal = glm::normalize( particleNormal );
+            // calculate lighting properties for the last hit particle
+            particleNormal = glm::normalize( particleNormal );
 
-                isaac_float lightFactor = glm::dot( particleNormal, lightDir );
+            isaac_float lightFactor = glm::dot( particleNormal, lightDir );
 
-                isaac_float3 halfVector = glm::normalize( -ray.dir + lightDir );
+            isaac_float3 halfVector = glm::normalize( -ray.dir + lightDir );
 
-                isaac_float specular = glm::dot( particleNormal, halfVector );
+            isaac_float specular = glm::dot( particleNormal, halfVector );
 
-                specular = pow( specular, 10 );
-                specular *= 0.5f;
-                lightFactor = lightFactor * 0.5f + 0.5f;
-
-
-                particleColor = glm::min( particleColor * lightFactor + specular, isaac_float( 1 ) );
-                particleColor.a = 1.0f;
-            }
+            specular = pow( specular, 10 );
+            specular *= 0.5f;
+            lightFactor = lightFactor * 0.5f + 0.5f;
 
 
-            ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], particleColor )
+            particleColor = glm::min( particleColor * lightFactor + specular, isaac_float( 1 ) );
+            particleColor.a = 1.0f;
+
+            ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], particleColor )
             //save the particle normal in the normal g buffer
-            gNormal[pixel.x + pixel.y * framebufferSize.x] = particleNormal;
+            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = particleNormal;
             
             //save the cell depth in our g buffer (depth)
-            isaac_float3 depthValue = {
-                0.0f,
-                1.0f,
-                depth + ray.startDepth
-            };
-            gDepth[pixel.x + pixel.y * framebufferSize.x] = depthValue;
+            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth + ray.startDepth;
         }
     };
 
@@ -356,7 +319,7 @@ namespace isaac
         typename T_SourceWeight,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        typename T_AccDim,
+        typename T_WorkDiv,
         typename T_Acc,
         typename T_Stream,
         int T_sourceOffset,
@@ -366,16 +329,11 @@ namespace isaac
     {
         inline static void call(
             T_Stream stream,
-            uint32_t * framebuffer,
-            isaac_float3 * depthBuffer,
-            isaac_float3 * normalBuffer,
-            const isaac_size2 & framebufferSize,
-            const isaac_uint2 & framebufferStart,
+            const GBuffer & gBuffer,
             const T_ParticleList & particleSources,
-            const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
-            IceTInt const * const readback_viewport,
+            const T_WorkDiv & workdiv,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
             const AOParams & ambientOcclusion
@@ -392,23 +350,18 @@ namespace isaac
                         boost::mpl::false_
                     >::type,
                     T_transferSize,
-                    T_AccDim,
+                    T_WorkDiv,
                     T_Acc,
                     T_Stream,
                     T_sourceOffset,
                     T_n - 1
                 >::call(
                     stream,
-                    framebuffer,
-                    depthBuffer,
-                    normalBuffer,
-                    framebufferSize,
-                    framebufferStart,
+                    gBuffer,
                     particleSources,
-                    backgroundColor,
                     transferArray,
                     sourceWeight,
-                    readback_viewport,
+                    workdiv,
                     scale,
                     clipping,
                     ambientOcclusion
@@ -425,23 +378,18 @@ namespace isaac
                         boost::mpl::true_
                     >::type,
                     T_transferSize,
-                    T_AccDim,
+                    T_WorkDiv,
                     T_Acc,
                     T_Stream,
                     T_sourceOffset,
                     T_n - 1
                 >::call(
                     stream,
-                    framebuffer,
-                    depthBuffer,
-                    normalBuffer,
-                    framebufferSize,
-                    framebufferStart,
+                    gBuffer,
                     particleSources,
-                    backgroundColor,
                     transferArray,
                     sourceWeight,
-                    readback_viewport,
+                    workdiv,
                     scale,
                     clipping,
                     ambientOcclusion
@@ -456,7 +404,7 @@ namespace isaac
         typename T_SourceWeight,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        typename T_AccDim,
+        typename T_WorkDiv,
         typename T_Acc,
         typename T_Stream,
         int T_sourceOffset
@@ -467,7 +415,7 @@ namespace isaac
         T_SourceWeight,
         T_Filter,
         T_transferSize,
-        T_AccDim,
+        T_WorkDiv,
         T_Acc,
         T_Stream,
         T_sourceOffset,
@@ -476,63 +424,16 @@ namespace isaac
     {
         inline static void call(
             T_Stream stream,
-            uint32_t *  framebuffer,
-            isaac_float3 * depthBuffer,
-            isaac_float3 * normalBuffer,
-            const isaac_size2 & framebufferSize,
-            const isaac_uint2 & framebufferStart,
+            const GBuffer & gBuffer,
             const T_ParticleList & particleSources,
-            const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
-            IceTInt const * const readback_viewport,
+            const T_WorkDiv & workdiv,
             const isaac_float3 & scale,
             const ClippingStruct & clipping,
             const AOParams & ambientOcclusion
         )
         {
-            isaac_size2 block_size = {
-                ISAAC_IDX_TYPE( 8 ),
-                ISAAC_IDX_TYPE( 16 )
-            };
-            isaac_size2 grid_size = {
-                ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
-                ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
-            };
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if ( boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
-#endif
-            {
-                grid_size.x = ISAAC_IDX_TYPE( readback_viewport[2] );
-                grid_size.y = ISAAC_IDX_TYPE( readback_viewport[3] );
-                block_size.x = ISAAC_IDX_TYPE( 1 );
-                block_size.y = ISAAC_IDX_TYPE( 1 );
-            }
-            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> threads(
-                ISAAC_IDX_TYPE( 1 ),
-                ISAAC_IDX_TYPE( 1 ),
-                ISAAC_IDX_TYPE( 1 )
-            );
-            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> blocks(
-                ISAAC_IDX_TYPE( 1 ),
-                block_size.y,
-                block_size.x
-            );
-            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> grid(
-                ISAAC_IDX_TYPE( 1 ),
-                grid_size.y,
-                grid_size.x
-            );
-            auto const workdiv(
-                alpaka::WorkDivMembers<
-                    T_AccDim,
-                    ISAAC_IDX_TYPE
-                >(
-                    grid,
-                    blocks,
-                    threads
-                )
-            );
             ParticleRenderKernel
             <
                 T_ParticleList,
@@ -549,13 +450,8 @@ namespace isaac
                 (
                     workdiv,
                     kernel,
-                    framebuffer,
-                    depthBuffer,
-                    normalBuffer,
-                    framebufferSize,
-                    framebufferStart,
+                    gBuffer,
                     particleSources,
-                    backgroundColor,
                     transferArray,
                     sourceWeight,
                     scale,

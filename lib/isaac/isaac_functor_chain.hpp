@@ -103,7 +103,7 @@ namespace isaac
     template<
         typename T_FunctorVector,
         int T_featureDim,
-        int T_NR
+        int T_nr
     >
     struct FillFunctorChainPointerKernelStruct
     {
@@ -111,12 +111,12 @@ namespace isaac
         call( isaac_int const * const bytecode )
         {
 #define ISAAC_SUB_CALL( Z, I, U ) \
-            if (bytecode[ISAAC_MAX_FUNCTORS-T_NR] == I) \
+            if (bytecode[ISAAC_MAX_FUNCTORS-T_nr] == I) \
                 return FillFunctorChainPointerKernelStruct \
                 < \
                     typename boost::mpl::push_back< T_FunctorVector, typename boost::mpl::at_c<IsaacFunctorPool,I>::type >::type, \
                     T_featureDim, \
-                    T_NR - 1 \
+                    T_nr - 1 \
                 > ::call( bytecode );
             BOOST_PP_REPEAT(
                 ISAAC_FUNCTOR_COUNT,

@@ -106,6 +106,15 @@ struct SimulationSizeStruct
     isaac_size3 localSizeScaled;        //same as globalSizeScaled
 };
 
+struct GBuffer
+{
+    isaac_size2 size;
+    isaac_uint2 startOffset;
+    uint32_t* color;
+    isaac_float* depth;
+    isaac_float3* normal;
+    isaac_float* aoStrength;
+};
 
 template< int T_n >
 struct TransferDeviceStruct

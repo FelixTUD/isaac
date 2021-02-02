@@ -422,20 +422,14 @@ namespace isaac
         >
         ALPAKA_FN_ACC void operator()(
             T_Acc const & acc,
-            uint32_t * const pixels,                //ptr to output pixels
-            isaac_float3 * const gDepth,            //depth buffer
-            isaac_float3 * const gNormal,           //normal buffer
-            const isaac_size2 framebufferSize,     //size of framebuffer
-            const isaac_uint2 framebufferStart,    //framebuffer offset
+            GBuffer gBuffer,
             const T_SourceList sources,              //source of volumes
             isaac_float step,                       //ray step length
-            const isaac_float4 backgroundColor,    //color of render background
             const T_TransferArray transferArray,     //mapping to simulation memory
             const T_SourceWeight sourceWeight,       //weights of sources for blending
             const T_PointerArray pointerArray,
             const isaac_float3 scale,               //isaac set scaling
-            const ClippingStruct inputClipping,   //clipping planes
-            const AOParams ambientOcclusion        //ambient occlusion params
+            const ClippingStruct inputClipping     //clipping planes
         ) const
         {
             //get pixel values from thread ids
@@ -446,16 +440,11 @@ namespace isaac
             isaac_uint2 pixel = isaac_uint2( alpThreadIdx[2], alpThreadIdx[1] );
             //apply framebuffer offset to pixel
             //stop if pixel position is out of bounds
-            pixel = pixel + framebufferStart;
-            if( pixel.x >= framebufferSize.x || pixel.y >= framebufferSize.y )
+            pixel = pixel + gBuffer.startOffset;
+            if( !isInUpperBounds( pixel, gBuffer.size ) )
                 return;
 
-            //gNormalBuffer default value
-            isaac_float3 defaultNormal = {0.0, 0.0, 0.0};
-            isaac_float3 defaultDepth = {0.0, 0.0, 1.0};
-
             //set background color
-            isaac_float4 color = backgroundColor;
             bool atLeastOne = true;
             forEachWithMplParams(
                 sources,
@@ -463,32 +452,14 @@ namespace isaac
                 atLeastOne
             );
             if( !atLeastOne )
-            {
-                ISAAC_SET_COLOR ( 
-                    pixels[pixel.x + pixel.y * framebufferSize.x], 
-                    color 
-                )
-                gNormal[pixel.x + pixel.y * framebufferSize.x] = defaultNormal;
-                gDepth[pixel.x + pixel.y * framebufferSize.x] = defaultDepth;
                 return;
-            }
 
-
-            Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( framebufferSize ) );
-
+            Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( gBuffer.size ) );
 
             if( !clipRay(ray, inputClipping ) )
-            {
-                ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
-
-                //this function aborts drawing and therfore wont set any normal or depth values
-                //defaults will be applied for clean images
-                gNormal[pixel.x + pixel.y * framebufferSize.x] = defaultNormal;
-                gDepth[pixel.x + pixel.y * framebufferSize.x] = defaultDepth;
-
                 return;
-            }
 
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
 
             //Starting the main loop
             isaac_float min_size = ISAAC_MIN(
@@ -534,6 +505,7 @@ namespace isaac
                 pos = startUnscaled + stepVec * isaac_float( endSteps );
             }
             isaac_float depth = std::numeric_limits<isaac_float>::max();
+            isaac_float4 color;
             //iterate over the volume
             for( isaac_int i = startSteps; i <= endSteps; i++ )
             {
@@ -582,6 +554,10 @@ namespace isaac
                     }
                 }
             }
+
+            if( !result )
+                return;
+
             //indicates how strong particle ao should be when gas is overlapping
             //isaac_float ao_blend = 0.0f;
             //if (!isInLowerBounds(startUnscaled + stepVec * isaac_float(startSteps), isaac_float3(0))
@@ -598,11 +574,10 @@ namespace isaac
             }
 #endif
 
-
-            ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebufferSize.x], color )
+            ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color )
             
             //save the particle normal in the normal g buffer
-            //gNormal[pixel.x + pixel.y * framebufferSize.x] = particle_normal;
+            //gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = particle_normal;
             
             //save the cell depth in our g buffer (depth)
             //march_length takes the old particle_color w component 
@@ -610,13 +585,8 @@ namespace isaac
             //is therefore stored in march_length
             //LINE 2044
             if( T_isoSurface )
-            {
-                isaac_float3 depth_value = {
-                    0.0f,
-                    1.0f,
-                    depth
-                };               
-                gDepth[pixel.x + pixel.y * framebufferSize.x] = depth_value;
+            {   
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
             }
         }
     };
@@ -629,7 +599,7 @@ namespace isaac
         typename T_PointerArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        typename T_AccDim,
+        typename T_WorkDiv,
         typename T_Acc,
         typename T_Stream,
         int T_n
@@ -638,23 +608,17 @@ namespace isaac
     {
         inline static void call(
             T_Stream stream,
-            uint32_t * framebuffer,
-            isaac_float3 * depthBuffer,
-            isaac_float3 * normalBuffer,
-            const isaac_size2 & framebufferSize,
-            const isaac_uint2 & framebufferStart,
+            const GBuffer & gBuffer,
             const T_SourceList & sources,
             const isaac_float & step,
-            const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             const T_PointerArray & pointerArray,
-            IceTInt const * const readbackViewport,
+            const T_WorkDiv & workdiv,
             const isaac_int interpolation,
             const isaac_int isoSurface,
             const isaac_float3 & scale,
-            const ClippingStruct & clipping,
-            const AOParams & ambientOcclusion
+            const ClippingStruct & clipping
         )
         {
             if( sourceWeight.value[boost::mpl::size< T_SourceList >::type::value
@@ -670,29 +634,23 @@ namespace isaac
                         boost::mpl::false_
                     >::type,
                     T_transferSize,
-                    T_AccDim,
+                    T_WorkDiv,
                     T_Acc,
                     T_Stream,
                     T_n - 1
                 >::call(
                     stream,
-                    framebuffer,
-                    depthBuffer,
-                    normalBuffer,
-                    framebufferSize,
-                    framebufferStart,
+                    gBuffer,
                     sources,
                     step,
-                    backgroundColor,
                     transferArray,
                     sourceWeight,
                     pointerArray,
-                    readbackViewport,
+                    workdiv,
                     interpolation,
                     isoSurface,
                     scale,
-                    clipping,
-                    ambientOcclusion
+                    clipping
                 );
             }
             else
@@ -707,29 +665,23 @@ namespace isaac
                         boost::mpl::true_
                     >::type,
                     T_transferSize,
-                    T_AccDim,
+                    T_WorkDiv,
                     T_Acc,
                     T_Stream,
                     T_n - 1
                 >::call(
                     stream,
-                    framebuffer,
-                    depthBuffer,
-                    normalBuffer,
-                    framebufferSize,
-                    framebufferStart,
+                    gBuffer,
                     sources,
                     step,
-                    backgroundColor,
                     transferArray,
                     sourceWeight,
                     pointerArray,
-                    readbackViewport,
+                    workdiv,
                     interpolation,
                     isoSurface,
                     scale,
-                    clipping,
-                    ambientOcclusion
+                    clipping
                 );
             }
         }
@@ -742,7 +694,7 @@ namespace isaac
         typename T_PointerArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        typename T_AccDim,
+        typename T_WorkDiv,
         typename T_Acc,
         typename T_Stream
     >
@@ -753,7 +705,7 @@ namespace isaac
         T_PointerArray,
         T_Filter,
         T_transferSize,
-        T_AccDim,
+        T_WorkDiv,
         T_Acc,
         T_Stream,
         0 //<-- spezialisation
@@ -761,67 +713,20 @@ namespace isaac
     {
         inline static void call(
             T_Stream stream,
-            uint32_t *  framebuffer,
-            isaac_float3 * depthBuffer,
-            isaac_float3 * normalBuffer,
-            const isaac_size2 & framebufferSize,
-            const isaac_uint2 & framebufferStart,
+            const GBuffer & gBuffer,
             const T_SourceList & sources,
             const isaac_float & step,
-            const isaac_float4 & backgroundColor,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             const T_PointerArray & pointerArray,
-            IceTInt const * const readbackViewport,
+            const T_WorkDiv & workdiv,
             const isaac_int interpolation,
             const isaac_int isoSurface,
             const isaac_float3 & scale,
-            const ClippingStruct & clipping,
-            const AOParams & ambientOcclusion
+            const ClippingStruct & clipping
         )
         {
-            isaac_size2 block_size = {
-                ISAAC_IDX_TYPE( 8 ),
-                ISAAC_IDX_TYPE( 16 )
-            };
-            isaac_size2 grid_size = {
-                ISAAC_IDX_TYPE( ( readbackViewport[2] + block_size.x - 1 ) / block_size.x ),
-                ISAAC_IDX_TYPE( ( readbackViewport[3] + block_size.y - 1 ) / block_size.y )
-            };
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if ( boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
-#endif
-            {
-                grid_size.x = ISAAC_IDX_TYPE( readbackViewport[2] );
-                grid_size.y = ISAAC_IDX_TYPE( readbackViewport[3] );
-                block_size.x = ISAAC_IDX_TYPE( 1 );
-                block_size.y = ISAAC_IDX_TYPE( 1 );
-            }
-            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> threads(
-                ISAAC_IDX_TYPE( 1 ),
-                ISAAC_IDX_TYPE( 1 ),
-                ISAAC_IDX_TYPE( 1 )
-            );
-            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> blocks(
-                ISAAC_IDX_TYPE( 1 ),
-                block_size.y,
-                block_size.x
-            );
-            const alpaka::Vec <T_AccDim, ISAAC_IDX_TYPE> grid(
-                ISAAC_IDX_TYPE( 1 ),
-                grid_size.y,
-                grid_size.x
-            );
-            auto const workdiv(
-                alpaka::WorkDivMembers<
-                    T_AccDim,
-                    ISAAC_IDX_TYPE
-                >(
-                    grid,
-                    blocks,
-                    threads
-                )
-            );
+
 #define ISAAC_KERNEL_START \
             { \
                 IsoRenderKernel \
@@ -841,20 +746,14 @@ namespace isaac
                     ( \
                         workdiv, \
                         kernel, \
-                        framebuffer, \
-                        depthBuffer, \
-                        normalBuffer, \
-                        framebufferSize, \
-                        framebufferStart, \
+                        gBuffer, \
                         sources, \
                         step, \
-                        backgroundColor, \
                         transferArray, \
                         sourceWeight, \
                         pointerArray, \
                         scale, \
-                        clipping, \
-                        ambientOcclusion \
+                        clipping \
                     ) \
                 ); \
                 alpaka::enqueue(stream, instance); \

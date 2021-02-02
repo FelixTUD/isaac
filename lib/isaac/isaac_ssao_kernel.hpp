@@ -42,11 +42,7 @@ namespace isaac
         template <typename T_Acc>
         ALPAKA_FN_ACC void operator() (
             T_Acc const &acc,
-            isaac_float * const gAOBuffer,       //ao buffer
-            isaac_float3 * const gDepth,         //depth buffer (will be used as y=blending of particles and volume, z=depth of pixels)
-            isaac_float3 * const gNormal,        //normal buffer
-            const isaac_size2 framebufferSize,  //size of framebuffer
-            const isaac_uint2 framebufferStart, //framebuffer offset
+            const GBuffer gBuffer,
             AOParams aoProperties              //properties for ambient occlusion
             ) const
         {
@@ -57,8 +53,9 @@ namespace isaac
             pixel.x = isaac_uint ( alpThreadIdx[2] );
             pixel.y = isaac_uint ( alpThreadIdx[1] );
 
-            pixel = pixel + framebufferStart;    
-
+            pixel = pixel + gBuffer.startOffset;    
+            if( !isInUpperBounds( pixel, gBuffer.size ) )
+                return;
             
 
 
@@ -75,17 +72,17 @@ namespace isaac
             isaac_int radius = 10;
 
             /*
-            //isaac_float3 origin = gDepth[pixel.x + pixel.y * framebufferSize.x];
+            //isaac_float3 origin = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x];
 
             
 
             //get the normal value from the gbuffer
-            isaac_float3 normal = gNormal[pixel.x + pixel.y * framebufferSize.x];
+            isaac_float3 normal = gNormal[pixel.x + pixel.y * gBuffer.size.x];
 
             //normalize the normal
             isaac_float len = sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
             if(len == 0) {
-                gAOBuffer[pixel.x + pixel.y * framebufferSize.x] = 0.0f;
+                gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = 0.0f;
                 return;
             }
 
@@ -147,11 +144,11 @@ namespace isaac
                 offset2d.y = MAX(MIN(offset2d.y * 0.5 + 0.5, 1.0f), 0.0f);
 
                 isaac_uint2 offsetFramePos = {
-                    isaac_uint(framebufferSize.x * offset2d.x) + framebufferStart.x,
-                    isaac_uint(framebufferSize.y * offset2d.y) + framebufferStart.y,
+                    isaac_uint(gBuffer.size.x * offset2d.x) + gBuffer.startOffset.x,
+                    isaac_uint(gBuffer.size.y * offset2d.y) + gBuffer.startOffset.y,
                 };
                 //printf("%f %f -- %u %u\n", offset2d.x, offset2d.y, offsetFramePos.x, offsetFramePos.y);
-                isaac_float sampleDepth = gDepth[offsetFramePos.x + offsetFramePos.y * framebufferSize.x].z; 
+                isaac_float sampleDepth = gBuffer.depth[offsetFramePos.x + offsetFramePos.y * gBuffer.size.x].z; 
                 occlusion += (sampleDepth - sample.z ? 1.0f : 0.0f);
             }*/
             
@@ -165,15 +162,15 @@ namespace isaac
             */
             //closer to the camera
             isaac_float occlusion = 0.0f;
-            isaac_float refDepth = gDepth[pixel.x + pixel.y * framebufferSize.x].z;
+            isaac_float refDepth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x];
             for(int i = -3; i <= 3; i++) {
                 for(int j = -3; j <= 3; j++) {
                     //avoid out of bounds by simple min max
-                    isaac_int x = glm::clamp(pixel.x + i * radius, framebufferStart.x, framebufferStart.x + framebufferSize.x);
-                    isaac_int y = glm::clamp(pixel.y + j * radius, framebufferStart.y, framebufferStart.y + framebufferSize.y);
+                    isaac_int x = glm::clamp(pixel.x + i * radius, gBuffer.startOffset.x, gBuffer.startOffset.x + gBuffer.size.x);
+                    isaac_int y = glm::clamp(pixel.y + j * radius, gBuffer.startOffset.y, gBuffer.startOffset.y + gBuffer.size.y);
 
                     //get the neighbour depth value
-                    isaac_float depthSample = gDepth[x + y * framebufferSize.x].z;
+                    isaac_float depthSample = gBuffer.depth[x + y * gBuffer.size.x];
 
                     // only increase the counter if the neighbour depth is closer to the camera
                     // use <= because we will discard pixels with a depth/ao value 0.0 (for background pixels and image merging), 
@@ -186,7 +183,7 @@ namespace isaac
             isaac_float depth = (occlusion / 49.0f);
 
             //save the depth value in our ao buffer
-            gAOBuffer[pixel.x + pixel.y * framebufferSize.x] = depth;
+            gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = depth;
         }
     };
 
@@ -201,11 +198,7 @@ namespace isaac
         template <typename T_Acc>
         ALPAKA_FN_ACC void operator() (
             T_Acc const &acc,
-            uint32_t * const gColor,             //ptr to output pixels
-            isaac_float * const gAOBuffer,       //ambient occlusion values from ssao kernel
-            isaac_float3 * const gDepthBuffer,   //depth and blending values
-            const isaac_size2 framebufferSize,  //size of framebuffer
-            const isaac_uint2 framebufferStart, //framebuffer offset
+            const GBuffer gBuffer,
             AOParams aoProperties              //properties for ambient occlusion
             ) const
         {
@@ -217,18 +210,19 @@ namespace isaac
             pixel.y = isaac_uint ( alpThreadIdx[1] );
 
             //get real pixel coordinate by offset
-            pixel = pixel + framebufferStart;
-
+            pixel = pixel + gBuffer.startOffset;
+            if( !isInUpperBounds( pixel, gBuffer.size ) )
+                return;
             /* TODO
             * Normally the depth values are smoothed
             * in this case the smooting filter is not applied for simplicity
             * 
             * If the real ssao algorithm is implemented, a real filter will be necessary
             */
-            isaac_float depth = gAOBuffer[pixel.x + pixel.y * framebufferSize.x];
+            isaac_float depth = gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
             
             //convert uint32 back to 4x 1 Byte color values
-            uint32_t color = gColor[pixel.x + pixel.y * framebufferSize.x];
+            uint32_t color = gBuffer.color[pixel.x + pixel.y * gBuffer.size.x];
             isaac_float4 colorValues = {
                 ((color >>  0) & 0xff) / 255.0f,
                 ((color >>  8) & 0xff) / 255.0f,
@@ -238,13 +232,13 @@ namespace isaac
 
             //read the weight from the global ao settings and merge them with the color value
             isaac_float weight = aoProperties.weight;
-            isaac_float ao_factor = ((1.0f - weight) + weight * (1.0f - depth));
-            isaac_float particle_blend = gDepthBuffer[pixel.x + pixel.y * framebufferSize.x].y;
+            isaac_float aoFactor = ((1.0f - weight) + weight * (1.0f - depth));
+            isaac_float particleBlend = 1;
             
             isaac_float4 finalColor = { 
-                particle_blend * ao_factor * colorValues.x + (1.0f - particle_blend) * colorValues.x,
-                particle_blend * ao_factor * colorValues.y + (1.0f - particle_blend) * colorValues.y,
-                particle_blend * ao_factor * colorValues.z + (1.0f - particle_blend) * colorValues.z,
+                particleBlend * aoFactor * colorValues.x + (1.0f - particleBlend) * colorValues.x,
+                particleBlend * aoFactor * colorValues.y + (1.0f - particleBlend) * colorValues.y,
+                particleBlend * aoFactor * colorValues.z + (1.0f - particleBlend) * colorValues.z,
                 1.0f  * colorValues.w
             };
         
@@ -255,7 +249,7 @@ namespace isaac
             }
 
             //finally replace the old color value with the new ssao filtered color value
-            ISAAC_SET_COLOR(gColor[pixel.x + pixel.y * framebufferSize.x], finalColor);
+            ISAAC_SET_COLOR(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], finalColor);
             
         }
     };
