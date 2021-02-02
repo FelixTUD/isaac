@@ -90,13 +90,13 @@ namespace isaac
                         // if the ray hits the sphere
                         if( t1 >= 0 && t0 < out_depth )
                         {
-                            isaac_float_dim <T_Source::feature_dim>
+                            isaac_float_dim <T_Source::featureDim>
                                 data = particleIterator.getAttribute( );
 
                             isaac_float result = isaac_float( 0 );
 
                             // apply functorchain
-                           result = applyFunctorChain<T_Source::feature_dim>(&data, sourceNumber);
+                           result = applyFunctorChain<T_Source::featureDim>(&data, sourceNumber);
 
                             // apply transferfunction
                             ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(

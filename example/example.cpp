@@ -37,20 +37,20 @@ using namespace isaac;
 
 ISAAC_NO_HOST_DEVICE_WARNING
 template<
-    typename TDevAcc,
+    typename T_DevAcc,
     typename T_Host,
     typename T_Stream
 >
 class TestSource1
 {
 public:
-    static const ISAAC_IDX_TYPE feature_dim = 3;
-    static const bool has_guard = false;
+    static const ISAAC_IDX_TYPE featureDim = 3;
+    static const bool hasGuard = false;
     static const bool persistent = true;
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource1(
-        TDevAcc acc,
+        T_DevAcc acc,
         T_Host host,
         T_Stream stream,
         isaac_float3 * ptr
@@ -75,7 +75,7 @@ public:
     isaac_float3 * ptr;
 
     ISAAC_NO_HOST_DEVICE_WARNING ISAAC_HOST_DEVICE_INLINE
-    isaac_float_dim <feature_dim> operator[]( const isaac_int3 & nIndex ) const
+    isaac_float_dim <featureDim> operator[]( const isaac_int3 & nIndex ) const
     {
         isaac_float3 value = ptr[nIndex.x + nIndex.y * VOLUME_X
                                  + nIndex.z * VOLUME_X * VOLUME_Y];
@@ -90,20 +90,20 @@ public:
 
 ISAAC_NO_HOST_DEVICE_WARNING
 template<
-    typename TDevAcc,
+    typename T_DevAcc,
     typename T_Host,
     typename T_Stream
 >
 class TestSource2
 {
 public:
-    static const ISAAC_IDX_TYPE feature_dim = 1;
-    static const bool has_guard = false;
+    static const ISAAC_IDX_TYPE featureDim = 1;
+    static const bool hasGuard = false;
     static const bool persistent = false;
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource2(
-        TDevAcc acc,
+        T_DevAcc acc,
         T_Host host,
         T_Stream stream,
         isaac_float * ptr
@@ -131,7 +131,7 @@ public:
     isaac_float * ptr;
 
     ISAAC_NO_HOST_DEVICE_WARNING ISAAC_HOST_DEVICE_INLINE
-    isaac_float_dim <feature_dim> operator[]( const isaac_int3 & nIndex ) const
+    isaac_float_dim <featureDim> operator[]( const isaac_int3 & nIndex ) const
     {
         isaac_float value = ptr[nIndex.x + nIndex.y * VOLUME_X
                                 + nIndex.z * VOLUME_X * VOLUME_Y];
@@ -144,41 +144,41 @@ public:
 
 // Particle Iterator
 
-template< ISAAC_IDX_TYPE feature_dim, typename ElemType >
+template< ISAAC_IDX_TYPE T_featureDim, typename T_ElemType >
 class ParticleIterator1
 {
 public:
     size_t size;
 
     ISAAC_NO_HOST_DEVICE_WARNING ISAAC_HOST_DEVICE_INLINE ParticleIterator1(
-        ElemType * first_element,
+        T_ElemType * firstElement,
         size_t size,
-        const isaac_uint3 & local_grid_coord
+        const isaac_uint3 & localGridCoord
     ) :
-        current_element( first_element ),
+        currentElement( firstElement ),
         size( size ),
-        local_grid_coord( local_grid_coord )
+        localGridCoord( localGridCoord )
     {}
 
 
     ISAAC_HOST_DEVICE_INLINE void next( )
     {
-        current_element = &current_element[1];
+        currentElement = &currentElement[1];
     }
 
 
-    ISAAC_HOST_DEVICE_INLINE ElemType getPosition( ) const
+    ISAAC_HOST_DEVICE_INLINE T_ElemType getPosition( ) const
     {
-        return *current_element;
+        return *currentElement;
     }
 
 
-    ISAAC_HOST_DEVICE_INLINE isaac_float_dim< feature_dim > getAttribute( ) const
+    ISAAC_HOST_DEVICE_INLINE isaac_float_dim< T_featureDim > getAttribute( ) const
     {
         return {
-            isaac_float( local_grid_coord.x ),
-            isaac_float( local_grid_coord.y ),
-            isaac_float( local_grid_coord.z )
+            isaac_float( localGridCoord.x ),
+            isaac_float( localGridCoord.y ),
+            isaac_float( localGridCoord.z )
         };
     }
 
@@ -190,8 +190,8 @@ public:
 
 
 private:
-    ElemType * current_element;
-    isaac_uint3 local_grid_coord;
+    T_ElemType * currentElement;
+    isaac_uint3 localGridCoord;
 
 };
 
@@ -200,18 +200,18 @@ private:
 
 ISAAC_NO_HOST_DEVICE_WARNING
 template<
-    typename TDevAcc,
+    typename T_DevAcc,
     typename T_Host,
     typename T_Stream
 >
 class ParticleSource1
 {
 public:
-    static const ISAAC_IDX_TYPE feature_dim = 3;
+    static const ISAAC_IDX_TYPE featureDim = 3;
 
 
     ISAAC_NO_HOST_DEVICE_WARNING ParticleSource1(
-        TDevAcc acc,
+        T_DevAcc acc,
         T_Host host,
         T_Stream stream,
         isaac_float3 * ptr,
@@ -244,18 +244,18 @@ public:
     // Returns correct particle iterator for the requested cell (in the example the same particle list for each cell)
     ISAAC_NO_HOST_DEVICE_WARNING ISAAC_HOST_DEVICE_INLINE
     ParticleIterator1<
-        feature_dim,
+        featureDim,
         isaac_float3
-    > getIterator( const isaac_uint3 & local_grid_coord ) const
+    > getIterator( const isaac_uint3 & localGridCoord ) const
     {
 
         return ParticleIterator1<
-            feature_dim,
+            featureDim,
             isaac_float3
         >(
             ptr,
             size,
-            local_grid_coord
+            localGridCoord
         );
     }
 };
@@ -345,7 +345,7 @@ int main(
     );
 
     //This defines the size of the generated rendering
-    isaac_size2 framebuffer_size = {
+    isaac_size2 framebufferSize = {
         ISAAC_IDX_TYPE( 800 ),
         ISAAC_IDX_TYPE( 600 )
     };
@@ -389,7 +389,7 @@ int main(
         ISAAC_IDX_TYPE( VOLUME_Y ),
         ISAAC_IDX_TYPE( VOLUME_Z )
     );
-    const alpaka::Vec< DatDim, ISAAC_IDX_TYPE > data_size(
+    const alpaka::Vec< DatDim, ISAAC_IDX_TYPE > dataSize(
         ISAAC_IDX_TYPE( VOLUME_X ) * ISAAC_IDX_TYPE( VOLUME_Y )
         * ISAAC_IDX_TYPE( VOLUME_Z )
     );
@@ -398,7 +398,7 @@ int main(
         p[1] * VOLUME_Y,
         p[2] * VOLUME_Z
     );
-    const alpaka::Vec< alpaka::DimInt< 1 >, ISAAC_IDX_TYPE > particle_count(
+    const alpaka::Vec< alpaka::DimInt< 1 >, ISAAC_IDX_TYPE > particleCount(
         ISAAC_IDX_TYPE( PARTICLE_COUNT )
     );
 
@@ -413,7 +413,7 @@ int main(
             ISAAC_IDX_TYPE
         >(
             devHost,
-            data_size
+            dataSize
         );
     auto deviceBuffer1 =
         alpaka::allocBuf<
@@ -421,7 +421,7 @@ int main(
             ISAAC_IDX_TYPE
         >(
             devAcc,
-            data_size
+            dataSize
         );
     auto hostBuffer2 = 
         alpaka::allocBuf<
@@ -429,7 +429,7 @@ int main(
             ISAAC_IDX_TYPE
         >(
             devHost,
-            data_size
+            dataSize
         );
     auto deviceBuffer2 =
         alpaka::allocBuf<
@@ -437,7 +437,7 @@ int main(
             ISAAC_IDX_TYPE
         >(
             devAcc,
-            data_size
+            dataSize
         );
 
     auto hostBuffer3 =
@@ -446,7 +446,7 @@ int main(
             ISAAC_IDX_TYPE
         >(
             devHost,
-            particle_count
+            particleCount
         );
     auto deviceBuffer3 = 
         alpaka::allocBuf<
@@ -454,7 +454,7 @@ int main(
             ISAAC_IDX_TYPE
         >(
             devAcc,
-            particle_count
+            particleCount
         );
 
     // Creating source list
@@ -539,13 +539,13 @@ int main(
         stream,
         hostBuffer3,
         deviceBuffer3,
-        particle_count,
+        particleCount,
         0.0f
     );
 
 
 #endif
-    int s_x = 1, s_y = 1, s_z = 3;
+    int sX = 1, sY = 1, sZ = 3;
     if( filename )
     {
         read_vtk_to_memory(
@@ -560,13 +560,13 @@ int main(
             localSize,
             position,
             globalSize,
-            s_x,
-            s_y,
-            s_z
+            sX,
+            sY,
+            sZ
         );
     }
 
-    isaac_float3 scaling( s_x, s_y, s_z );
+    isaac_float3 scaling( sX, sY, sZ );
 
     // Create isaac visualization object
     auto visualization = new IsaacVisualization<
@@ -596,7 +596,7 @@ int main(
         0, //Master rank, which will opens the connection to the server
         server, //Address of the server
         port, //Inner port of the server
-        framebuffer_size, //Size of the rendered image
+        framebufferSize, //Size of the rendered image
         globalSize, //Size of the whole volumen including all nodes
         localSize, //Local size of the subvolume
         {
@@ -673,19 +673,19 @@ int main(
 
     // Program flow and time mesaurment variables
     float a = 0.0f;
-    volatile int force_exit = 0;
+    volatile int forceExit = 0;
     int start = visualization->getTicksUs( );
     int count = 0;
-    int drawing_time = 0;
-    int simulation_time = 0;
-    int full_drawing_time = 0;
-    int full_simulation_time = 0;
-    int sorting_time = 0;
-    int merge_time = 0;
-    int kernel_time = 0;
-    int copy_time = 0;
-    int video_send_time = 0;
-    int buffer_time = 0;
+    int drawingTime = 0;
+    int simulationTime = 0;
+    int fullDrawingTime = 0;
+    int fullSimulationTime = 0;
+    int sortingTime = 0;
+    int mergeTime = 0;
+    int kernelTime = 0;
+    int copyTime = 0;
+    int videoSendTime = 0;
+    int bufferTime = 0;
     bool pause = false;
     //How often should the visualization be updated?
     int interval = 1;
@@ -700,14 +700,14 @@ int main(
     }
 
     // Main loop
-    while( !force_exit )
+    while( !forceExit )
     {
 
         // "Simulation"
         if( !pause )
         {
             a += 0.01f;
-            int start_simulation = visualization->getTicksUs( );
+            int startSimulation = visualization->getTicksUs( );
 #if ISAAC_NO_SIMULATION == 0
             if( !filename )
             {
@@ -729,7 +729,7 @@ int main(
                 stream,
                 hostBuffer3,
                 deviceBuffer3,
-                particle_count,
+                particleCount,
                 a
             );
 
@@ -737,7 +737,7 @@ int main(
 
 
 
-            simulation_time += visualization->getTicksUs( ) - start_simulation;
+            simulationTime += visualization->getTicksUs( ) - startSimulation;
         }
         step++;
         if( step >= interval )
@@ -755,12 +755,12 @@ int main(
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "drawing_time",
-                    json_integer( drawing_time )
+                    json_integer( drawingTime )
                 );
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
                     "simulation_time",
-                    json_integer( simulation_time )
+                    json_integer( simulationTime )
                 );
                 json_object_set_new(
                     visualization->getJsonMetaRoot( ),
@@ -792,16 +792,16 @@ int main(
                     "buffer_time",
                     json_integer( visualization->bufferTime )
                 );
-                full_drawing_time += drawing_time;
-                full_simulation_time += simulation_time;
-                sorting_time += visualization->sortingTime;
-                merge_time += visualization->mergeTime;
-                kernel_time += visualization->kernelTime;
-                copy_time += visualization->copyTime;
-                video_send_time += visualization->videoSendTime;
-                buffer_time += visualization->bufferTime;
-                drawing_time = 0;
-                simulation_time = 0;
+                fullDrawingTime += drawingTime;
+                fullSimulationTime += simulationTime;
+                sortingTime += visualization->sortingTime;
+                mergeTime += visualization->mergeTime;
+                kernelTime += visualization->kernelTime;
+                copyTime += visualization->copyTime;
+                videoSendTime += visualization->videoSendTime;
+                bufferTime += visualization->bufferTime;
+                drawingTime = 0;
+                simulationTime = 0;
                 visualization->sortingTime = 0;
                 visualization->mergeTime = 0;
                 visualization->kernelTime = 0;
@@ -817,7 +817,7 @@ int main(
                 NULL,
                 !pause
             );
-            drawing_time += visualization->getTicksUs( ) - start_drawing;
+            drawingTime += visualization->getTicksUs( ) - start_drawing;
 
             // Message check
             if( meta )
@@ -841,7 +841,7 @@ int main(
                     )
                 ) )
                 {
-                    force_exit = 1;
+                    forceExit = 1;
                 }
                 if( json_boolean_value(
                     json_object_get(
@@ -885,7 +885,7 @@ int main(
                 int diff = end - start;
                 if( diff >= 1000000 )
                 {
-                    merge_time -= kernel_time + copy_time;
+                    mergeTime -= kernelTime + copyTime;
                     printf(
                         "FPS: %.1f \n\tSimulation: %.1f ms\n\t"
                         "Drawing: %.1f ms\n\t\tSorting: %.1f ms\n\t\t"
@@ -893,24 +893,24 @@ int main(
                         "Copy: %.1f ms\n\t\tVideo: %.1f ms\n\t\t"
                         "Buffer: %.1f ms\n",
                         ( float ) count * 1000000.0f / ( float ) diff,
-                        ( float ) full_simulation_time / 1000.0f
+                        ( float ) fullSimulationTime / 1000.0f
                         / ( float ) count,
-                        ( float ) full_drawing_time / 1000.0f / ( float ) count,
-                        ( float ) sorting_time / 1000.0f / ( float ) count,
-                        ( float ) merge_time / 1000.0f / ( float ) count,
-                        ( float ) kernel_time / 1000.0f / ( float ) count,
-                        ( float ) copy_time / 1000.0f / ( float ) count,
-                        ( float ) video_send_time / 1000.0f / ( float ) count,
-                        ( float ) buffer_time / 1000.0f / ( float ) count
+                        ( float ) fullDrawingTime / 1000.0f / ( float ) count,
+                        ( float ) sortingTime / 1000.0f / ( float ) count,
+                        ( float ) mergeTime / 1000.0f / ( float ) count,
+                        ( float ) kernelTime / 1000.0f / ( float ) count,
+                        ( float ) copyTime / 1000.0f / ( float ) count,
+                        ( float ) videoSendTime / 1000.0f / ( float ) count,
+                        ( float ) bufferTime / 1000.0f / ( float ) count
                     );
-                    sorting_time = 0;
-                    merge_time = 0;
-                    kernel_time = 0;
-                    copy_time = 0;
-                    video_send_time = 0;
-                    buffer_time = 0;
-                    full_drawing_time = 0;
-                    full_simulation_time = 0;
+                    sortingTime = 0;
+                    mergeTime = 0;
+                    kernelTime = 0;
+                    copyTime = 0;
+                    videoSendTime = 0;
+                    bufferTime = 0;
+                    fullDrawingTime = 0;
+                    fullSimulationTime = 0;
                     start = end;
                     count = 0;
                 }

@@ -38,11 +38,11 @@ using isaac_byte = uint8_t;
 #endif
 
 
-template <int T_n, typename Type>
-using isaac_vec_dim = glm::vec<T_n, Type, glm::defaultp>;
+template <int T_n, typename T_Type>
+using isaac_vec_dim = glm::vec<T_n, T_Type, glm::defaultp>;
 
-template <int T_n, typename Type>
-using isaac_mat_dim = glm::mat<T_n, T_n, Type, glm::defaultp>;
+template <int T_n, typename T_Type>
+using isaac_mat_dim = glm::mat<T_n, T_n, T_Type, glm::defaultp>;
 
 template <int T_n>
 using isaac_float_dim = isaac_vec_dim<T_n, isaac_float>;
@@ -95,15 +95,15 @@ using isaac_dmat2 = isaac_mat_dim<2, isaac_double>;
  */
 struct SimulationSizeStruct
 {
-    isaac_size3 globalSize;         //size of volume
-    ISAAC_IDX_TYPE maxGlobalSize;                //each dimension has a size and this value contains the value of the greatest dimension
-    isaac_size3 position;            //local position of subvolume
-    isaac_size3 localSize;          //size of local volume grid
-    isaac_size3 localParticleSize; //size of local particle grid 
-    isaac_size3 globalSizeScaled;  //scaled version of global size with cells = scale * cells
-    ISAAC_IDX_TYPE maxGlobalSizeScaled;         //same as globalSizeScaled
-    isaac_size3 positionScaled;     //scaled position of local subvolume
-    isaac_size3 localSizeScaled;   //same as globalSizeScaled
+    isaac_size3 globalSize;             //size of volume
+    ISAAC_IDX_TYPE maxGlobalSize;       //each dimension has a size and this value contains the value of the greatest dimension
+    isaac_size3 position;               //local position of subvolume
+    isaac_size3 localSize;              //size of local volume grid
+    isaac_size3 localParticleSize;      //size of local particle grid 
+    isaac_size3 globalSizeScaled;       //scaled version of global size with cells = scale * cells
+    ISAAC_IDX_TYPE maxGlobalSizeScaled; //same as globalSizeScaled
+    isaac_size3 positionScaled;         //scaled position of local subvolume
+    isaac_size3 localSizeScaled;        //same as globalSizeScaled
 };
 
 

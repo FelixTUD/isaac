@@ -36,9 +36,9 @@ namespace isaac
         const isaac_float3 & scale
     )
     {
-        isaac_float_dim <T_Source::feature_dim> data;
-        isaac_float_dim <T_Source::feature_dim> * ptr = (
-        isaac_float_dim < T_Source::feature_dim > *
+        isaac_float_dim <T_Source::featureDim> data;
+        isaac_float_dim <T_Source::featureDim> * ptr = (
+        isaac_float_dim < T_Source::featureDim > *
         )( pointerArray.pointer[T_NR::value] );
         if( T_interpolation == 0 )
         {
@@ -58,7 +58,7 @@ namespace isaac
         else
         {
             isaac_int3 coord;
-            isaac_float_dim <T_Source::feature_dim> data8[2][2][2];
+            isaac_float_dim <T_Source::featureDim> data8[2][2][2];
             for( int x = 0; x < 2; x++ )
             {
                 for( int y = 0; y < 2; y++ )
@@ -68,7 +68,7 @@ namespace isaac
                         coord.x = isaac_int( x ? ceil( pos.x ) : floor( pos.x ) );
                         coord.y = isaac_int( y ? ceil( pos.y ) : floor( pos.y ) );
                         coord.z = isaac_int( z ? ceil( pos.z ) : floor( pos.z ) );
-                        if( !T_Source::has_guard && T_Source::persistent )
+                        if( !T_Source::hasGuard && T_Source::persistent )
                         {
                             if( isaac_uint( coord.x ) >= localSize.x )
                             {
@@ -106,7 +106,7 @@ namespace isaac
             }
             isaac_float3 posInCube = pos - glm::floor( pos );
             
-            isaac_float_dim <T_Source::feature_dim> data4[2][2];
+            isaac_float_dim <T_Source::featureDim> data4[2][2];
             for( int x = 0; x < 2; x++ )
             {
                 for( int y = 0; y < 2; y++ )
@@ -118,7 +118,7 @@ namespace isaac
                     );
                 }
             }
-            isaac_float_dim <T_Source::feature_dim> data2[2];
+            isaac_float_dim <T_Source::featureDim> data2[2];
             for( int x = 0; x < 2; x++ )
             {
                 data2[x] = data4[x][0] * (
@@ -136,7 +136,7 @@ namespace isaac
         isaac_float result = isaac_float( 0 );
 
 
-        result = applyFunctorChain<T_Source::feature_dim>(&data, T_NR::value);
+        result = applyFunctorChain<T_Source::featureDim>(&data, T_NR::value);
 
         return result;
     }
@@ -161,7 +161,7 @@ namespace isaac
     {
         constexpr ISAAC_IDX_TYPE extraBorder = static_cast<ISAAC_IDX_TYPE>(T_interpolation);
 
-        if( T_Source::has_guard || !T_Source::persistent )
+        if( T_Source::hasGuard || !T_Source::persistent )
         {
             coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), 
                     isaac_float3( localSize + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE ) - extraBorder )

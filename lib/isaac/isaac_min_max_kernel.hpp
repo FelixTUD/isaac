@@ -52,15 +52,15 @@ namespace isaac
             isaac_float max = -FLT_MAX;
             for( ; coord.z < localSize.z; coord.z++ )
             {
-                isaac_float_dim <T_Source::feature_dim> data;
+                isaac_float_dim <T_Source::featureDim> data;
                 if( T_Source::persistent )
                 {
                     data = source[coord];
                 }
                 else
                 {
-                    isaac_float_dim <T_Source::feature_dim> * ptr = (
-                        isaac_float_dim < T_Source::feature_dim > *
+                    isaac_float_dim <T_Source::featureDim> * ptr = (
+                        isaac_float_dim < T_Source::featureDim > *
                     )( pointer );
                     data = ptr[coord.x + ISAAC_GUARD_SIZE
                                + ( coord.y + ISAAC_GUARD_SIZE )
@@ -70,7 +70,7 @@ namespace isaac
                                    * ( localSize.y + 2 * ISAAC_GUARD_SIZE )
                                )];
                 };
-                isaac_float value = applyFunctorChain<T_Source::feature_dim>(&data, nr);
+                isaac_float value = applyFunctorChain<T_Source::featureDim>(&data, nr);
                 min = glm::min( min, value );
                 max = glm::max( max, value );
             }
@@ -116,11 +116,11 @@ namespace isaac
                 auto particleIterator = particleSource.getIterator( coord );
                 for( int i = 0; i < particleIterator.size; i++ )
                 {
-                    isaac_float_dim <T_ParticleSource::feature_dim> data;
+                    isaac_float_dim <T_ParticleSource::featureDim> data;
 
                     data = particleIterator.getAttribute( );
 
-                    isaac_float value = applyFunctorChain<T_ParticleSource::feature_dim>(&data, nr);
+                    isaac_float value = applyFunctorChain<T_ParticleSource::featureDim>(&data, nr);
                     min = glm::min( min, value );
                     max = glm::max( max, value );
                 }
