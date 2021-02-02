@@ -269,9 +269,9 @@ namespace isaac
             coord.y -= ISAAC_GUARD_SIZE;
             if( !isInUpperBounds( dest, localSize + isaac_int3( 2 * ISAAC_GUARD_SIZE) ) )
                 return;
-            isaac_float_dim <T_Source::feature_dim> * ptr =
-                ( isaac_float_dim < T_Source::feature_dim > * )( pointer );
-            if( T_Source::has_guard )
+            isaac_float_dim <T_Source::featureDim> * ptr =
+                ( isaac_float_dim < T_Source::featureDim > * )( pointer );
+            if( T_Source::hasGuard )
             {
                 coord.z = -ISAAC_GUARD_SIZE;
                 for( ; dest.z < localSize.z + 2 * ISAAC_GUARD_SIZE; dest.z++ )

@@ -199,11 +199,6 @@ private:
 // Particle Source
 
 ISAAC_NO_HOST_DEVICE_WARNING
-template<
-    typename T_DevAcc,
-    typename T_Host,
-    typename T_Stream
->
 class ParticleSource1
 {
 public:
@@ -211,9 +206,6 @@ public:
 
 
     ISAAC_NO_HOST_DEVICE_WARNING ParticleSource1(
-        T_DevAcc acc,
-        T_Host host,
-        T_Stream stream,
         isaac_float3 * ptr,
         size_t size
     ) :
@@ -480,14 +472,7 @@ int main(
         alpaka::getPtrNative( deviceBuffer2 )
     );
 
-    ParticleSource1<
-        DevAcc,
-        DevHost,
-        Stream
-    >particleTestSource1(
-        devAcc,
-        devHost,
-        stream,
+    ParticleSource1 particleTestSource1(
         alpaka::getPtrNative( deviceBuffer3 ),
         PARTICLE_COUNT
     );
@@ -506,11 +491,7 @@ int main(
     >;
 
     using ParticleList = boost::fusion::list<
-        ParticleSource1<
-            DevAcc,
-            DevHost,
-            Stream
-        >
+        ParticleSource1
     >;
 
     ParticleList particleSources( particleTestSource1 );

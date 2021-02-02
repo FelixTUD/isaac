@@ -123,7 +123,7 @@ namespace isaac
                 json_object_set_new(
                     content,
                     "feature dimension",
-                    json_integer( s.feature_dim )
+                    json_integer( s.featureDim )
                 );
             }
         };
@@ -188,7 +188,7 @@ namespace isaac
                 json_object_set_new(
                     content,
                     "uses parameter",
-                    json_boolean( T_Functor::uses_parameter )
+                    json_boolean( T_Functor::usesParameter )
                 );
             }
         };
@@ -239,7 +239,7 @@ namespace isaac
                     chain_nr *= ISAAC_FUNCTOR_COUNT;
                     chain_nr += functions[I + offset].bytecode[i];
                 }
-                dest.nr[I + offset] = chain_nr * 4 + T_Source::feature_dim - 1;
+                dest.nr[I + offset] = chain_nr * 4 + T_Source::featureDim - 1;
             }
         };
 
@@ -284,7 +284,7 @@ namespace isaac
                                     ISAAC_IDX_TYPE
                                 >(
                                     ISAAC_IDX_TYPE(
-                                        T_Source::feature_dim * (
+                                        T_Source::featureDim * (
                                             localSize[0] + 2 * ISAAC_GUARD_SIZE
                                         ) * (
                                             localSize[1] + 2 * ISAAC_GUARD_SIZE
@@ -382,7 +382,7 @@ namespace isaac
                         isaac_int( localSize[2] )
                     };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
+                    if ( boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
                         gridSize.x = ISAAC_IDX_TYPE(
@@ -468,7 +468,7 @@ namespace isaac
                 if( localSize.x != 0 && localSize.y != 0 )
                 {
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
+                    if ( boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
                         gridSize = localSize;
@@ -584,7 +584,7 @@ namespace isaac
                 if( localSize.x != 0 && localSize.y != 0 )
                 {
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
+                    if ( boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                     {
                         gridSize = localSize;
@@ -3220,7 +3220,7 @@ namespace isaac
                 TransferDeviceStruct<SourceListLength>,
                 SourceWeightStruct<SourceListLength>,
                 PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
-                mpl::vector< >,
+                boost::mpl::vector< >,
                 T_transferSize,
                 T_AccDim, 
                 T_Acc, 
@@ -3264,7 +3264,7 @@ namespace isaac
                     ISAAC_IDX_TYPE( ( readbackViewport[3] + blockSize.y - 1 ) / blockSize.y )
                 };
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                if ( mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
+                if ( boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE> > >::value )
 #endif
                 {
                     gridSize.x = ISAAC_IDX_TYPE ( readbackViewport[2] );
