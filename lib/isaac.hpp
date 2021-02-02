@@ -3267,8 +3267,7 @@ namespace isaac
                 myself->sourceWeight,
                 workdiv,
                 isaac_float3( sizeHost.localSizeScaled ) / isaac_float3( sizeHost.localParticleSize ),
-                myself->clipping,
-                myself->ambientOcclusion
+                myself->clipping
             );
             
             //call render kernel

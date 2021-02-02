@@ -150,8 +150,7 @@ namespace isaac
             const T_TransferArray transferArray,    //array of pointers to transfer functions
             const T_SourceWeight sourceWeight,      //weights of all sources 
             const isaac_float3 scale,               //isaac set scaling
-            const ClippingStruct inputClipping,     //clipping planes
-            const AOParams ambientOcclusion         //ambient occlusion params
+            const ClippingStruct inputClipping      //clipping planes
         ) const
         {
             //get pixel values from thread ids
@@ -335,8 +334,7 @@ namespace isaac
             const T_SourceWeight & sourceWeight,
             const T_WorkDiv & workdiv,
             const isaac_float3 & scale,
-            const ClippingStruct & clipping,
-            const AOParams & ambientOcclusion
+            const ClippingStruct & clipping
         )
         {
             if( sourceWeight.value[T_sourceOffset + boost::mpl::size< T_ParticleList >::type::value - T_n] == isaac_float( 0 ) )
@@ -363,8 +361,7 @@ namespace isaac
                     sourceWeight,
                     workdiv,
                     scale,
-                    clipping,
-                    ambientOcclusion
+                    clipping
                 );
             }
             else
@@ -391,8 +388,7 @@ namespace isaac
                     sourceWeight,
                     workdiv,
                     scale,
-                    clipping,
-                    ambientOcclusion
+                    clipping
                 );
             }
         }
@@ -430,8 +426,7 @@ namespace isaac
             const T_SourceWeight & sourceWeight,
             const T_WorkDiv & workdiv,
             const isaac_float3 & scale,
-            const ClippingStruct & clipping,
-            const AOParams & ambientOcclusion
+            const ClippingStruct & clipping
         )
         {
             ParticleRenderKernel
@@ -455,8 +450,7 @@ namespace isaac
                     transferArray,
                     sourceWeight,
                     scale,
-                    clipping,
-                    ambientOcclusion
+                    clipping
                 )
             );
             alpaka::enqueue(stream, instance);
