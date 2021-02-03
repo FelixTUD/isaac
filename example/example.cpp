@@ -36,11 +36,6 @@ using namespace isaac;
 // Volume Source 1
 
 ISAAC_NO_HOST_DEVICE_WARNING
-template<
-    typename T_DevAcc,
-    typename T_Host,
-    typename T_Stream
->
 class TestSource1
 {
 public:
@@ -50,9 +45,6 @@ public:
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource1(
-        T_DevAcc acc,
-        T_Host host,
-        T_Stream stream,
         isaac_float3 * ptr
     ) :
         ptr( ptr )
@@ -89,11 +81,6 @@ public:
 // Volume Source 2
 
 ISAAC_NO_HOST_DEVICE_WARNING
-template<
-    typename T_DevAcc,
-    typename T_Host,
-    typename T_Stream
->
 class TestSource2
 {
 public:
@@ -103,9 +90,6 @@ public:
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource2(
-        T_DevAcc acc,
-        T_Host host,
-        T_Stream stream,
         isaac_float * ptr
     ) :
         ptr( ptr )
@@ -224,7 +208,8 @@ public:
 
 
     ISAAC_HOST_INLINE void update(
-        bool enabled
+        bool enabled,
+        void * pointer
     )
     {}
 
@@ -451,24 +436,10 @@ int main(
 
     // Creating source list
 
-    TestSource1<
-        DevAcc,
-        DevHost,
-        Stream
-    > testSource1(
-        devAcc,
-        devHost,
-        stream,
+    TestSource1 testSource1(
         alpaka::getPtrNative( deviceBuffer1 )
     );
-    TestSource2<
-        DevAcc,
-        DevHost,
-        Stream
-    > testSource2(
-        devAcc,
-        devHost,
-        stream,
+    TestSource2 testSource2(
         alpaka::getPtrNative( deviceBuffer2 )
     );
 
@@ -478,16 +449,8 @@ int main(
     );
 
     using SourceList = boost::fusion::list<
-        TestSource1<
-            DevAcc,
-            DevHost,
-            Stream
-        >,
-        TestSource2<
-            DevAcc,
-            DevHost,
-            Stream
-        >
+        TestSource1,
+        TestSource2
     >;
 
     using ParticleList = boost::fusion::list<

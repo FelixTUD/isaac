@@ -73,6 +73,17 @@ namespace isaac
         }
     };
 
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE void swapIfSmaller(T_Type & left, T_Type & right)
+    {
+        if (left < right)
+        {
+            auto temp = left;
+            left = right;
+            right = temp;
+        }
+    }
+
     ISAAC_DEVICE_INLINE Ray pixelToRay( 
         const isaac_float2 pixel, 
         const isaac_float2 framebufferSize 
@@ -151,9 +162,9 @@ namespace isaac
         isaac_float3 bbIntersectionMax = ( isaac_float3( SimulationSize.localSizeScaled ) - ray.start ) / ray.dir;
 
         //bbIntersectionMin shall have the smaller values
-        ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.x, bbIntersectionMin.x )
-        ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.y, bbIntersectionMin.y )
-        ISAAC_SWITCH_IF_SMALLER ( bbIntersectionMax.z, bbIntersectionMin.z )
+        swapIfSmaller( bbIntersectionMax.x, bbIntersectionMin.x );
+        swapIfSmaller( bbIntersectionMax.y, bbIntersectionMin.y );
+        swapIfSmaller( bbIntersectionMax.z, bbIntersectionMin.z );
 
         ray.startDepth = glm::max( bbIntersectionMin.x, glm::max( bbIntersectionMin.y, bbIntersectionMin.z ) );
         ray.endDepth = glm::min( bbIntersectionMax.x, glm::min( bbIntersectionMax.y, bbIntersectionMax.z ) );
@@ -165,7 +176,7 @@ namespace isaac
         for( int i = 0; i < 3; ++i)
         {
             float sign = glm::sign( ray.dir[i] );
-
+            //only clip if it is an outer edge of the simulation volume
             if( bbIntersectionMin[i] == ray.startDepth
                 && ( ( SimulationSize.position[i] == 0 
                 && sign + 1 )

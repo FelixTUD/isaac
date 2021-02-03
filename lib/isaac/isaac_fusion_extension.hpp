@@ -16,6 +16,7 @@
 #pragma once
 
 #include <boost/fusion/include/list.hpp>
+#include <boost/fusion/include/empty.hpp>
 #include <boost/mpl/size.hpp>
 #include <boost/mpl/begin_end.hpp>
 #include <boost/mpl/int.hpp>

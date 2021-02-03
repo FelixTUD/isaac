@@ -17,14 +17,6 @@
 
 #include "isaac_types.hpp"
 
-#define ISAAC_SWITCH_IF_SMALLER(left,right) \
-    if (left < right) \
-    { \
-        auto temp = left; \
-        left = right; \
-        right = temp; \
-    }
-
 #define ISAAC_SET_COLOR( dest, color ) \
     { \
         isaac_uint4 result; \

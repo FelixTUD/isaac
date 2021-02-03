@@ -326,13 +326,15 @@ namespace isaac
                 const int I,
                 T_ParticleSource & particleSource,
                 const T_Weight & weight,
+                void * pointer,
                 const int weightArrayOffset
             ) const
             {
                 bool enabled =
                     weight.value[I + weightArrayOffset] != isaac_float( 0 );
                 particleSource.update(
-                    enabled
+                    enabled,
+                    pointer
                 );
             }
 
@@ -344,7 +346,6 @@ namespace isaac
                 typename T_Source,
                 typename T_Array,
                 typename T_Weight,
-                typename T_Pointer,
                 typename T_Stream__
             >
             ISAAC_HOST_INLINE void operator()(
@@ -353,7 +354,7 @@ namespace isaac
                 T_Array & pointerArray,
                 const isaac_size3 & localSize,
                 const T_Weight & weight,
-                const T_Pointer & pointer,
+                void * pointer,
                 T_Stream__ & stream
             ) const
             {
@@ -534,8 +535,8 @@ namespace isaac
                         >( localSize.x * localSize.y )
                     );
                 }
-                minMax.min[I] = FLT_MAX;
-                minMax.max[I] = -FLT_MAX;
+                minMax.min[I] = std::numeric_limits<isaac_float>::max();
+                minMax.max[I] = -std::numeric_limits<isaac_float>::max();
                 for( ISAAC_IDX_TYPE i = 0; i < localSize.x * localSize.y; i++ )
                 {
                     if( localMinMaxHostArray[i].min < minMax.min[I] )
@@ -649,8 +650,8 @@ namespace isaac
                         >( localSize.x * localSize.y )
                     );
                 }
-                minMax.min[I + T_offset] = FLT_MAX;
-                minMax.max[I + T_offset] = -FLT_MAX;
+                minMax.min[I + T_offset] = std::numeric_limits<isaac_float>::max();
+                minMax.max[I + T_offset] = -std::numeric_limits<isaac_float>::max();
                 // find the min and max
                 for( ISAAC_IDX_TYPE i = 0; i < localSize.x * localSize.y; i++ )
                 {
@@ -1172,17 +1173,19 @@ namespace isaac
                     "position",
                     matrix = json_array( )
                 );
-                ISAAC_JSON_ADD_MATRIX ( matrix,
-                    glm::value_ptr( lookAt ),
-                    3 )
+                for (isaac_int i = 0; i < 3; i++)
+                {
+                    json_array_append_new( matrix, json_real( glm::value_ptr( lookAt )[i] ) );
+                }
                 json_object_set_new(
                     jsonRoot,
                     "rotation",
                     matrix = json_array( )
                 );
-                ISAAC_JSON_ADD_MATRIX ( matrix,
-                    glm::value_ptr( rotation ),
-                    9 )
+                for (isaac_int i = 0; i < 9; i++)
+                {
+                    json_array_append_new( matrix, json_real( glm::value_ptr( rotation )[i] ) );
+                }
                 json_object_set_new(
                     jsonRoot,
                     "distance",
@@ -1930,6 +1933,7 @@ namespace isaac
                     particleSources,
                     UpdateParticleSourceIterator( ),
                     sourceWeight,
+                    pointer,
                     boost::mpl::size< T_SourceList >::type::value
                 );
                 ISAAC_STOP_TIME_MEASUREMENT ( bufferTime,
@@ -2278,9 +2282,10 @@ namespace isaac
                         "modelview",
                         matrix = json_array( )
                     );
-                    ISAAC_JSON_ADD_MATRIX ( matrix,
-                        glm::value_ptr( modelview ),
-                        16 )
+                    for (isaac_int i = 0; i < 16; i++)
+                    {
+                        json_array_append_new( matrix, json_real( glm::value_ptr( modelview )[i] ) );
+                    }
                 }
                 char * buffer = json_dumps(
                     message,
@@ -3425,9 +3430,10 @@ namespace isaac
                         "position",
                         matrix = json_array( )
                     );
-                    ISAAC_JSON_ADD_MATRIX ( matrix,
-                        glm::value_ptr( myself->lookAt ),
-                        3 )
+                    for (isaac_int i = 0; i < 3; i++)
+                    {
+                        json_array_append_new( matrix, json_real( glm::value_ptr( myself->lookAt )[i] ) );
+                    }
                     json_object_set(
                         myself->jsonInitRoot,
                         "position",
@@ -3442,9 +3448,10 @@ namespace isaac
                         "rotation",
                         matrix = json_array( )
                     );
-                    ISAAC_JSON_ADD_MATRIX ( matrix,
-                        glm::value_ptr( myself->rotation ),
-                        9 )
+                    for (isaac_int i = 0; i < 9; i++)
+                    {
+                        json_array_append_new( matrix, json_real( glm::value_ptr( myself->rotation )[i] ) );
+                    }
                     json_object_set(
                         myself->jsonInitRoot,
                         "rotation",

@@ -48,8 +48,8 @@ namespace isaac
 
             if( !isInUpperBounds(coord, localSize) )
                 return;
-            isaac_float min = FLT_MAX;
-            isaac_float max = -FLT_MAX;
+            isaac_float min = std::numeric_limits<isaac_float>::max();
+            isaac_float max = -std::numeric_limits<isaac_float>::max();
             for( ; coord.z < localSize.z; coord.z++ )
             {
                 isaac_float_dim <T_Source::featureDim> data;
@@ -109,8 +109,8 @@ namespace isaac
             };
             if( !isInUpperBounds(coord, localSize) )
                 return;
-            isaac_float min = FLT_MAX;
-            isaac_float max = -FLT_MAX;
+            isaac_float min = std::numeric_limits<isaac_float>::max();
+            isaac_float max = -std::numeric_limits<isaac_float>::max();
             for( ; coord.z < localSize.z; coord.z++ )
             {
                 auto particleIterator = particleSource.getIterator( coord );
