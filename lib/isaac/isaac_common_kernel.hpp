@@ -51,7 +51,7 @@ namespace isaac
         ALPAKA_FN_ACC void operator() (
             T_Acc const &acc,
             const GBuffer gBuffer,
-            const isaac_float4 bgColor
+            isaac_float4 bgColor
             ) const
         {
 
@@ -66,6 +66,7 @@ namespace isaac
             if( pixel.x >= gBuffer.size.x || pixel.y >= gBuffer.size.y )
                 return;
             
+            bgColor.w = 0;
             ISAAC_SET_COLOR(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], bgColor);
             gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = isaac_float3(0, 0, 0);
             gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = std::numeric_limits<isaac_float>::max();

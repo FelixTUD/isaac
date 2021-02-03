@@ -3251,7 +3251,7 @@ namespace isaac
             }
 
 
-            //call render kernel
+            //call particle render kernel
             ParticleRenderKernelCaller<
                 T_ParticleList,
                 TransferDeviceStruct<SourceListLength>,
@@ -3275,7 +3275,7 @@ namespace isaac
                 myself->clipping
             );
             
-            //call render kernel
+            //call iso render kernel
             IsoRenderKernelCaller<
                 T_SourceList,
                 TransferDeviceStruct<SourceListLength>,
@@ -3345,6 +3345,37 @@ namespace isaac
                 //wait until render kernel has finished
                 alpaka::wait ( myself->stream );
             }
+
+            //call volume render kernel
+            VolumeRenderKernelCaller<
+                T_SourceList,
+                TransferDeviceStruct<SourceListLength>,
+                SourceWeightStruct<SourceListLength>,
+                PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
+                boost::mpl::vector< >,
+                T_transferSize,
+                alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>, 
+                T_Acc, 
+                T_Stream,
+                boost::mpl::size< T_SourceList >::type::value
+            > 
+            ::call(
+                myself->stream,
+                gBuffer,
+                myself->sources,
+                myself->step,
+                myself->transferDevice,
+                myself->sourceWeight,
+                myself->pointerArray,
+                workdiv,
+                myself->interpolation,
+                myself->isoSurface,
+                isaac_scale,
+                myself->clipping
+            );
+            
+            //wait until render kernel has finished
+            alpaka::wait( myself->stream );
 
             //stop and restart time for delta calculation
             ISAAC_STOP_TIME_MEASUREMENT ( myself->kernelTime,
