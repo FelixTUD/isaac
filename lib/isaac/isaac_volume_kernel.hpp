@@ -160,12 +160,12 @@ namespace isaac
         if( T_Source::hasGuard || !T_Source::persistent )
         {
             coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), 
-                    isaac_float3( localSize + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE ) - 1 )
+                    isaac_float3( localSize + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE - 1 ) )
                         - std::numeric_limits<isaac_float>::min( ) );
         }
         else
         {
-            coord = glm::clamp(coord, isaac_float3(0), isaac_float3( localSize - 1 ) );
+            coord = glm::clamp(coord, isaac_float3(0), isaac_float3( localSize - ISAAC_IDX_TYPE( 1 ) ) );
         }
     }
 
