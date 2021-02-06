@@ -287,21 +287,7 @@ namespace isaac
             // calculate lighting properties for the last hit particle
             particleNormal = glm::normalize( particleNormal );
 
-            isaac_float lightFactor = glm::dot( particleNormal, lightDir );
-
-            isaac_float3 halfVector = glm::normalize( -ray.dir + lightDir );
-
-            isaac_float specular = glm::dot( particleNormal, halfVector );
-
-            specular = pow( specular, 10 );
-            specular *= 0.5f;
-            lightFactor = lightFactor * 0.5f + 0.5f;
-
-
-            particleColor = glm::min( particleColor * lightFactor + specular, isaac_float( 1 ) );
-            particleColor.a = 1.0f;
-
-            ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], particleColor )
+            setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], particleColor );
             //save the particle normal in the normal g buffer
             gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = particleNormal;
             

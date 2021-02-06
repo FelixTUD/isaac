@@ -46,33 +46,21 @@ namespace isaac
         isaac_float3 clippingNormal;
     };
 
-    struct ClearBufferKernel {
-        template <typename T_Acc>
-        ALPAKA_FN_ACC void operator() (
-            T_Acc const &acc,
-            const GBuffer gBuffer,
-            isaac_float4 bgColor
-            ) const
-        {
+    ISAAC_HOST_DEVICE_INLINE void setColor( uint32_t & destination, const isaac_float4 & color )
+    {
+        isaac_uint4 result = clamp( color, isaac_float( 0 ), isaac_float( 1 ) ) * isaac_float( 255 );
+        destination = (result.w << 24) | (result.z << 16) | (result.y << 8) | (result.x << 0);
+    }
 
-            isaac_uint2 pixel;
-            //get pixel values from thread ids
-            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads> ( acc );
-            pixel.x = isaac_uint ( alpThreadIdx[2] );
-            pixel.y = isaac_uint ( alpThreadIdx[1] );
-
-            pixel = pixel + gBuffer.startOffset;
-
-            if( pixel.x >= gBuffer.size.x || pixel.y >= gBuffer.size.y )
-                return;
-            
-            bgColor.w = 0;
-            ISAAC_SET_COLOR(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], bgColor);
-            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = isaac_float3(0, 0, 0);
-            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = std::numeric_limits<isaac_float>::max();
-            gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = 0;
-        }
-    };
+    ISAAC_HOST_DEVICE_INLINE isaac_float4 getColor( const uint32_t & samplePoint )
+    {
+        return {
+            ((samplePoint >>  0) & 0xff) / 255.0f,
+            ((samplePoint >>  8) & 0xff) / 255.0f,
+            ((samplePoint >> 16) & 0xff) / 255.0f,
+            ((samplePoint >> 24) & 0xff) / 255.0f
+        };
+    }
 
     template<typename T_Type>
     ISAAC_HOST_DEVICE_INLINE void swapIfSmaller(T_Type & left, T_Type & right)
@@ -137,7 +125,7 @@ namespace isaac
         ClippingStruct clipping;
         //set values for clipping planes
         //scale position to global size
-        for( isaac_int i = 0; i < inputClipping.count; i++ )
+        for( isaac_uint i = 0; i < inputClipping.count; i++ )
         {
             clipping.elem[i].position = inputClipping.elem[i].position * isaac_float3( SimulationSize.globalSizeScaled ) * isaac_float( 0.5 );
             clipping.elem[i].normal = inputClipping.elem[i].normal;
@@ -152,7 +140,7 @@ namespace isaac
         ray.end = ray.end + position_offset;
 
         //apply subvolume offset to position checked clipping plane
-        for( isaac_int i = 0; i < inputClipping.count; i++ )
+        for( isaac_uint i = 0; i < inputClipping.count; i++ )
         {
             clipping.elem[i].position =
                 clipping.elem[i].position + position_offset;
@@ -190,7 +178,7 @@ namespace isaac
         }
 
         //Iterate over clipping planes and adjust ray start and end depth
-        for( isaac_int i = 0; i < inputClipping.count; i++ )
+        for( isaac_uint i = 0; i < inputClipping.count; i++ )
         {
             isaac_float d = glm::dot( ray.dir, clipping.elem[i].normal);
 
@@ -232,6 +220,7 @@ namespace isaac
         return true;
     }
 
+
     template <int T_n, typename T_Type1, typename T_Type2>
     ISAAC_DEVICE_INLINE bool isInLowerBounds( 
         const isaac_vec_dim<T_n, T_Type1>& vec, 
@@ -258,6 +247,107 @@ namespace isaac
         return true;
     }
 
+    struct ClearBufferKernel {
+        template <typename T_Acc>
+        ALPAKA_FN_ACC void operator() (
+            T_Acc const &acc,
+            const GBuffer gBuffer,
+            isaac_float4 bgColor
+            ) const
+        {
+
+            isaac_uint2 pixel;
+            //get pixel values from thread ids
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads> ( acc );
+            pixel.x = isaac_uint ( alpThreadIdx[2] );
+            pixel.y = isaac_uint ( alpThreadIdx[1] );
+
+            pixel = pixel + gBuffer.startOffset;
+
+            if( pixel.x >= gBuffer.size.x || pixel.y >= gBuffer.size.y )
+                return;
+            
+            bgColor.w = 0;
+            setColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], bgColor);
+            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = isaac_float3(0, 0, 0);
+            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = std::numeric_limits<isaac_float>::max();
+            gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = 0;
+        }
+    };
+
+
+    struct ShadingKernel {
+        template <typename T_Acc>
+        ALPAKA_FN_ACC void operator() (
+            T_Acc const &acc,
+            const GBuffer gBuffer,
+            isaac_int rank,
+            isaac_uint mode = 0
+            ) const
+        {
+
+            isaac_uint2 pixel;
+            //get pixel values from thread ids
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads> ( acc );
+            pixel.x = isaac_uint ( alpThreadIdx[2] );
+            pixel.y = isaac_uint ( alpThreadIdx[1] );
+
+            pixel = pixel + gBuffer.startOffset;
+
+        
+            if( pixel.x >= gBuffer.size.x || pixel.y >= gBuffer.size.y )
+                return;
+
+            isaac_float4 color = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
+            isaac_float3 normal = gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x];
+            isaac_float ao = isaac_float( 1 ) - gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
+            
+            //normal blinn-phong shading
+            if(mode == 0)
+            {
+                Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( gBuffer.size ) );
+                isaac_float3 lightDir = -ray.dir;
+                isaac_float lightFactor = glm::max( glm::dot( normal, lightDir ), isaac_float( 0 ) );
+
+                isaac_float3 halfVector = glm::normalize( -ray.dir + lightDir );
+
+                isaac_float specular = glm::dot( normal, halfVector );
+
+                specular = pow( specular, 4 );
+                specular *= 0.5f;
+                lightFactor = lightFactor * 0.5f + ao * 0.5f;
+
+            
+                isaac_float3 shadedColor = glm::min( color * lightFactor + specular, isaac_float( 1 ) );
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( shadedColor , color.a ) );
+            }
+            //normal as color for debug
+            else if(mode == 1)
+            {
+                normal = normal * isaac_float( 0.5 ) + isaac_float( 0.5 );
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( normal , color.a ) );
+            }
+            //depth as color for debug
+            else if(mode == 2)
+            {
+                isaac_float depth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] / isaac_float( 1000 );
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( depth ) , color.a ) );
+            }
+            //ambient occlusion as color for debug
+            else if(mode == 3)
+            {
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( ao ) , color.a ) );
+            }
+            //rank information color coded for debug
+            else if(mode == 4)
+            {
+                const isaac_float3 colorArray[3] = {isaac_float3(1,0,0),isaac_float3(0,1,0),isaac_float3(0,0,1)};
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( colorArray[rank % 3] , isaac_float( 0.9 ) ) );
+            }
+        }
+    };
+
+
     template<
         typename T_Filter
     >
@@ -280,7 +370,6 @@ namespace isaac
             >::type::value;
         }
     };
-
 
 
     template<

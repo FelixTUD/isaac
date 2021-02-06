@@ -572,10 +572,10 @@ namespace isaac
             );
             if( !at_least_one )
             {
-                ISAAC_SET_COLOR ( 
+                setColor ( 
                     pixels[pixel.x + pixel.y * framebuffer_size.x], 
                     color 
-                )
+                );
                 gNormal[pixel.x + pixel.y * framebuffer_size.x] = default_normal;
                 gDepth[pixel.x + pixel.y * framebuffer_size.x] = default_depth;
                 return;
@@ -778,7 +778,7 @@ namespace isaac
             if( count_start.x > count_end.x )
             {
                 //TODO understand the superplanes stuff...
-                ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+                setColor ( pixels[pixel.x + pixel.y * framebuffer_size.x], color );
 
                 //this function aborts drawing and therfore wont set any normal or depth values
                 //defaults will be applied for clean images
@@ -850,7 +850,7 @@ namespace isaac
                 {
                     if( last_f < intersection_step )
                     {
-                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+                        setColor ( pixels[pixel.x + pixel.y * framebuffer_size.x], color );
                         return;
                     }
                     if( first_f <= intersection_step )
@@ -867,7 +867,7 @@ namespace isaac
                 {
                     if( first_f > intersection_step )
                     {
-                        ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+                        setColor ( pixels[pixel.x + pixel.y * framebuffer_size.x], color );
                         return;
                     }
                     if( last_f > intersection_step )
@@ -1110,7 +1110,7 @@ namespace isaac
 #endif
 
 
-            ISAAC_SET_COLOR ( pixels[pixel.x + pixel.y * framebuffer_size.x], color )
+            setColor ( pixels[pixel.x + pixel.y * framebuffer_size.x], color );
             //save the particle normal in the normal g buffer
             gNormal[pixel.x + pixel.y * framebuffer_size.x] = particle_normal;
             

@@ -518,7 +518,7 @@ int main(
         Acc, //Alpaka specific Accelerator Dev Type
         Stream, //Alpaka specific Stream Type
         AccDim, //Alpaka specific Acceleration Dimension Type
-        ParticleList, SourceList, //The boost::fusion list of Source Types
+        ParticleList, decltype(sources), //The boost::fusion list of Source Types
         1024, //Size of the transfer functions
 #if ( ISAAC_STEREO == 0 )
         isaac::DefaultController,

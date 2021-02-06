@@ -17,24 +17,10 @@
 
 #include "isaac_types.hpp"
 
-#define ISAAC_SET_COLOR( dest, color ) \
-    { \
-        isaac_uint4 result; \
-        result.x = ISAAC_MIN( isaac_uint( ISAAC_MIN( isaac_float(1), color.x ) * 255.0f ), 255u); \
-        result.y = ISAAC_MIN( isaac_uint( ISAAC_MIN( isaac_float(1), color.y ) * 255.0f ), 255u); \
-        result.z = ISAAC_MIN( isaac_uint( ISAAC_MIN( isaac_float(1), color.z ) * 255.0f ), 255u); \
-        result.w = ISAAC_MIN( isaac_uint( ISAAC_MIN( isaac_float(1), color.w ) * 255.0f ), 255u); \
-        dest = (result.w << 24) | (result.z << 16) | (result.y << 8) | (result.x << 0); \
-    }
-
 #define ISAAC_START_TIME_MEASUREMENT( unique_name, time_function ) \
     uint64_t BOOST_PP_CAT( __tm_start_, unique_name ) = time_function;
 #define ISAAC_STOP_TIME_MEASUREMENT( result, operand, unique_name, time_function ) \
     result operand time_function - BOOST_PP_CAT( __tm_start_, unique_name );
-
-#define ISAAC_JSON_ADD_MATRIX(array,matrix,count) \
-    for (isaac_int i = 0; i < count; i++) \
-        json_array_append_new( array, json_real( (matrix)[i] ) );
 
 #ifdef ISAAC_THREADING
     #define ISAAC_WAIT_VISUALIZATION \

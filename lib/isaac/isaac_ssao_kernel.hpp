@@ -60,7 +60,7 @@ namespace isaac
 
 
             /*
-            * TODO
+            * TODO:
             * 
             * Old standart ssao by crytech 
             * 
@@ -163,8 +163,8 @@ namespace isaac
             //closer to the camera
             isaac_float occlusion = 0.0f;
             isaac_float refDepth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x];
-            for(int i = -3; i <= 3; i++) {
-                for(int j = -3; j <= 3; j++) {
+            for(int i = -3; i <= 3; ++i) {
+                for(int j = -3; j <= 3; ++j) {
                     //avoid out of bounds by simple min max
                     isaac_int x = glm::clamp(pixel.x + i * radius, gBuffer.startOffset.x, gBuffer.startOffset.x + gBuffer.size.x);
                     isaac_int y = glm::clamp(pixel.y + j * radius, gBuffer.startOffset.y, gBuffer.startOffset.y + gBuffer.size.y);
@@ -175,12 +175,12 @@ namespace isaac
                     // only increase the counter if the neighbour depth is closer to the camera
                     // use <= because we will discard pixels with a depth/ao value 0.0 (for background pixels and image merging), 
                     // but planes will have pixels with depth/ao with 0 because of neighbor pixels
-                    if(depthSample <= refDepth) {
+                    if(depthSample < refDepth) {
                         occlusion += 1.0f;
                     }
                 }
             }
-            isaac_float depth = (occlusion / 49.0f);
+            isaac_float depth = glm::clamp( (occlusion / 47.0f), 0.0f, 1.0f );
 
             //save the depth value in our ao buffer
             gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = depth;
@@ -221,35 +221,21 @@ namespace isaac
             */
             isaac_float depth = gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
             
-            //convert uint32 back to 4x 1 Byte color values
-            uint32_t color = gBuffer.color[pixel.x + pixel.y * gBuffer.size.x];
-            isaac_float4 colorValues = {
-                ((color >>  0) & 0xff) / 255.0f,
-                ((color >>  8) & 0xff) / 255.0f,
-                ((color >> 16) & 0xff) / 255.0f,
-                ((color >> 24) & 0xff) / 255.0f
-            };        
+            isaac_float4 colorValues = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
 
             //read the weight from the global ao settings and merge them with the color value
             isaac_float weight = aoProperties.weight;
             isaac_float aoFactor = ((1.0f - weight) + weight * (1.0f - depth));
-            isaac_float particleBlend = 1;
             
             isaac_float4 finalColor = { 
-                particleBlend * aoFactor * colorValues.x + (1.0f - particleBlend) * colorValues.x,
-                particleBlend * aoFactor * colorValues.y + (1.0f - particleBlend) * colorValues.y,
-                particleBlend * aoFactor * colorValues.z + (1.0f - particleBlend) * colorValues.z,
-                1.0f  * colorValues.w
+                aoFactor * colorValues.x,
+                aoFactor * colorValues.y,
+                aoFactor * colorValues.z,
+                colorValues.w
             };
-        
-            //if the depth value is 0 the ssao kernel found a background value and the color
-            //merging is therefore removed
-            if(depth == 0.0f) { 
-                finalColor = { 0, 0, 0, 1.0 };
-            }
 
             //finally replace the old color value with the new ssao filtered color value
-            ISAAC_SET_COLOR(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], finalColor);
+            setColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], finalColor);
             
         }
     };

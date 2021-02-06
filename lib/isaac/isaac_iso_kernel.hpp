@@ -21,7 +21,7 @@
 
 namespace isaac
 {
-    /*
+#if 0
     template<
         ISAAC_IDX_TYPE T_transferSize,
         typename T_Filter,
@@ -306,7 +306,7 @@ namespace isaac
             //LINE 2044
             //color = isaac_float4(ray.endDepth / 100.0f);
             //color.w = 1;
-            //ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color )
+            //setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
             //return;
             if( !T_isoSurface )
             {
@@ -318,16 +318,16 @@ namespace isaac
                     ((colorValue >> 24) & 0xff) / 255.0f
                 };
                 color = color.w * color + ( 1 - color.w ) * solidColor;
-                ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color )
+                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
             }
             else if( result )
             {   
                 gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
-                ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color )
+                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
             }
         }
     };
-    */
+#endif
 
     template<
         typename T_SourceList,

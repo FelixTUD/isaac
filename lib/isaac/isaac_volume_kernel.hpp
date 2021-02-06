@@ -149,7 +149,6 @@ namespace isaac
      * @return ISAAC_HOST_DEVICE_INLINE check_coord clamped coordiantes
      */
     template<
-        bool T_interpolation,
         typename T_Source
     >
     ISAAC_HOST_DEVICE_INLINE void
@@ -158,17 +157,15 @@ namespace isaac
         const isaac_size3 &  localSize
     )
     {
-        constexpr ISAAC_IDX_TYPE extraBorder = static_cast<ISAAC_IDX_TYPE>(T_interpolation);
-
         if( T_Source::hasGuard || !T_Source::persistent )
         {
             coord = glm::clamp(coord, isaac_float3( -ISAAC_GUARD_SIZE ), 
-                    isaac_float3( localSize + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE ) - extraBorder )
+                    isaac_float3( localSize + ISAAC_IDX_TYPE( ISAAC_GUARD_SIZE ) - 1 )
                         - std::numeric_limits<isaac_float>::min( ) );
         }
         else
         {
-            coord = glm::clamp(coord, isaac_float3(0), isaac_float3( localSize - extraBorder ) - std::numeric_limits<isaac_float>::min( ) );
+            coord = glm::clamp(coord, isaac_float3(0), isaac_float3( localSize - 1 ) );
         }
     }
 
@@ -192,7 +189,6 @@ namespace isaac
         front[T_index] = -1;
         front = front + pos;
         checkCoord< 
-            T_interpolation,
             T_Source
         >(
             front,
@@ -203,7 +199,6 @@ namespace isaac
         back[T_index] = 1;
         back = back + pos;
         checkCoord< 
-            T_interpolation,
             T_Source
         >(
             back,
@@ -316,18 +311,19 @@ namespace isaac
         ISAAC_HOST_DEVICE_INLINE void operator()(
             const T_NR & nr,
             const T_Source & source,
-            isaac_float4 & color,
             const isaac_float3 & pos,
             const isaac_size3 & localSize,
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             const T_PointerArray & pointerArray,
-            T_Feedback & feedback,
             const isaac_float3 & stepSize,
             const isaac_float & stepLength,
             const isaac_float3 & scale,
             const bool & first,
-            const isaac_float3 & clippingNormal
+            const isaac_float3 & clippingNormal,
+            T_Feedback & feedback,
+            isaac_float4 & color,
+            isaac_float3 & normal
         ) const
         {
             if( boost::mpl::at_c<
@@ -370,24 +366,8 @@ namespace isaac
                             gradient = clippingNormal;
                         }
                         //gradient *= scale;
-                        isaac_float l = glm::length( gradient );
-                        if( l == isaac_float( 0 ) )
-                        {
-                            color = value;
-                        }
-                        else
-                        {
-                            gradient = gradient / l;
-                            //gradient.z = -gradient.z;
-                            isaac_float3 light = glm::normalize( stepSize );
-                            isaac_float ac = fabs( glm::dot( gradient, light ) );
-#if ISAAC_SPECULAR == 1
-                            color = value * ac + ac * ac * ac * ac;
-#else
-                            color = value * ac;
-#endif
-                            //color = glm::vec4( gradient, 1.0f );
-                        }
+                        normal = glm::normalize(-gradient);
+                        color = value;
                         color.w = isaac_float( 1 );
                         feedback = 1;
                     }
@@ -504,6 +484,7 @@ namespace isaac
             }
             isaac_float depth = 0;
             isaac_float4 color = isaac_float4( 0 );
+            isaac_float3 normal;
             //iterate over the volume
             for( isaac_int i = startSteps; i <= endSteps; i++ )
             {
@@ -518,18 +499,19 @@ namespace isaac
                         T_interpolation,
                         T_isoSurface
                     >( ),
-                    value,
                     pos,
                     SimulationSize.localSize,
                     transferArray,
                     sourceWeight,
                     pointerArray,
-                    result,
                     stepVec,
                     stepSize,
                     scale,
                     first,
-                    ray.clippingNormal
+                    ray.clippingNormal,
+                    result,
+                    value,
+                    normal
                 );
                 if( T_isoSurface )
                 {
@@ -537,6 +519,7 @@ namespace isaac
                     {
                         depth = i * stepSize;
                         color = value;
+                        normal = normal;
                         break;
                     }
                 }
@@ -581,24 +564,19 @@ namespace isaac
             //LINE 2044
             //color = isaac_float4(endSteps / 1000.0f);
             //color.w = 1;
-            //ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color )
+            //setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
             //return;
             if( !T_isoSurface )
             {
-                uint32_t colorValue = gBuffer.color[pixel.x + pixel.y * gBuffer.size.x];
-                isaac_float4 solidColor = {
-                    ((colorValue >>  0) & 0xff) / 255.0f,
-                    ((colorValue >>  8) & 0xff) / 255.0f,
-                    ((colorValue >> 16) & 0xff) / 255.0f,
-                    ((colorValue >> 24) & 0xff) / 255.0f
-                };
+                isaac_float4 solidColor = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
                 color = color + ( 1 - color.w ) * solidColor;
-                ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color )
+                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
             }
             else if( result )
             {   
                 gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
-                ISAAC_SET_COLOR ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color )
+                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = normal;
+                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
             }
         }
     };

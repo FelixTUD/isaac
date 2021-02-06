@@ -3248,8 +3248,8 @@ namespace isaac
                     )
                 );
                 alpaka::enqueue(myself->stream, instance);
+                alpaka::wait( myself->stream );
             }
-
 
             //call particle render kernel
             ParticleRenderKernelCaller<
@@ -3274,6 +3274,8 @@ namespace isaac
                 isaac_float3( sizeHost.localSizeScaled ) / isaac_float3( sizeHost.localParticleSize ),
                 myself->clipping
             );
+            //wait until render kernel has finished
+            alpaka::wait( myself->stream );
             
             //call iso render kernel
             IsoRenderKernelCaller<
@@ -3302,7 +3304,6 @@ namespace isaac
                 isaac_scale,
                 myself->clipping
             );
-            
             //wait until render kernel has finished
             alpaka::wait( myself->stream );
 
@@ -3327,6 +3328,8 @@ namespace isaac
                 //wait until render kernel has finished
                 alpaka::wait ( myself->stream );
 
+                //deactivated until proper ao is implemented
+                #if 0
                 {
                     SSAOFilterKernel kernel;
                     auto const instance
@@ -3344,38 +3347,60 @@ namespace isaac
 
                 //wait until render kernel has finished
                 alpaka::wait ( myself->stream );
+                #endif
+            }
+            
+            //shade pixels
+            {
+                ShadingKernel kernel;
+                auto const instance
+                (
+                    alpaka::createTaskKernel<T_Acc>
+                    (
+                        workdiv,
+                        kernel,
+                        gBuffer,
+                        myself->rank,
+                        myself->renderMode
+                    )
+                );
+                alpaka::enqueue(myself->stream, instance);
+                alpaka::wait( myself->stream );
             }
 
-            //call volume render kernel
-            VolumeRenderKernelCaller<
-                T_SourceList,
-                TransferDeviceStruct<SourceListLength>,
-                SourceWeightStruct<SourceListLength>,
-                PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
-                boost::mpl::vector< >,
-                T_transferSize,
-                alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>, 
-                T_Acc, 
-                T_Stream,
-                boost::mpl::size< T_SourceList >::type::value
-            > 
-            ::call(
-                myself->stream,
-                gBuffer,
-                myself->sources,
-                myself->step,
-                myself->transferDevice,
-                myself->sourceWeight,
-                myself->pointerArray,
-                workdiv,
-                myself->interpolation,
-                myself->isoSurface,
-                isaac_scale,
-                myself->clipping
-            );
-            
-            //wait until render kernel has finished
-            alpaka::wait( myself->stream );
+            if( myself->renderMode == 0 )
+            {
+                //call volume render kernel
+                VolumeRenderKernelCaller<
+                    T_SourceList,
+                    TransferDeviceStruct<SourceListLength>,
+                    SourceWeightStruct<SourceListLength>,
+                    PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
+                    boost::mpl::vector< >,
+                    T_transferSize,
+                    alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>, 
+                    T_Acc, 
+                    T_Stream,
+                    boost::mpl::size< T_SourceList >::type::value
+                > 
+                ::call(
+                    myself->stream,
+                    gBuffer,
+                    myself->sources,
+                    myself->step,
+                    myself->transferDevice,
+                    myself->sourceWeight,
+                    myself->pointerArray,
+                    workdiv,
+                    myself->interpolation,
+                    myself->isoSurface,
+                    isaac_scale,
+                    myself->clipping
+                );
+                
+                //wait until render kernel has finished
+                alpaka::wait( myself->stream );
+            }
 
             //stop and restart time for delta calculation
             ISAAC_STOP_TIME_MEASUREMENT ( myself->kernelTime,
@@ -4078,6 +4103,7 @@ namespace isaac
         json_t * jsonInitRoot;
         json_t * jsonMetaRoot;
         isaac_int rank;
+        isaac_int renderMode = 0;
         isaac_int master;
         isaac_int numProc;
         isaac_uint metaNr;
