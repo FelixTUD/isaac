@@ -281,6 +281,7 @@ namespace isaac
         ALPAKA_FN_ACC void operator() (
             T_Acc const &acc,
             const GBuffer gBuffer,
+            const AOParams aoProperties,
             isaac_int rank,
             isaac_uint mode = 0
             ) const
@@ -300,7 +301,7 @@ namespace isaac
 
             isaac_float4 color = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
             isaac_float3 normal = gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x];
-            isaac_float ao = isaac_float( 1 ) - gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
+            isaac_float aoStrength = isaac_float( 1 ) - gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
             
             //normal blinn-phong shading
             if(mode == 0)
@@ -315,7 +316,9 @@ namespace isaac
 
                 specular = pow( specular, 4 );
                 specular *= 0.5f;
-                lightFactor = lightFactor * 0.5f + ao * 0.5f;
+                isaac_float weight = aoProperties.weight;
+                isaac_float aoFactor = ((1.0f - weight) + weight * aoStrength);
+                lightFactor = lightFactor * aoFactor;
 
             
                 isaac_float3 shadedColor = glm::min( color * lightFactor + specular, isaac_float( 1 ) );
@@ -336,7 +339,7 @@ namespace isaac
             //ambient occlusion as color for debug
             else if(mode == 3)
             {
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( ao ) , color.a ) );
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( aoStrength ) , color.a ) );
             }
             //rank information color coded for debug
             else if(mode == 4)

@@ -3360,6 +3360,7 @@ namespace isaac
                         workdiv,
                         kernel,
                         gBuffer,
+                        myself->ambientOcclusion,
                         myself->rank,
                         myself->renderMode
                     )
