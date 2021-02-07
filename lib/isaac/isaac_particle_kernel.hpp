@@ -286,7 +286,7 @@ namespace isaac
 
             // calculate lighting properties for the last hit particle
             particleNormal = glm::normalize( particleNormal );
-
+            particleColor.a = isaac_float( 1 );
             setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], particleColor );
             //save the particle normal in the normal g buffer
             gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = particleNormal;

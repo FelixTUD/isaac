@@ -308,7 +308,7 @@ namespace isaac
             {
                 Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( gBuffer.size ) );
                 isaac_float3 lightDir = -ray.dir;
-                isaac_float lightFactor = glm::max( glm::dot( normal, lightDir ), isaac_float( 0 ) );
+                isaac_float lightFactor = glm::abs( glm::dot( normal, lightDir ) );
 
                 isaac_float3 halfVector = glm::normalize( -ray.dir + lightDir );
 
