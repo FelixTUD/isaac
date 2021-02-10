@@ -353,7 +353,6 @@ namespace isaac
             const T_PointerArray & pointerArray,
             const T_WorkDiv & workdiv,
             const isaac_int interpolation,
-            const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping
         )
@@ -385,7 +384,6 @@ namespace isaac
                     pointerArray,
                     workdiv,
                     interpolation,
-                    isoSurface,
                     scale,
                     clipping
                 );
@@ -416,7 +414,6 @@ namespace isaac
                     pointerArray,
                     workdiv,
                     interpolation,
-                    isoSurface,
                     scale,
                     clipping
                 );
@@ -458,7 +455,6 @@ namespace isaac
             const T_PointerArray & pointerArray,
             const T_WorkDiv & workdiv,
             const isaac_int interpolation,
-            const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping
         )
@@ -497,13 +493,11 @@ namespace isaac
             }
             if( interpolation )
             {
-                if( isoSurface )
                 ISAAC_KERNEL_START 1,
                         1 ISAAC_KERNEL_END
             }
             else
             {
-                if( isoSurface )
                 ISAAC_KERNEL_START 0,
                         1 ISAAC_KERNEL_END
             }

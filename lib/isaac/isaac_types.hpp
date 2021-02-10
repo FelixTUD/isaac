@@ -137,6 +137,12 @@ struct FunctionsStruct
 };
 
 template< int T_n >
+struct IsoThresholdStruct
+{
+    isaac_float value[ T_n ];
+};
+
+template< int T_n >
 struct SourceWeightStruct
 {
     isaac_float value[ T_n ];

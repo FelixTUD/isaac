@@ -709,7 +709,6 @@ namespace isaac
             sortingTime( 0 ),
             bufferTime( 0 ),
             interpolation( false ),
-            isoSurface( false ),
             step( isaac_float( ISAAC_DEFAULT_STEP ) ),
             framebufferProd(
                 ISAAC_IDX_TYPE( framebufferSize.x )
@@ -972,6 +971,7 @@ namespace isaac
                 //Init volume transfer func with a alpha ramp from 0 -> 1
                 if( i < boost::mpl::size< T_SourceList >::type::value )
                 {
+                    sourceIsoThreshold.value[i] = isaac_float( 0 );
                     transferHost.description[i].insert(
                         std::pair<
                             isaac_uint,
@@ -1214,11 +1214,6 @@ namespace isaac
                     jsonRoot,
                     "interpolation",
                     json_boolean( interpolation )
-                );
-                json_object_set_new(
-                    jsonRoot,
-                    "iso surface",
-                    json_boolean( isoSurface )
                 );
                 json_object_set_new(
                     jsonRoot,
@@ -1953,7 +1948,7 @@ namespace isaac
             sendTransfer = false;
             sendInterpolation = false;
             sendStep = false;
-            sendIsoSurface = false;
+            sendIsoThreshold = false;
             sendFunctions = false;
             sendWeight = false;
             sendMinMax = false;
@@ -2035,10 +2030,10 @@ namespace isaac
                         }
                         if( strcmp(
                             target,
-                            "iso surface"
+                            "iso mask"
                         ) == 0 )
                         {
-                            sendIsoSurface = true;
+                            sendIsoThreshold = true;
                         }
                         if( strcmp(
                             target,
@@ -2497,14 +2492,21 @@ namespace isaac
                 }
                 sendStep = true;
             }
-            if( js = json_object_get(
-                message,
-                "iso surface"
+            if( json_array_size(
+                js = json_object_get(
+                    message,
+                    "iso threshold"
+                )
             ) )
             {
                 redraw = true;
-                isoSurface = json_boolean_value( js );
-                sendIsoSurface = true;
+                json_array_foreach(
+                    js,
+                    index,
+                    value
+                )
+                sourceIsoThreshold.value[index] = json_number_value( value );
+                sendIsoThreshold = true;
             }
             if( json_array_size(
                 js = json_object_get(
@@ -2711,6 +2713,12 @@ namespace isaac
                 myself->ambientOcclusion.weight = (isaac_float)json_number_value ( weight );
 
                 sendAO = true;
+            }
+
+            if ( js = json_object_get ( message, "render_mode" ) ) {
+                redraw = true;
+                json_t * mode = json_object_get(js, "mode");
+                myself->renderMode = (isaac_int)json_integer_value ( mode );
             }
 
             json_t * metadata = json_object_get(
@@ -3276,12 +3284,12 @@ namespace isaac
             );
             //wait until render kernel has finished
             alpaka::wait( myself->stream );
-            
+
             //call iso render kernel
             IsoRenderKernelCaller<
                 T_SourceList,
                 TransferDeviceStruct<SourceListLength>,
-                SourceWeightStruct<SourceListLength>,
+                IsoThresholdStruct<boost::mpl::size< T_SourceList >::type::value>,
                 PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
                 boost::mpl::vector< >,
                 T_transferSize,
@@ -3296,11 +3304,10 @@ namespace isaac
                 myself->sources,
                 myself->step,
                 myself->transferDevice,
-                myself->sourceWeight,
+                myself->sourceIsoThreshold,
                 myself->pointerArray,
                 workdiv,
                 myself->interpolation,
-                myself->isoSurface,
                 isaac_scale,
                 myself->clipping
             );
@@ -3361,6 +3368,7 @@ namespace isaac
                         kernel,
                         gBuffer,
                         myself->ambientOcclusion,
+                        bgColor,
                         myself->rank,
                         myself->renderMode
                     )
@@ -3369,39 +3377,35 @@ namespace isaac
                 alpaka::wait( myself->stream );
             }
 
-            if( myself->renderMode == 0 )
-            {
-                //call volume render kernel
-                VolumeRenderKernelCaller<
-                    T_SourceList,
-                    TransferDeviceStruct<SourceListLength>,
-                    SourceWeightStruct<SourceListLength>,
-                    PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
-                    boost::mpl::vector< >,
-                    T_transferSize,
-                    alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>, 
-                    T_Acc, 
-                    T_Stream,
-                    boost::mpl::size< T_SourceList >::type::value
-                > 
-                ::call(
-                    myself->stream,
-                    gBuffer,
-                    myself->sources,
-                    myself->step,
-                    myself->transferDevice,
-                    myself->sourceWeight,
-                    myself->pointerArray,
-                    workdiv,
-                    myself->interpolation,
-                    myself->isoSurface,
-                    isaac_scale,
-                    myself->clipping
-                );
-                
-                //wait until render kernel has finished
-                alpaka::wait( myself->stream );
-            }
+            //call volume render kernel
+            VolumeRenderKernelCaller<
+                T_SourceList,
+                TransferDeviceStruct<SourceListLength>,
+                SourceWeightStruct<SourceListLength>,
+                PointerArrayStruct<boost::mpl::size< T_SourceList >::type::value>,
+                boost::mpl::vector< >,
+                T_transferSize,
+                alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>, 
+                T_Acc, 
+                T_Stream,
+                boost::mpl::size< T_SourceList >::type::value
+            > 
+            ::call(
+                myself->stream,
+                gBuffer,
+                myself->sources,
+                myself->step,
+                myself->transferDevice,
+                myself->sourceWeight,
+                myself->pointerArray,
+                workdiv,
+                myself->interpolation,
+                isaac_scale,
+                myself->clipping
+            );
+            
+            //wait until render kernel has finished
+            alpaka::wait( myself->stream );
 
             //stop and restart time for delta calculation
             ISAAC_STOP_TIME_MEASUREMENT ( myself->kernelTime,
@@ -3743,19 +3747,23 @@ namespace isaac
                     );
                     myself->sendInitJson = true;
                 }
-                if( myself->sendIsoSurface )
+                if( myself->sendIsoThreshold )
                 {
                     json_object_set_new(
                         myself->jsonRoot,
-                        "iso surface",
-                        json_boolean( myself->isoSurface )
+                        "iso threshold",
+                        matrix = json_array( )
                     );
-                    json_object_set_new(
-                        myself->jsonInitRoot,
-                        "iso surface",
-                        json_boolean( myself->isoSurface )
-                    );
-                    myself->sendInitJson = true;
+                    for( ISAAC_IDX_TYPE i = 0; i < boost::mpl::size< T_SourceList >::type::value; i++ )
+                    {
+                        json_array_append_new(
+                            matrix,
+                            json_real(
+                                myself->sourceIsoThreshold
+                                    .value[i]
+                            )
+                        );
+                    }
                 }
                 if( myself->sendMinMax )
                 {
@@ -4084,7 +4092,7 @@ namespace isaac
         bool sendTransfer;
         bool sendInterpolation;
         bool sendStep;
-        bool sendIsoSurface;
+        bool sendIsoThreshold;
         bool sendFunctions;
         bool sendWeight;
         bool sendMinMax;
@@ -4096,7 +4104,6 @@ namespace isaac
 
 
         bool interpolation;
-        bool isoSurface;
         bool icetBoundingBox;
         isaac_float step;
         IsaacCommunicator * communicator;
@@ -4152,6 +4159,11 @@ namespace isaac
                 + boost::mpl::size< T_ParticleList >::type::value
             )
         > sourceWeight;
+        IsoThresholdStruct<
+            (
+                boost::mpl::size< T_SourceList >::type::value
+            )
+        > sourceIsoThreshold;
         PointerArrayStruct<
             (
                 boost::mpl::size< T_SourceList >::type::value

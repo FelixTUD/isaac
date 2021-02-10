@@ -209,7 +209,7 @@ namespace isaac
                 }
             }
         }
-        ray.startDepth = glm::max( ray.startDepth, isaac_float( 0 ) );
+        ray.startDepth = glm::max( ray.startDepth, isaac_float( ISAAC_Z_NEAR ) );
 
         //return if the ray doesn't hit the volume
         if( ray.startDepth > ray.endDepth )
@@ -282,6 +282,7 @@ namespace isaac
             T_Acc const &acc,
             const GBuffer gBuffer,
             const AOParams aoProperties,
+            const isaac_float4 backgroundColor,
             isaac_int rank,
             isaac_uint mode = 0
             ) const
@@ -304,7 +305,7 @@ namespace isaac
             isaac_float aoStrength = isaac_float( 1 ) - gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
             
             //normal blinn-phong shading
-            if(mode == 0)
+            if(mode < 3)
             {
                 Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( gBuffer.size ) );
                 isaac_float3 lightDir = -ray.dir;
@@ -316,36 +317,66 @@ namespace isaac
 
                 specular = pow( specular, 4 );
                 specular *= 0.5f;
+
+                //for disabled specular mode
+                if (mode == 1)
+                {
+                    specular = 0;
+                }
+
                 isaac_float weight = aoProperties.weight;
                 isaac_float aoFactor = ((1.0f - weight) + weight * aoStrength);
-                lightFactor = lightFactor * aoFactor;
+                lightFactor += aoFactor;
+                lightFactor *= 0.5f;
 
-            
+
                 isaac_float3 shadedColor = glm::min( color * lightFactor + specular, isaac_float( 1 ) );
                 setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( shadedColor , color.a ) );
+
+                //render only solid
+                if( mode == 2 )
+                    gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+            }
+            //render only volume
+            else if(mode == 3)
+            {
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( backgroundColor ) , color.a ) );
             }
             //normal as color for debug
-            else if(mode == 1)
+            else if(mode == 4)
             {
                 normal = normal * isaac_float( 0.5 ) + isaac_float( 0.5 );
                 setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( normal , color.a ) );
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
             }
             //depth as color for debug
-            else if(mode == 2)
+            else if(mode == 5)
             {
-                isaac_float depth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] / isaac_float( 1000 );
+                isaac_float depth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] / isaac_float( 200 );
                 setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( depth ) , color.a ) );
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
             }
             //ambient occlusion as color for debug
-            else if(mode == 3)
+            else if(mode == 6)
             {
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( aoStrength ) , color.a ) );
+                isaac_float weight = aoProperties.weight;
+                isaac_float aoFactor = ((1.0f - weight) + weight * aoStrength);
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( aoFactor ) , color.a ) );
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
             }
             //rank information color coded for debug
-            else if(mode == 4)
+            else if(mode == 7)
             {
-                const isaac_float3 colorArray[3] = {isaac_float3(1,0,0),isaac_float3(0,1,0),isaac_float3(0,0,1)};
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( colorArray[rank % 3] , isaac_float( 0.9 ) ) );
+                const isaac_float3 colorArray[6] = {isaac_float3(1,0,0),isaac_float3(0,1,0),isaac_float3(0,0,1),isaac_float3(0,1,1),isaac_float3(1,1,0),isaac_float3(1,0,1)};
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( colorArray[rank % 6] , color.a ) );
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+            }
+            //full buffer rank information color coded for debug
+            else if(mode == 8)
+            {
+                const isaac_float3 colorArray[6] = {isaac_float3(1,0,0),isaac_float3(0,1,0),isaac_float3(0,0,1),isaac_float3(0,1,1),isaac_float3(1,1,0),isaac_float3(1,0,1)};
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( colorArray[rank % 6] , isaac_float( 1 ) ) );
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
             }
         }
     };

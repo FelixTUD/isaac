@@ -348,7 +348,7 @@ namespace isaac
                 isaac_float4 value = transferArray.pointer[T_NR::value][lookupValue];
                 if( T_isoSurface )
                 {
-                    if( value.w >= isaac_float( 0.5 ) )
+                    if( value.w >= sourceWeight.value[T_NR::value] )
                     {
                         isaac_float3 gradient = getGradient<
                             T_interpolation,
@@ -439,6 +439,8 @@ namespace isaac
                 return;
 
             ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            if( ray.endDepth <= ray.startDepth )
+                return;
 
             //Starting the main loop
             isaac_float min_size = ISAAC_MIN(
@@ -606,7 +608,6 @@ namespace isaac
             const T_PointerArray & pointerArray,
             const T_WorkDiv & workdiv,
             const isaac_int interpolation,
-            const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping
         )
@@ -638,7 +639,6 @@ namespace isaac
                     pointerArray,
                     workdiv,
                     interpolation,
-                    isoSurface,
                     scale,
                     clipping
                 );
@@ -669,7 +669,6 @@ namespace isaac
                     pointerArray,
                     workdiv,
                     interpolation,
-                    isoSurface,
                     scale,
                     clipping
                 );
@@ -711,7 +710,6 @@ namespace isaac
             const T_PointerArray & pointerArray,
             const T_WorkDiv & workdiv,
             const isaac_int interpolation,
-            const isaac_int isoSurface,
             const isaac_float3 & scale,
             const ClippingStruct & clipping
         )
