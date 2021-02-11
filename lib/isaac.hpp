@@ -346,6 +346,7 @@ namespace isaac
                 typename T_Source,
                 typename T_Array,
                 typename T_Weight,
+                typename T_IsoTheshold,
                 typename T_Stream__
             >
             ISAAC_HOST_INLINE void operator()(
@@ -354,11 +355,12 @@ namespace isaac
                 T_Array & pointerArray,
                 const isaac_size3 & localSize,
                 const T_Weight & weight,
+                const T_IsoTheshold & isoThreshold,
                 void * pointer,
                 T_Stream__ & stream
             ) const
             {
-                bool enabled = weight.value[I] != isaac_float( 0 );
+                bool enabled = weight.value[I] != isaac_float( 0 ) || isoThreshold.value[I] != isaac_float( 0 );
                 source.update(
                     enabled,
                     pointer
@@ -1921,6 +1923,7 @@ namespace isaac
                     pointerArray,
                     localSize,
                     sourceWeight,
+                    sourceIsoThreshold,
                     pointer,
                     stream
                 );
