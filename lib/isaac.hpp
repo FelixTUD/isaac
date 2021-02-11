@@ -4106,10 +4106,10 @@ namespace isaac
         bool interpolation;
         bool icetBoundingBox;
         isaac_float step;
-        IsaacCommunicator * communicator;
-        json_t * jsonRoot;
-        json_t * jsonInitRoot;
-        json_t * jsonMetaRoot;
+        IsaacCommunicator * communicator = nullptr;
+        json_t * jsonRoot = nullptr;
+        json_t * jsonInitRoot = nullptr;
+        json_t * jsonMetaRoot = nullptr;
         isaac_int rank;
         isaac_int renderMode = 0;
         isaac_int master;
