@@ -185,8 +185,6 @@ namespace isaac
             isaac_float4 particleColor;
             isaac_float depth = std::numeric_limits<isaac_float>::max( );
             bool particleHit = false;
-            // light direction is camera direction
-            isaac_float3 lightDir = -ray.dir;
 
             // get the signs of the direction for the raymarch
             isaac_int3 dirSign = glm::sign( ray.dir );

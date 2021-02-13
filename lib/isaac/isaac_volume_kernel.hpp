@@ -20,7 +20,7 @@
 
 namespace isaac
 {
-        template<
+    template<
         isaac_int T_interpolation,
         typename T_NR,
         typename T_Source,
@@ -31,8 +31,7 @@ namespace isaac
         const T_Source & source,
         const isaac_float3 & pos,
         const T_PointerArray & pointerArray,
-        const isaac_size3 & localSize,
-        const isaac_float3 & scale
+        const isaac_size3 & localSize
     )
     {
         isaac_float_dim <T_Source::featureDim> data;
@@ -181,8 +180,7 @@ namespace isaac
         const T_Source & source,
         const isaac_float3 & pos,
         const T_PointerArray & pointerArray,
-        const isaac_size3 &  localSize,
-        const isaac_float3 & scale
+        const isaac_size3 &  localSize
     )
     {
         isaac_float3 front = { 0, 0, 0 };
@@ -223,8 +221,7 @@ namespace isaac
                 source,
                 back,
                 pointerArray,
-                localSize,
-                scale
+                localSize
             ) - getValue<
                 T_interpolation,
                 T_NR
@@ -232,8 +229,7 @@ namespace isaac
                 source,
                 front,
                 pointerArray,
-                localSize,
-                scale
+                localSize
             )
         ) / d;
     }
@@ -249,8 +245,7 @@ namespace isaac
         const T_Source & source,
         const isaac_float3 & pos,
         const T_PointerArray & pointerArray,
-        const isaac_size3 &  localSize,
-        const isaac_float3 & scale
+        const isaac_size3 &  localSize
     )
     {
 
@@ -263,8 +258,7 @@ namespace isaac
                 source,
                 pos,
                 pointerArray,
-                localSize,
-                scale
+                localSize
             ),
             getCompGradient<
                 T_interpolation,
@@ -274,8 +268,7 @@ namespace isaac
                 source,
                 pos,
                 pointerArray,
-                localSize,
-                scale
+                localSize
             ),
             getCompGradient<
                 T_interpolation,
@@ -285,8 +278,7 @@ namespace isaac
                 source,
                 pos,
                 pointerArray,
-                localSize,
-                scale
+                localSize
             )
         };
         return gradient;
@@ -338,8 +330,7 @@ namespace isaac
                     source,
                     pos,
                     pointerArray,
-                    localSize,
-                    scale
+                    localSize
                 );
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(
                     glm::round( result * isaac_float( T_transferSize ) )
@@ -357,8 +348,7 @@ namespace isaac
                             source,
                             pos,
                             pointerArray,
-                            localSize,
-                            scale
+                            localSize
                         );
 
                         if( first )

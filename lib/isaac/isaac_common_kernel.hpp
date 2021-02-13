@@ -340,7 +340,7 @@ namespace isaac
             //render only volume
             else if(mode == 3)
             {
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( backgroundColor ) , color.a ) );
+                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], backgroundColor );
             }
             //normal as color for debug
             else if(mode == 4)
