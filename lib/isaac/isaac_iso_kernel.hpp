@@ -40,8 +40,8 @@ namespace isaac
             const T_NR & nr,
             const T_Source & source,
             const Ray & ray,
-            const isaac_float3 & p0,
             const isaac_float & t0,
+            isaac_float * oldValues,
             const isaac_float3 & p1,
             const isaac_float & t1,
             const isaac_size3 & localSize,
@@ -62,23 +62,7 @@ namespace isaac
                 T_NR::value
             >::type::value )
             {
-                // get value of p0
-                isaac_float3 p0Unscaled = p0 / scale;
-                checkCoord<T_Source>( p0Unscaled, localSize );
-                isaac_float result0 = getValue<
-                    T_interpolation,
-                    T_NR
-                >(
-                    source,
-                    p0Unscaled,
-                    pointerArray,
-                    localSize
-                );
-                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(
-                    glm::round( result0 * isaac_float( T_transferSize ) )
-                );
-                lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
-                isaac_float4 value0 = transferArray.pointer[T_NR::value][lookupValue];
+                isaac_float value0 = oldValues[T_NR::value];
 
                 // get value of p1
                 isaac_float3 p1Unscaled = p1 / scale;
@@ -92,20 +76,20 @@ namespace isaac
                     pointerArray,
                     localSize
                 );
-                lookupValue = ISAAC_IDX_TYPE(
+                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(
                     glm::round( result1 * isaac_float( T_transferSize ) )
                 );
                 lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
-                isaac_float4 value1 = transferArray.pointer[T_NR::value][lookupValue];
+                isaac_float value1 = transferArray.pointer[T_NR::value][lookupValue].a;
+                oldValues[T_NR::value] = value1;
+
 
                 isaac_float isoThreshold = sourceIsoThreshold.value[T_NR::value];
-
-                if( value1.a >= isoThreshold )
-                    return;
-                if( value1.a <= value0.a )
+                if( value1 < isoThreshold )
                     return;
 
-                isaac_float testDepth = t0 + (t1 - t0) * ( isoThreshold - value0.a ) / ( value1.a - value0.a );
+                isaac_float testDepth = t0 + (t1 - t0) * ( isoThreshold - value0 ) / ( value1 - value0 );
+                //isaac_float testDepth = t0;
 
                 if( testDepth > depth )
                     return;
@@ -130,6 +114,7 @@ namespace isaac
                 );
                 lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
                 hitColor = transferArray.pointer[T_NR::value][lookupValue];
+                hitColor.a = 1.0f;
                 isaac_float3 gradient = 
                 getGradient<
                     T_interpolation,
@@ -249,10 +234,43 @@ namespace isaac
             // iterate over all cells on the ray path
             // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
             isaac_float t0 = ray.startDepth;
-            isaac_float3 p0 = ray.start + ray.dir * t0;
-            bool first = false;
-            while( hit == false )
+            isaac_float oldValues[boost::mpl::size< T_SourceList >::type::value];
+            for(int i = 0; i < boost::mpl::size< T_SourceList >::type::value; i++)
+                oldValues[i] = 0;
+            bool first = true;
+            while( hit == false && testedLength <= rayLength )
             {
+                isaac_float t1 = ray.startDepth + testedLength;
+                isaac_float3 p1 = ray.start + ray.dir * t1;
+
+                // calculate particle intersections for each particle source
+                forEachWithMplParams(
+                    sources,
+                    MergeIsoSourceIterator<
+                        T_transferSize,
+                        T_Filter,
+                        T_interpolation
+                    >( ),
+                    ray,
+                    t0,
+                    oldValues,
+                    p1,
+                    t1,
+                    SimulationSize.localSize,
+                    transferArray,
+                    sourceIsoThreshold,
+                    pointerArray,
+                    scale,
+                    //TODO: maybe remove first and clippingNormal
+                    first,
+                    ray.clippingNormal,
+                    hit,
+                    hitColor,
+                    hitNormal,
+                    depth
+                );
+                t0 = t1;
+                first = false;
 
                 // adds the deltaT value to the smallest dimension t and increment the cell index in the dimension
                 if( t.x < t.y && t.x < t.z )
@@ -270,41 +288,6 @@ namespace isaac
                     testedLength = t.z;
                     t.z += deltaT.z;
                 }
-
-                isaac_float t1 = ray.startDepth + testedLength;
-                isaac_float3 p1 = ray.start + ray.dir * t1;
-
-                if( testedLength > rayLength )
-                    break;
-
-                // calculate particle intersections for each particle source
-                forEachWithMplParams(
-                    sources,
-                    MergeIsoSourceIterator<
-                        T_transferSize,
-                        T_Filter,
-                        T_interpolation
-                    >( ),
-                    ray,
-                    p0,
-                    t0,
-                    p1,
-                    t1,
-                    SimulationSize.localSize,
-                    transferArray,
-                    sourceIsoThreshold,
-                    pointerArray,
-                    scale,
-                    //TODO: maybe remove first and clippingNormal
-                    first,
-                    ray.clippingNormal,
-                    hit,
-                    hitColor,
-                    hitNormal,
-                    depth
-                );
-                t0 = t1;
-                p0 = p1;
             }
             if( !hit )
                 return;
