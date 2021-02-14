@@ -125,13 +125,14 @@ namespace isaac
                     pointerArray,
                     localSize
                 );
-
-                if( first )
+                isaac_float gradientLength = glm::length(gradient);
+                if( first || gradientLength == isaac_float(0))
                 {
                     gradient = clippingNormal;
+                    gradientLength = isaac_float( 1 );
                 }
                 //gradient *= scale;
-                hitNormal = glm::normalize(-gradient);
+                hitNormal = -gradient / gradientLength;
             }
         }
     };

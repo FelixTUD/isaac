@@ -212,10 +212,8 @@ namespace isaac
         ray.startDepth = glm::max( ray.startDepth, isaac_float( ISAAC_Z_NEAR ) );
 
         //return if the ray doesn't hit the volume
-        if( ray.startDepth > ray.endDepth )
-        {
+        if( ray.startDepth > ray.endDepth || isinf(ray.startDepth) || isinf(ray.endDepth))
             return false;
-        }
 
         return true;
     }
