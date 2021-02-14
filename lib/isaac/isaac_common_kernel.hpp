@@ -113,6 +113,8 @@ namespace isaac
 
         //get step vector
         ray.dir = glm::normalize( ray.end - ray.start );
+        ray.isClipped = false;
+        ray.clippingNormal = isaac_float3( 0 );
         return ray;
     }
 
@@ -157,9 +159,6 @@ namespace isaac
 
         ray.startDepth = glm::max( bbIntersectionMin.x, glm::max( bbIntersectionMin.y, bbIntersectionMin.z ) );
         ray.endDepth = glm::min( bbIntersectionMax.x, glm::min( bbIntersectionMax.y, bbIntersectionMax.z ) );
-
-        ray.isClipped = false;
-        ray.clippingNormal = isaac_float3( 0 );
 
         //clip on the simulation volume edges for each dimension
         for( int i = 0; i < 3; ++i)
