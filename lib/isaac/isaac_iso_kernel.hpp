@@ -27,7 +27,7 @@ namespace isaac
         typename T_Filter,
         isaac_int T_interpolation
     >
-    struct MergeIsoSourceIterator
+    struct IsoCellTraversalSourceIterator
     {
         template<
             typename T_NR,
@@ -147,7 +147,7 @@ namespace isaac
         isaac_int T_interpolation,
         isaac_int T_isoSurface
     >
-    struct IsoRenderKernel
+    struct IsoCellTraversalRenderKernel
     {
         template<
             typename T_Acc
@@ -247,7 +247,7 @@ namespace isaac
                 // calculate particle intersections for each particle source
                 forEachWithMplParams(
                     sources,
-                    MergeIsoSourceIterator<
+                    IsoCellTraversalSourceIterator<
                         T_transferSize,
                         T_Filter,
                         T_interpolation
@@ -297,6 +297,258 @@ namespace isaac
             gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = hitNormal;
             gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
 
+        }
+    };
+
+        template<
+        ISAAC_IDX_TYPE T_transferSize,
+        typename T_Filter,
+        isaac_int T_interpolation,
+        isaac_int T_isoSurface
+    >
+    struct IsoStepSourceIterator
+    {
+        template<
+            typename T_NR,
+            typename T_Source,
+            typename T_TransferArray,
+            typename T_IsoTheshold,
+            typename T_PointerArray
+        >
+        ISAAC_HOST_DEVICE_INLINE void operator()(
+            const T_NR & nr,
+            const T_Source & source,
+            const Ray & ray,
+            const isaac_float & t,
+            const isaac_float3 & pos,
+            const isaac_float & stepSize,
+            const isaac_size3 & localSize,
+            const T_TransferArray & transferArray,
+            const T_IsoTheshold & sourceIsoThreshold,
+            const T_PointerArray & pointerArray,
+            const isaac_float3 & scale,
+            const bool & first,
+            isaac_float * oldValues,
+            bool & hit,
+            isaac_float4 & hitColor,
+            isaac_float3 & hitNormal,
+            isaac_float & depth
+        ) const
+        {
+            if( boost::mpl::at_c<
+                T_Filter,
+                T_NR::value
+            >::type::value )
+            {
+                isaac_float value = getValue<
+                    T_interpolation,
+                    T_NR
+                >(
+                    source,
+                    pos,
+                    pointerArray,
+                    localSize
+                );
+                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(
+                    glm::round( value * isaac_float( T_transferSize ) )
+                );
+                lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
+                value = transferArray.pointer[T_NR::value][lookupValue].a;
+                isaac_float prevValue = oldValues[T_NR::value];
+                oldValues[T_NR::value] = value;
+                isaac_float isoThreshold = sourceIsoThreshold.value[T_NR::value];
+                if( value < isoThreshold )
+                    return;
+
+                isaac_float testDepth = t + stepSize * ( isoThreshold - value ) / ( prevValue - value );
+
+                if( testDepth > depth )
+                    return;
+
+                depth = testDepth;
+                hit = true;
+
+                isaac_float3 pos = ray.start + ray.dir * depth;
+                isaac_float3 posUnscaled = pos / scale;
+                checkCoord<T_Source>( posUnscaled, localSize );
+                // get color of hit
+                isaac_float result = getValue<
+                    T_interpolation,
+                    T_NR
+                >(
+                    source,
+                    posUnscaled,
+                    pointerArray,
+                    localSize
+                );
+                lookupValue = ISAAC_IDX_TYPE(
+                    glm::round( result * isaac_float( T_transferSize ) )
+                );
+                lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
+                hitColor = transferArray.pointer[T_NR::value][lookupValue];
+                hitColor.a = 1.0f;
+                isaac_float3 gradient = 
+                getGradient<
+                    T_interpolation,
+                    T_NR
+                >(
+                    source,
+                    posUnscaled,
+                    pointerArray,
+                    localSize
+                );
+                isaac_float gradientLength = glm::length(gradient);
+                if( first )
+                {
+                    gradient = ray.clippingNormal;
+                    gradientLength = isaac_float( 1 );
+                }
+                //gradient *= scale;
+                hitNormal = -gradient / gradientLength;
+            }
+        }
+    };
+
+    template<
+        typename T_SourceList,
+        typename T_TransferArray,
+        typename T_IsoTheshold,
+        typename T_PointerArray,
+        typename T_Filter,
+        ISAAC_IDX_TYPE T_transferSize,
+        isaac_int T_interpolation,
+        isaac_int T_isoSurface
+    >
+    struct IsoStepRenderKernel
+    {
+        template<
+            typename T_Acc
+        >
+        ALPAKA_FN_ACC void operator()(
+            T_Acc const & acc,
+            GBuffer gBuffer,
+            const T_SourceList sources,              //source of volumes
+            isaac_float stepSize,                       //ray stepSize length
+            const T_TransferArray transferArray,     //mapping to simulation memory
+            const T_IsoTheshold sourceIsoThreshold,       //weights of sources for blending
+            const T_PointerArray pointerArray,
+            const isaac_float3 scale,               //isaac set scaling
+            const ClippingStruct inputClipping     //clipping planes
+        ) const
+        {
+            //get pixel values from thread ids
+            auto alpThreadIdx = alpaka::getIdx<
+                alpaka::Grid,
+                alpaka::Threads
+            >( acc );
+            isaac_uint2 pixel = isaac_uint2( alpThreadIdx[2], alpThreadIdx[1] );
+            //apply framebuffer offset to pixel
+            //stop if pixel position is out of bounds
+            pixel = pixel + gBuffer.startOffset;
+            if( !isInUpperBounds( pixel, gBuffer.size ) )
+                return;
+
+            //set background color
+            bool atLeastOne = true;
+            forEachWithMplParams(
+                sources,
+                CheckNoSourceIterator< T_Filter >( ),
+                atLeastOne
+            );
+            if( !atLeastOne )
+                return;
+
+            Ray ray = pixelToRay( isaac_float2( pixel ), isaac_float2( gBuffer.size ) );
+
+            if( !clipRay(ray, inputClipping ) )
+                return;
+
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            if( ray.endDepth <= ray.startDepth )
+                return;
+
+            //Starting the main loop
+            isaac_float min_size = ISAAC_MIN(
+                int(
+                    SimulationSize.globalSize.x
+                ),
+                ISAAC_MIN(
+                    int(
+                        SimulationSize.globalSize.y
+                    ),
+                    int(
+                        SimulationSize.globalSize.z
+                    )
+                )
+            );
+            isaac_int startSteps = glm::ceil( ray.startDepth / stepSize );
+            isaac_int endSteps = glm::floor( ray.endDepth / stepSize );
+            isaac_float3 stepVec =  stepSize * ray.dir / scale;
+            //unscale all data for correct memory access
+            isaac_float3 startUnscaled = ray.start / scale;
+
+            //move startSteps and endSteps to valid positions in the volume
+            isaac_float3 pos = startUnscaled + stepVec * isaac_float( startSteps );
+            while( ( !isInLowerBounds( pos, isaac_float3(0) )
+                    || !isInUpperBounds( pos, SimulationSize.localSize ) )
+                    && startSteps <= endSteps)
+            {
+                startSteps++;
+                pos = startUnscaled + stepVec * isaac_float( startSteps );
+            }
+            pos = startUnscaled + stepVec * isaac_float( endSteps );
+            while( ( !isInLowerBounds( pos, isaac_float3(0) )
+                    || !isInUpperBounds( pos, SimulationSize.localSize ) )
+                    && startSteps <= endSteps)
+            {
+                endSteps--;
+                pos = startUnscaled + stepVec * isaac_float( endSteps );
+            }
+            bool hit = false;
+            isaac_float depth = 0;
+            isaac_float4 hitColor = isaac_float4( 0 );
+            isaac_float3 normal;
+            isaac_float oldValues[boost::mpl::size< T_SourceList >::type::value];
+            for(int i = 0; i < boost::mpl::size< T_SourceList >::type::value; i++)
+                oldValues[i] = 0;
+            //iterate over the volume
+            for( isaac_int i = startSteps; i <= endSteps; i++ )
+            {
+                pos = startUnscaled + stepVec * isaac_float( i );
+                bool first = ray.isClipped && i == startSteps;
+                isaac_float t = i * stepSize;
+                forEachWithMplParams(
+                    sources,
+                    IsoStepSourceIterator<
+                        T_transferSize,
+                        T_Filter,
+                        T_interpolation,
+                        T_isoSurface
+                    >( ),
+                    ray,
+                    t,
+                    pos,
+                    stepSize,
+                    SimulationSize.localSize,
+                    transferArray,
+                    sourceIsoThreshold,
+                    pointerArray,
+                    scale,
+                    first,
+                    oldValues,
+                    hit,
+                    hitColor,
+                    normal,
+                    depth
+                );
+            }
+
+            if( hit )
+            {   
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
+                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = normal;
+                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], hitColor );
+            }
         }
     };
 
@@ -434,7 +686,7 @@ namespace isaac
 
 #define ISAAC_KERNEL_START \
             { \
-                IsoRenderKernel \
+                IsoStepRenderKernel \
                 < \
                     T_SourceList, \
                     T_TransferArray, \

@@ -308,8 +308,6 @@ namespace isaac
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             const T_PointerArray & pointerArray,
-            const isaac_float3 & stepSize,
-            const isaac_float & stepLength,
             const isaac_float3 & scale,
             const bool & first,
             const isaac_float3 & clippingNormal,
@@ -496,8 +494,6 @@ namespace isaac
                     transferArray,
                     sourceWeight,
                     pointerArray,
-                    stepVec,
-                    stepSize,
                     scale,
                     first,
                     ray.clippingNormal,
@@ -511,7 +507,6 @@ namespace isaac
                     {
                         depth = i * stepSize;
                         color = value;
-                        normal = normal;
                         break;
                     }
                 }
