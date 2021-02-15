@@ -360,16 +360,17 @@ namespace isaac
                 if( value < isoThreshold )
                     return;
 
-                isaac_float testDepth = t + stepSize * ( isoThreshold - value ) / ( prevValue - value );
-
-                if( testDepth > depth )
-                    return;
+                isaac_float testDepth = t;
+                if(!first)
+                    testDepth += stepSize * ( isoThreshold - prevValue ) / ( value - prevValue );
+                //if( testDepth > depth )
+                //    return;
 
                 depth = testDepth;
                 hit = true;
 
-                isaac_float3 pos = ray.start + ray.dir * depth;
-                isaac_float3 posUnscaled = pos / scale;
+                isaac_float3 newPos = ray.start + ray.dir * depth;
+                isaac_float3 posUnscaled = newPos / scale;
                 checkCoord<T_Source>( posUnscaled, localSize );
                 // get color of hit
                 isaac_float result = getValue<
@@ -512,7 +513,7 @@ namespace isaac
             for(int i = 0; i < boost::mpl::size< T_SourceList >::type::value; i++)
                 oldValues[i] = 0;
             //iterate over the volume
-            for( isaac_int i = startSteps; i <= endSteps; i++ )
+            for( isaac_int i = startSteps; i <= endSteps && !hit; i++ )
             {
                 pos = startUnscaled + stepVec * isaac_float( i );
                 bool first = ray.isClipped && i == startSteps;
