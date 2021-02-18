@@ -89,6 +89,9 @@ namespace isaac
                     return;
 
                 isaac_float testDepth = t0 + (t1 - t0) * ( isoThreshold - value0 ) / ( value1 - value0 );
+                testDepth = glm::clamp( testDepth, t0, t1 );
+                //if( isinf(testDepth ))
+                //    testDepth = t1;
                 //isaac_float testDepth = t0;
 
                 if( testDepth > depth )
@@ -208,7 +211,6 @@ namespace isaac
                                     isaac_int3( SimulationSize.localSize - ISAAC_IDX_TYPE( 1 ) ) 
                                 ) );
 
-            isaac_float rayLength = ray.endDepth - ray.startDepth;
             isaac_float testedLength = 0;
 
 
@@ -219,6 +221,7 @@ namespace isaac
             // calculate delta length to next intersection in the same dimension
             isaac_float3 deltaT = scale / ray.dir * isaac_float3( dirSign );
 
+            isaac_float rayLength = ray.endDepth - ray.startDepth + glm::length( scale );
             // check for 0 to stop infinite looping
             if( ray.dir.x == 0 )
                 t.x = std::numeric_limits<isaac_float>::max( );
@@ -250,7 +253,7 @@ namespace isaac
                     IsoCellTraversalSourceIterator<
                         T_transferSize,
                         T_Filter,
-                        T_interpolation
+                        1
                     >( ),
                     ray,
                     t0,
@@ -290,6 +293,7 @@ namespace isaac
                     t.z += deltaT.z;
                 }
             }
+
             if( !hit )
                 return;
 
@@ -687,7 +691,7 @@ namespace isaac
 
 #define ISAAC_KERNEL_START \
             { \
-                IsoStepRenderKernel \
+                IsoCellTraversalRenderKernel \
                 < \
                     T_SourceList, \
                     T_TransferArray, \
