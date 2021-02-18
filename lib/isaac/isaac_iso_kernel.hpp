@@ -486,42 +486,25 @@ namespace isaac
                     )
                 )
             );
-            isaac_int startSteps = glm::ceil( ray.startDepth / stepSize );
-            isaac_int endSteps = glm::floor( ray.endDepth / stepSize );
+            //isaac_int startSteps = glm::ceil( ray.startDepth / stepSize );
+            //isaac_int endSteps = glm::floor( ray.endDepth / stepSize );
             isaac_float3 stepVec =  stepSize * ray.dir / scale;
             //unscale all data for correct memory access
-            isaac_float3 startUnscaled = ray.start / scale;
 
-            //move startSteps and endSteps to valid positions in the volume
-            isaac_float3 pos = startUnscaled + stepVec * isaac_float( startSteps );
-            while( ( !isInLowerBounds( pos, isaac_float3(0) )
-                    || !isInUpperBounds( pos, SimulationSize.localSize ) )
-                    && startSteps <= endSteps)
-            {
-                startSteps++;
-                pos = startUnscaled + stepVec * isaac_float( startSteps );
-            }
-            pos = startUnscaled + stepVec * isaac_float( endSteps );
-            while( ( !isInLowerBounds( pos, isaac_float3(0) )
-                    || !isInUpperBounds( pos, SimulationSize.localSize ) )
-                    && startSteps <= endSteps)
-            {
-                endSteps--;
-                pos = startUnscaled + stepVec * isaac_float( endSteps );
-            }
+
             bool hit = false;
             isaac_float depth = 0;
             isaac_float4 hitColor = isaac_float4( 0 );
             isaac_float3 normal;
             isaac_float oldValues[boost::mpl::size< T_SourceList >::type::value];
+            isaac_float3 pos = ( ray.start + ray.dir * ray.startDepth ) / scale;
+            isaac_float t = ray.startDepth;
             for(int i = 0; i < boost::mpl::size< T_SourceList >::type::value; i++)
                 oldValues[i] = 0;
+            bool first = ray.isClipped;
             //iterate over the volume
-            for( isaac_int i = startSteps; i <= endSteps && !hit; i++ )
+            while( t <= ray.endDepth && !hit )
             {
-                pos = startUnscaled + stepVec * isaac_float( i );
-                bool first = ray.isClipped && i == startSteps;
-                isaac_float t = i * stepSize;
                 forEachWithMplParams(
                     sources,
                     IsoStepSourceIterator<
@@ -546,6 +529,9 @@ namespace isaac
                     normal,
                     depth
                 );
+                t += stepSize;
+                pos += stepVec;
+                first = false;
             }
 
             if( hit )
@@ -691,7 +677,7 @@ namespace isaac
 
 #define ISAAC_KERNEL_START \
             { \
-                IsoCellTraversalRenderKernel \
+                IsoStepRenderKernel \
                 < \
                     T_SourceList, \
                     T_TransferArray, \
