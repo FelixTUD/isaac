@@ -349,7 +349,7 @@ namespace isaac
             //depth as color for debug
             else if(mode == 5)
             {
-                isaac_float depth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] / isaac_float( SimulationSize.maxGlobalSizeScaled );
+                isaac_float depth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] / isaac_float( 200 );
                 setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( depth ) , color.a ) );
                 gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
             }
