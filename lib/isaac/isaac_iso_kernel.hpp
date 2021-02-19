@@ -531,7 +531,6 @@ namespace isaac
                 );
                 t += stepSize;
                 pos += stepVec;
-                pos = glm::clamp( pos, isaac_float3( 0 ), isaac_float3( SimulationSize.localSize ) );
                 first = false;
             }
 
