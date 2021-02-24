@@ -364,11 +364,14 @@ namespace isaac
                 if( value < isoThreshold )
                     return;
 
-                isaac_float testDepth = t;
-                if(!first)
-                    testDepth += stepSize * ( isoThreshold - prevValue ) / ( value - prevValue );
-                //if( testDepth > depth )
-                //    return;
+                isaac_float testDepth;
+                if(first)
+                    testDepth = ray.startDepth;
+                else
+                    testDepth = t + stepSize * ( isoThreshold - prevValue ) / ( value - prevValue );
+
+                if( testDepth > depth )
+                    return;
 
                 depth = testDepth;
                 hit = true;
@@ -510,7 +513,7 @@ namespace isaac
                 pos = startUnscaled + stepVec * isaac_float( endSteps );
             }
             bool hit = false;
-            isaac_float depth = 0;
+            isaac_float depth = ray.endDepth;
             isaac_float4 hitColor = isaac_float4( 0 );
             isaac_float3 normal;
             isaac_float oldValues[boost::mpl::size< T_SourceList >::type::value];
@@ -691,7 +694,7 @@ namespace isaac
 
 #define ISAAC_KERNEL_START \
             { \
-                IsoCellTraversalRenderKernel \
+                IsoStepRenderKernel \
                 < \
                     T_SourceList, \
                     T_TransferArray, \

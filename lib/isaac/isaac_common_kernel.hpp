@@ -279,7 +279,7 @@ namespace isaac
             T_Acc const &acc,
             const GBuffer gBuffer,
             const AOParams aoProperties,
-            const isaac_float4 backgroundColor,
+            isaac_float4 backgroundColor,
             isaac_int rank,
             isaac_uint mode = 0
             ) const
@@ -337,6 +337,7 @@ namespace isaac
             //render only volume
             else if(mode == 3)
             {
+                backgroundColor.a = color.a;
                 setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], backgroundColor );
             }
             //normal as color for debug
