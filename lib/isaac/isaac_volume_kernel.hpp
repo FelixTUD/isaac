@@ -56,6 +56,7 @@ namespace isaac
         else
         {
             isaac_int3 coord;
+#if 1
             isaac_float_dim <T_Source::featureDim> data8[2][2][2];
             for( int x = 0; x < 2; x++ )
             {
@@ -63,28 +64,22 @@ namespace isaac
                 {
                     for( int z = 0; z < 2; z++ )
                     {
-                        coord.x = isaac_int( x ? ceil( pos.x ) : floor( pos.x ) );
-                        coord.y = isaac_int( y ? ceil( pos.y ) : floor( pos.y ) );
-                        coord.z = isaac_int( z ? ceil( pos.z ) : floor( pos.z ) );
+                        coord.x = isaac_int( pos.x ) + x;
+                        coord.y = isaac_int( pos.y ) + y;
+                        coord.z = isaac_int( pos.z ) + z;
                         if( !T_Source::hasGuard && T_Source::persistent )
                         {
                             if( isaac_uint( coord.x ) >= localSize.x )
                             {
-                                coord.x = isaac_int(
-                                    x ? floor( pos.x ) : ceil( pos.x )
-                                );
+                                coord.x = isaac_int( pos.x ) + 1 - x;
                             }
                             if( isaac_uint( coord.y ) >= localSize.y )
                             {
-                                coord.y = isaac_int(
-                                    y ? floor( pos.y ) : ceil( pos.y )
-                                );
+                                coord.y = isaac_int( pos.y ) + 1 - y;
                             }
                             if( isaac_uint( coord.z ) >= localSize.z )
                             {
-                                coord.z = isaac_int(
-                                    z ? floor( pos.z ) : ceil( pos.z )
-                                );
+                                coord.z = isaac_int( pos.z ) + 1 - z;
                             }
                             
                         }
@@ -102,34 +97,47 @@ namespace isaac
                     }
                 }
             }
-            isaac_float3 posInCube = pos - glm::floor( pos );
-            
-            isaac_float_dim <T_Source::featureDim> data4[2][2];
-            for( int x = 0; x < 2; x++ )
+
+            data = trilinear( glm::fract( pos ), data8 );
+// new memory access test
+#else
+            isaac_float_dim <T_Source::featureDim> data8[8];
+            for( int i = 0; i < 8; ++i )
             {
-                for( int y = 0; y < 2; y++ )
+                coord.x = isaac_int( pos.x ) + i % 2;
+                coord.y = isaac_int( pos.y ) + ( i / 2 ) % 2;
+                coord.z = isaac_int( pos.z ) + ( i / 4 ) % 2;
+                if( !T_Source::hasGuard && T_Source::persistent )
                 {
-                    data4[x][y] = data8[x][y][0] * (
-                        isaac_float( 1 ) - posInCube.z
-                    ) + data8[x][y][1] * (
-                        posInCube.z
-                    );
+                    if( isaac_uint( coord.x ) >= localSize.x )
+                    {
+                        coord.x = isaac_int( pos.x ) + 1 - i % 2;
+                    }
+                    if( isaac_uint( coord.y ) >= localSize.y )
+                    {
+                        coord.y = isaac_int( pos.y ) + 1 - ( i / 2 ) % 2;
+                    }
+                    if( isaac_uint( coord.z ) >= localSize.z )
+                    {
+                        coord.z = isaac_int( pos.z ) + 1 - ( i / 4 ) % 2;
+                    }
+                    
+                }
+                if( T_Source::persistent )
+                {
+                    data8[i] = source[coord];
+                }
+                else
+                {
+                    data8[i] = ptr[coord.x + ISAAC_GUARD_SIZE + ( coord.y + ISAAC_GUARD_SIZE ) 
+                                            * ( localSize.x + 2 * ISAAC_GUARD_SIZE ) + ( coord.z + ISAAC_GUARD_SIZE ) 
+                                            * ( ( localSize.x + 2 * ISAAC_GUARD_SIZE ) 
+                                            * ( localSize.y + 2 * ISAAC_GUARD_SIZE ) )];
                 }
             }
-            isaac_float_dim <T_Source::featureDim> data2[2];
-            for( int x = 0; x < 2; x++ )
-            {
-                data2[x] = data4[x][0] * (
-                    isaac_float( 1 ) - posInCube.y
-                ) + data4[x][1] * (
-                    posInCube.y
-                );
-            }
-            data = data2[0] * (
-                isaac_float( 1 ) - posInCube.x
-            ) + data2[1] * (
-                posInCube.x
-            );
+
+            data = trilinear( glm::fract( pos ), data8[0], data8[1], data8[2], data8[3], data8[4], data8[5], data8[6], data8[7] );
+#endif
         }
         isaac_float result = isaac_float( 0 );
 

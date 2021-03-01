@@ -21,6 +21,7 @@
 #include "isaac_min_max_kernel.hpp"
 #include "isaac_iso_kernel.hpp"
 #include "isaac_volume_kernel.hpp"
+#include "isaac_texture.hpp"
 
 #include <float.h>
 

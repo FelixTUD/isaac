@@ -217,6 +217,85 @@ namespace isaac
         return true;
     }
 
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type linear( 
+        const isaac_float& innerOffset, 
+        const T_Type & v1,
+        const T_Type & v2
+    )
+    {
+        return v1 * (1 - innerOffset) + v2 * innerOffset;
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type bilinear( 
+        const isaac_float2& innerOffset, 
+        const T_Type & bl,
+        const T_Type & br,
+        const T_Type & tl,
+        const T_Type & tr
+    )
+    {
+        const T_Type & bottom = linear( innerOffset.x, bl, br );
+        const T_Type & top = linear( innerOffset.x, tl, tr );
+        return linear( innerOffset.y, bottom, top );
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type trilinear( 
+        const isaac_float3& innerOffset, 
+        const T_Type & fbl,
+        const T_Type & fbr,
+        const T_Type & ftl,
+        const T_Type & ftr,
+        const T_Type & bbl,
+        const T_Type & bbr,
+        const T_Type & btl,
+        const T_Type & btr
+    )
+    {
+        const T_Type & front = bilinear( isaac_float2( innerOffset ), fbl, fbr, ftl, ftr );
+        const T_Type & back = bilinear( isaac_float2( innerOffset ), bbl, bbr, btl, btr );
+        return linear( innerOffset.z, front, back );
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type linear( 
+        const isaac_float& innerOffset, 
+        const T_Type (&values)[2]
+    )
+    {
+        return values[0] * (1 - innerOffset) + values[1] * innerOffset;
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type bilinear( 
+        const isaac_float2& innerOffset, 
+        const T_Type (&values)[2][2]
+    )
+    {
+        T_Type a = linear( innerOffset.y, values[0] );
+        T_Type b = linear( innerOffset.y, values[1] );
+        return linear( innerOffset.x, a, b );
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type trilinear( 
+        const isaac_float3& innerOffset, 
+        const T_Type (&values)[2][2][2]
+    )
+    {
+        T_Type a = bilinear( isaac_float2( innerOffset.y, innerOffset.z ), values[0] );
+        T_Type b = bilinear( isaac_float2( innerOffset.y, innerOffset.z ), values[1] );
+        return linear( innerOffset.x, a, b );
+    }
+
 
     template <int T_n, typename T_Type1, typename T_Type2>
     ISAAC_DEVICE_INLINE bool isInLowerBounds( 

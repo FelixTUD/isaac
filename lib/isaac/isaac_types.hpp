@@ -51,6 +51,8 @@ using isaac_double_dim = isaac_vec_dim<T_n, isaac_double>;
 template <int T_n>
 using isaac_int_dim = isaac_vec_dim<T_n, isaac_int>;
 template <int T_n>
+using isaac_uint_dim = isaac_vec_dim<T_n, isaac_uint>;
+template <int T_n>
 using isaac_size_dim = isaac_vec_dim<T_n, ISAAC_IDX_TYPE>;
 
 using isaac_float4 = isaac_vec_dim<4, isaac_float>;
