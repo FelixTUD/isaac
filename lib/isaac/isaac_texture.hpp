@@ -36,60 +36,30 @@ namespace isaac
         VALUE
     };
 
+
     template<
-        typename T_DevAcc,
         typename T_VecType,
         int T_vecDim,
         int T_textureDim,
-        ISAAC_IDX_TYPE T_guard = 0
+        ISAAC_IDX_TYPE T_guardSize = 0
     >
     class Texture
     {
-        using FraDim = alpaka::DimInt< 1 >;
-
-        static const int featureDim = T_vecDim;
-
         public:
-            Texture( const T_DevAcc& devAcc, const isaac_size_dim<T_textureDim>& size ) : 
-                size(size), 
-                sizeWithGuard(size + ISAAC_IDX_TYPE( 2 ) * T_guard)
+            ISAAC_HOST_DEVICE_INLINE
+            void init(isaac_vec_dim<T_vecDim, T_VecType>* bufferPtr, const isaac_size_dim<T_textureDim> & size)
             {
-                ISAAC_IDX_TYPE totalSize = sizeWithGuard[0];
-                for( int i = 1; i < T_textureDim; ++i )
-                {
-                    totalSize *= ( sizeWithGuard[i] );
-                }
-
-                alpaka::Vec<
-                    FraDim,
-                    ISAAC_IDX_TYPE
-                > bufferExtent( totalSize );
-
-                deviceBuffer(
-                    alpaka::allocBuf<
-                        isaac_vec_dim<T_vecDim, T_VecType>,
-                        ISAAC_IDX_TYPE
-                    >(
-                        devAcc,
-                        bufferExtent
-                    )
-                );
-                auto dev = alpaka::getDev( deviceBuffer );
-                static_assert(dev != devAcc);
-                deviceBufferPtr = alpaka::getPtrNative( deviceBuffer );
-            }
-
-            ~Texture()
-            {
-                //TODO: delete buffer
+                this->bufferPtr = bufferPtr;
+                this->size = size;
+                this->sizeWithGuard = size + ISAAC_IDX_TYPE( 2 ) * T_guardSize;
             }
 
             ISAAC_HOST_DEVICE_INLINE
             void setValue( const isaac_float_dim<T_textureDim>& coord, const isaac_vec_dim<T_vecDim, T_VecType>& value )
             {
-                isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int( T_guard );
+                isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int( T_guardSize );
                 assert( isInUpperBounds( coord, isaac_int_dim<T_textureDim>( sizeWithGuard ) ) );
-                deviceBufferPtr[hash( offsetCoord )] = value;
+                bufferPtr[hash( offsetCoord )] = value;
             }
 
             // access between 0-1 in each dimension + guard
@@ -123,20 +93,20 @@ namespace isaac
                 isaac_uint_dim<T_textureDim> offsetCoord;
                 if( T_border == BorderType::REPEAT )
                 {
-                    offsetCoord = glm::mod( coord + isaac_int( T_guard ), isaac_int_dim<T_textureDim>( sizeWithGuard ) );
+                    offsetCoord = glm::mod( coord + isaac_int( T_guardSize ), isaac_int_dim<T_textureDim>( sizeWithGuard ) );
                 }
                 else if( T_border == BorderType::VALUE )
                 {
-                    offsetCoord = coord + isaac_int( T_guard );
+                    offsetCoord = coord + isaac_int( T_guardSize );
                     if( !isInLowerBounds( coord, isaac_int( 0 ) ) 
                         || !isInUpperBounds(coord, isaac_int_dim<T_textureDim>( sizeWithGuard ) ) )
                             return borderValue;
                 }
                 else
                 {
-                    offsetCoord = glm::clamp( coord + isaac_int( T_guard ), isaac_int(0), isaac_int_dim<T_textureDim>( sizeWithGuard ) );
+                    offsetCoord = glm::clamp( coord + isaac_int( T_guardSize ), isaac_int(0), isaac_int_dim<T_textureDim>( sizeWithGuard ) );
                 }
-                return deviceBufferPtr[hash( offsetCoord )];
+                return bufferPtr[hash( offsetCoord )];
             }
 
             ISAAC_HOST_DEVICE_INLINE 
@@ -158,17 +128,12 @@ namespace isaac
                     + coord.z * sizeWithGuard.y * sizeWithGuard.z;
             }
 
+
         private:
+            isaac_vec_dim<T_vecDim, T_VecType>* bufferPtr;
             isaac_size_dim<T_textureDim> size;
             isaac_size_dim<T_textureDim> sizeWithGuard;
-            alpaka::Buf<
-                T_DevAcc, 
-                isaac_vec_dim<T_vecDim, T_VecType>, 
-                FraDim, 
-                ISAAC_IDX_TYPE
-            > deviceBuffer;
 
-            isaac_vec_dim<T_vecDim, T_VecType>* deviceBufferPtr;
 
             template<BorderType T_border = BorderType::CLAMP>
             ISAAC_HOST_DEVICE_INLINE 
@@ -233,17 +198,88 @@ namespace isaac
         typename T_VecType,
         int T_vecDim,
         int T_textureDim,
-        ISAAC_IDX_TYPE T_guard = 0
+        ISAAC_IDX_TYPE T_guardSize = 0
     >
-    using Texture2D = Texture<T_DevAcc, T_VecType, T_vecDim, 2, T_guard>;
+    class TextureWrapper
+    {
+        using FraDim = alpaka::DimInt< 1 >;
+
+        static const int featureDim = T_vecDim;
+
+        public:
+            TextureWrapper() = default;
+
+            void init( const T_DevAcc& devAcc, const isaac_size_dim<T_textureDim>& size )
+            {
+                const isaac_size_dim<T_textureDim> sizeWithGuard = size + ISAAC_IDX_TYPE( 2 ) * T_guardSize;
+
+                ISAAC_IDX_TYPE totalSize = sizeWithGuard[0];
+                for( int i = 1; i < T_textureDim; ++i )
+                {
+                    totalSize *= ( sizeWithGuard[i] );
+                }
+
+                alpaka::Vec<
+                    FraDim,
+                    ISAAC_IDX_TYPE
+                > bufferExtent( totalSize );
+
+                buffer =
+                    alpaka::allocBuf<
+                        isaac_vec_dim<T_vecDim, T_VecType>,
+                        ISAAC_IDX_TYPE
+                    >(
+                        devAcc,
+                        bufferExtent
+                    );
+
+                texture.init( alpaka::getPtrNative( buffer ), size );
+            }
+
+        private:
+            Texture<
+                T_VecType,
+                T_vecDim,
+                T_textureDim,
+                T_guardSize
+            > texture;
+
+            alpaka::Buf<
+                T_DevAcc, 
+                isaac_vec_dim<T_vecDim, T_VecType>, 
+                FraDim, 
+                ISAAC_IDX_TYPE
+            > buffer;
+    };
+
+    template<
+        typename T_VecType,
+        int T_vecDim,
+        ISAAC_IDX_TYPE T_guardSize = 0
+    >
+    using Tex2D = Texture<T_VecType, T_vecDim, 2>;
+
+    template<
+        typename T_VecType,
+        int T_vecDim,
+        ISAAC_IDX_TYPE T_guardSize = 0
+    >
+    using Tex3D = Texture<T_VecType, T_vecDim, 3>;
 
     template<
         typename T_DevAcc,
         typename T_VecType,
         int T_vecDim,
-        int T_textureDim,
-        ISAAC_IDX_TYPE T_guard = 0
+        ISAAC_IDX_TYPE T_guardSize = 0
     >
-    using Texture3D = Texture<T_DevAcc, T_VecType, T_vecDim, 3, T_guard>;
+    using Tex2DWrapper = TextureWrapper<T_DevAcc, T_VecType, T_vecDim, 2>;
+
+    template<
+        typename T_DevAcc,
+        typename T_VecType,
+        int T_vecDim,
+        ISAAC_IDX_TYPE T_guardSize = 0
+    >
+    using Tex3DWrapper = TextureWrapper<T_DevAcc, T_VecType, T_vecDim, 3>;
 
 } //namespace isaac;
