@@ -18,6 +18,7 @@
 #include "isaac_macros.hpp"
 #include "isaac_fusion_extension.hpp"
 #include "isaac_functor_chain.hpp"
+#include "isaac_texture.hpp"
 
 #include <limits>
 
@@ -45,33 +46,6 @@ namespace isaac
         bool isClipped;
         isaac_float3 clippingNormal;
     };
-
-    ISAAC_HOST_DEVICE_INLINE void setColor( uint32_t & destination, const isaac_float4 & color )
-    {
-        isaac_uint4 result = clamp( color, isaac_float( 0 ), isaac_float( 1 ) ) * isaac_float( 255 );
-        destination = (result.w << 24) | (result.z << 16) | (result.y << 8) | (result.x << 0);
-    }
-
-    ISAAC_HOST_DEVICE_INLINE isaac_float4 getColor( const uint32_t & samplePoint )
-    {
-        return {
-            ((samplePoint >>  0) & 0xff) / 255.0f,
-            ((samplePoint >>  8) & 0xff) / 255.0f,
-            ((samplePoint >> 16) & 0xff) / 255.0f,
-            ((samplePoint >> 24) & 0xff) / 255.0f
-        };
-    }
-
-    template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE void swapIfSmaller(T_Type & left, T_Type & right)
-    {
-        if (left < right)
-        {
-            auto temp = left;
-            left = right;
-            right = temp;
-        }
-    }
 
     ISAAC_DEVICE_INLINE Ray pixelToRay( 
         const isaac_float2 pixel, 
@@ -217,117 +191,11 @@ namespace isaac
         return true;
     }
 
-    template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type linear( 
-        const isaac_float& innerOffset, 
-        const T_Type & v1,
-        const T_Type & v2
-    )
-    {
-        return v1 * (1 - innerOffset) + v2 * innerOffset;
-    }
-
-    template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type bilinear( 
-        const isaac_float2& innerOffset, 
-        const T_Type & bl,
-        const T_Type & br,
-        const T_Type & tl,
-        const T_Type & tr
-    )
-    {
-        const T_Type & bottom = linear( innerOffset.x, bl, br );
-        const T_Type & top = linear( innerOffset.x, tl, tr );
-        return linear( innerOffset.y, bottom, top );
-    }
-
-    template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type trilinear( 
-        const isaac_float3& innerOffset, 
-        const T_Type & fbl,
-        const T_Type & fbr,
-        const T_Type & ftl,
-        const T_Type & ftr,
-        const T_Type & bbl,
-        const T_Type & bbr,
-        const T_Type & btl,
-        const T_Type & btr
-    )
-    {
-        const T_Type & front = bilinear( isaac_float2( innerOffset ), fbl, fbr, ftl, ftr );
-        const T_Type & back = bilinear( isaac_float2( innerOffset ), bbl, bbr, btl, btr );
-        return linear( innerOffset.z, front, back );
-    }
-
-    template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type linear( 
-        const isaac_float& innerOffset, 
-        const T_Type (&values)[2]
-    )
-    {
-        return values[0] * (1 - innerOffset) + values[1] * innerOffset;
-    }
-
-    template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type bilinear( 
-        const isaac_float2& innerOffset, 
-        const T_Type (&values)[2][2]
-    )
-    {
-        T_Type a = linear( innerOffset.y, values[0] );
-        T_Type b = linear( innerOffset.y, values[1] );
-        return linear( innerOffset.x, a, b );
-    }
-
-    template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type trilinear( 
-        const isaac_float3& innerOffset, 
-        const T_Type (&values)[2][2][2]
-    )
-    {
-        T_Type a = bilinear( isaac_float2( innerOffset.y, innerOffset.z ), values[0] );
-        T_Type b = bilinear( isaac_float2( innerOffset.y, innerOffset.z ), values[1] );
-        return linear( innerOffset.x, a, b );
-    }
-
-
-    template <int T_n, typename T_Type1, typename T_Type2>
-    ISAAC_DEVICE_INLINE bool isInLowerBounds( 
-        const isaac_vec_dim<T_n, T_Type1>& vec, 
-        const isaac_vec_dim<T_n, T_Type2>& lBounds )
-    {
-        for( int i = 0; i < T_n; ++i)
-        {
-            if( vec[i] < lBounds[i] )
-                return false;
-        }
-        return true;
-    }
-
-    template <int T_n, typename T_Type1, typename T_Type2>
-    ISAAC_DEVICE_INLINE bool isInUpperBounds( 
-        const isaac_vec_dim<T_n, T_Type1>& vec, 
-        const isaac_vec_dim<T_n, T_Type2>& uBounds )
-    {
-        for( int i = 0; i < T_n; ++i)
-        {
-            if( vec[i] >= uBounds[i] )
-                return false;
-        }
-        return true;
-    }
-
     struct ClearBufferKernel {
         template <typename T_Acc>
         ALPAKA_FN_ACC void operator() (
             T_Acc const &acc,
-            const GBuffer gBuffer,
+            GBuffer gBuffer,
             isaac_float4 bgColor
             ) const
         {
@@ -344,10 +212,10 @@ namespace isaac
                 return;
             
             bgColor.w = 0;
-            setColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], bgColor);
-            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = isaac_float3(0, 0, 0);
-            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = std::numeric_limits<isaac_float>::max();
-            gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = 0;
+            gBuffer.color[pixel] = transformColor(bgColor);
+            gBuffer.normal[pixel] = isaac_float3(0, 0, 0);
+            gBuffer.depth[pixel] = std::numeric_limits<isaac_float>::max();
+            gBuffer.aoStrength[pixel] = 0;
         }
     };
 
@@ -356,7 +224,7 @@ namespace isaac
         template <typename T_Acc>
         ALPAKA_FN_ACC void operator() (
             T_Acc const &acc,
-            const GBuffer gBuffer,
+            GBuffer gBuffer,
             const AOParams aoProperties,
             isaac_float4 backgroundColor,
             isaac_int rank,
@@ -376,9 +244,9 @@ namespace isaac
             if( pixel.x >= gBuffer.size.x || pixel.y >= gBuffer.size.y )
                 return;
 
-            isaac_float4 color = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
-            isaac_float3 normal = gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x];
-            isaac_float aoStrength = isaac_float( 1 ) - gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
+            isaac_float4 color = transformColor( gBuffer.color[pixel] );
+            isaac_float3 normal = gBuffer.normal[pixel];
+            isaac_float aoStrength = isaac_float( 1 ) - gBuffer.aoStrength[pixel];
             
             //normal blinn-phong shading
             if(mode < 3)
@@ -407,53 +275,53 @@ namespace isaac
 
 
                 isaac_float3 shadedColor = glm::min( color * lightFactor + specular, isaac_float( 1 ) );
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( shadedColor , color.a ) );
+                gBuffer.color[pixel] = transformColor( isaac_float4( shadedColor , color.a ) );
 
                 //render only solid
                 if( mode == 2 )
-                    gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+                    gBuffer.depth[pixel] = isaac_float( 0 );
             }
             //render only volume
             else if(mode == 3)
             {
                 backgroundColor.a = color.a;
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], backgroundColor );
+                gBuffer.color[pixel] = transformColor( backgroundColor );
             }
             //normal as color for debug
             else if(mode == 4)
             {
                 normal = normal * isaac_float( 0.5 ) + isaac_float( 0.5 );
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( normal , color.a ) );
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+                gBuffer.color[pixel] = transformColor( isaac_float4( normal , color.a ) );
+                gBuffer.depth[pixel] = isaac_float( 0 );
             }
             //depth as color for debug
             else if(mode == 5)
             {
-                isaac_float depth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] / isaac_float( SimulationSize.maxGlobalSizeScaled );
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( depth ) , color.a ) );
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+                isaac_float depth = gBuffer.depth[pixel] / isaac_float( SimulationSize.maxGlobalSizeScaled );
+                gBuffer.color[pixel] = transformColor( isaac_float4( isaac_float3( depth ) , color.a ) );
+                gBuffer.depth[pixel] = isaac_float( 0 );
             }
             //ambient occlusion as color for debug
             else if(mode == 6)
             {
                 isaac_float weight = aoProperties.weight;
                 isaac_float aoFactor = ((1.0f - weight) + weight * aoStrength);
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( isaac_float3( aoFactor ) , color.a ) );
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+                gBuffer.color[pixel] = transformColor( isaac_float4( isaac_float3( aoFactor ) , color.a ) );
+                gBuffer.depth[pixel] = isaac_float( 0 );
             }
             //rank information color coded for debug
             else if(mode == 7)
             {
                 const isaac_float3 colorArray[6] = {isaac_float3(1,0,0),isaac_float3(0,1,0),isaac_float3(0,0,1),isaac_float3(0,1,1),isaac_float3(1,1,0),isaac_float3(1,0,1)};
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( colorArray[rank % 6] , color.a ) );
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+                gBuffer.color[pixel] = transformColor( isaac_float4( colorArray[rank % 6] , color.a ) );
+                gBuffer.depth[pixel] = isaac_float( 0 );
             }
             //full buffer rank information color coded for debug
             else if(mode == 8)
             {
                 const isaac_float3 colorArray[6] = {isaac_float3(1,0,0),isaac_float3(0,1,0),isaac_float3(0,0,1),isaac_float3(0,1,1),isaac_float3(1,1,0),isaac_float3(1,0,1)};
-                setColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], isaac_float4( colorArray[rank % 6] , isaac_float( 1 ) ) );
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = isaac_float( 0 );
+                gBuffer.color[pixel] = transformColor( isaac_float4( colorArray[rank % 6] , isaac_float( 1 ) ) );
+                gBuffer.depth[pixel] = isaac_float( 0 );
             }
         }
     };

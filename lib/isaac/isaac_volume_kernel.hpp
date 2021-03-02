@@ -142,7 +142,7 @@ namespace isaac
         isaac_float result = isaac_float( 0 );
 
 
-        result = applyFunctorChain<T_Source::featureDim>(&data, T_NR::value);
+        result = applyFunctorChain(&data, T_NR::value);
 
         return result;
     }
@@ -434,7 +434,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
             if( ray.endDepth <= ray.startDepth )
                 return;
 
@@ -563,15 +563,15 @@ namespace isaac
             //return;
             if( !T_isoSurface )
             {
-                isaac_float4 solidColor = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
+                isaac_float4 solidColor = transformColor( gBuffer.color[pixel] );
                 color = color + ( 1 - color.w ) * solidColor;
-                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
+                gBuffer.color[pixel] = transformColor( color );
             }
             else if( result )
             {   
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
-                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = normal;
-                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
+                gBuffer.depth[pixel] = depth;
+                gBuffer.normal[pixel] = normal;
+                gBuffer.color[pixel] = transformColor( color );
             }
         }
     };

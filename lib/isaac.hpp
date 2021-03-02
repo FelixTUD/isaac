@@ -720,42 +720,6 @@ namespace isaac
             sources( sources ),
             scale( scale ),
             icetBoundingBox( true ),
-            framebuffer(
-                alpaka::allocBuf<
-                    uint32_t,
-                    ISAAC_IDX_TYPE
-                >(
-                    acc,
-                    framebufferProd
-                )
-            ),
-            framebufferAO(
-                alpaka::allocBuf<
-                    isaac_float,
-                    ISAAC_IDX_TYPE
-                >(
-                    acc,
-                    framebufferProd
-                )
-            ),
-            framebufferDepth(
-                alpaka::allocBuf<
-                    isaac_float,
-                    ISAAC_IDX_TYPE
-                >(
-                    acc,
-                    framebufferProd
-                )
-            ),
-            framebufferNormal(
-                alpaka::allocBuf<
-                    isaac_float3,
-                    ISAAC_IDX_TYPE
-                >(
-                    acc,
-                    framebufferProd
-                )
-            ),
             functor_chain_d(
                 alpaka::allocBuf<
                     FunctorChainPointerN,
@@ -790,7 +754,11 @@ namespace isaac
             >(
                 acc,
                 ISAAC_IDX_TYPE ( localParticleSize[0]
-                * localParticleSize[1] ) ) )
+                * localParticleSize[1] ) ) ),
+            framebuffer( acc, framebufferSize ),
+            framebufferAO( acc, framebufferSize ),
+            framebufferNormal( acc, framebufferSize ),
+            framebufferDepth( acc, framebufferSize )
         {
 #if ISAAC_VALGRIND_TWEAKS == 1
             //Jansson has some optimizations for 2 and 4 byte aligned
@@ -807,6 +775,8 @@ namespace isaac
             globalSizeScaled = isaac_float3( globalSize ) * scale;
             localSizeScaled = isaac_float3( localSize ) * scale;
             positionScaled = isaac_float3( position ) * scale;
+
+
 
             backgroundColor[0] = 0;
             backgroundColor[1] = 0;
@@ -3240,10 +3210,10 @@ namespace isaac
             GBuffer gBuffer;
             gBuffer.size = myself->framebufferSize;
             gBuffer.startOffset = framebufferStart;
-            gBuffer.color = alpaka::getPtrNative(myself->framebuffer);
-            gBuffer.depth = alpaka::getPtrNative(myself->framebufferDepth);
-            gBuffer.normal = alpaka::getPtrNative(myself->framebufferNormal);
-            gBuffer.aoStrength = alpaka::getPtrNative(myself->framebufferAO);
+            gBuffer.color = myself->framebuffer.getTexture();
+            gBuffer.depth = myself->framebufferDepth.getTexture();
+            gBuffer.normal = myself->framebufferNormal.getTexture();
+            gBuffer.aoStrength = myself->framebufferAO.getTexture();
 
             //reset the GBuffer to default values
             {
@@ -3419,9 +3389,9 @@ namespace isaac
                 myself->getTicksUs( ) )
 
             //get memory view from IceT pixels on host
-            alpaka::ViewPlainPtr <T_Host, uint32_t, FraDim, ISAAC_IDX_TYPE>
+            alpaka::ViewPlainPtr <T_Host, isaac_byte4, FraDim, ISAAC_IDX_TYPE>
                 result_buffer(
-                ( uint32_t * )( pixels ),
+                ( isaac_byte4* )( pixels ),
                 myself->host,
                 alpaka::Vec<
                     FraDim,
@@ -3430,15 +3400,7 @@ namespace isaac
             );
 
             //copy device framebuffer to result IceT pixel buffer
-            alpaka::memcpy(
-                myself->stream,
-                result_buffer,
-                myself->framebuffer,
-                alpaka::Vec<
-                    FraDim,
-                    ISAAC_IDX_TYPE
-                >( myself->framebufferProd )
-            );
+            myself->framebuffer.copyToBuffer(myself->stream, result_buffer);
 
             //stop timer and calculate copy time
             ISAAC_STOP_TIME_MEASUREMENT ( myself->copyTime,
@@ -4017,35 +3979,27 @@ namespace isaac
         > framebufferProd;
 
         //framebuffer pixel values
-        alpaka::Buf<
+        Tex2DWrapper<
             DevAcc,
-            uint32_t,
-            FraDim,
-            ISAAC_IDX_TYPE
+            isaac_byte4
         > framebuffer;
 
         //ambient occlusion factor values
-        alpaka::Buf<
-            DevAcc, 
-            isaac_float, 
-            FraDim, 
-            ISAAC_IDX_TYPE
+        Tex2DWrapper<
+            DevAcc,
+            isaac_float
         > framebufferAO;
 
         //pixel depth information
-        alpaka::Buf<
-            DevAcc, 
-            isaac_float, 
-            FraDim, 
-            ISAAC_IDX_TYPE
+        Tex2DWrapper<
+            DevAcc,
+            isaac_float
         > framebufferDepth;
 
         //pixel normal information
-        alpaka::Buf<
-            DevAcc, 
-            isaac_float3, 
-            FraDim, 
-            ISAAC_IDX_TYPE
+        Tex2DWrapper<
+            DevAcc,
+            isaac_float3
         > framebufferNormal;  
 
         alpaka::Buf<

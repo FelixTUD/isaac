@@ -148,7 +148,7 @@ namespace isaac
         isaac_float result = isaac_float( 0 );
 
 
-        result = applyFunctorChain<T_Source::featureDim>(&data, T_NR::value);
+        result = applyFunctorChain(&data, T_NR::value);
 
         return result;
     }

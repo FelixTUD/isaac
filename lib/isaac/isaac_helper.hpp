@@ -15,8 +15,150 @@
 
 #pragma once
 
+#include "isaac_types.hpp"
+
 namespace isaac
 {
+
+
+    ISAAC_HOST_DEVICE_INLINE 
+    isaac_byte4 transformColor( const isaac_float4 & floatColor )
+    {
+        return isaac_byte4( clamp( floatColor, isaac_float( 0 ), isaac_float( 1 ) ) * isaac_float( 255 ) );
+    }
+
+    ISAAC_HOST_DEVICE_INLINE 
+    isaac_float4 transformColor( const isaac_byte4 & byteColor )
+    {
+        return isaac_float4( byteColor ) / isaac_float( 255 );
+    }
+
+    ISAAC_HOST_DEVICE_INLINE isaac_float4 getColor( const uint32_t & samplePoint )
+    {
+        return {
+            ((samplePoint >>  0) & 0xff) / 255.0f,
+            ((samplePoint >>  8) & 0xff) / 255.0f,
+            ((samplePoint >> 16) & 0xff) / 255.0f,
+            ((samplePoint >> 24) & 0xff) / 255.0f
+        };
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE void swapIfSmaller(T_Type & left, T_Type & right)
+    {
+        if (left < right)
+        {
+            auto temp = left;
+            left = right;
+            right = temp;
+        }
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type linear( 
+        const isaac_float& innerOffset, 
+        const T_Type & v1,
+        const T_Type & v2
+    )
+    {
+        return v1 * (1 - innerOffset) + v2 * innerOffset;
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type bilinear( 
+        const isaac_float2& innerOffset, 
+        const T_Type & bl,
+        const T_Type & br,
+        const T_Type & tl,
+        const T_Type & tr
+    )
+    {
+        const T_Type & bottom = linear( innerOffset.x, bl, br );
+        const T_Type & top = linear( innerOffset.x, tl, tr );
+        return linear( innerOffset.y, bottom, top );
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type trilinear( 
+        const isaac_float3& innerOffset, 
+        const T_Type & fbl,
+        const T_Type & fbr,
+        const T_Type & ftl,
+        const T_Type & ftr,
+        const T_Type & bbl,
+        const T_Type & bbr,
+        const T_Type & btl,
+        const T_Type & btr
+    )
+    {
+        const T_Type & front = bilinear( isaac_float2( innerOffset ), fbl, fbr, ftl, ftr );
+        const T_Type & back = bilinear( isaac_float2( innerOffset ), bbl, bbr, btl, btr );
+        return linear( innerOffset.z, front, back );
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type linear( 
+        const isaac_float& innerOffset, 
+        const T_Type (&values)[2]
+    )
+    {
+        return values[0] * (1 - innerOffset) + values[1] * innerOffset;
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type bilinear( 
+        const isaac_float2& innerOffset, 
+        const T_Type (&values)[2][2]
+    )
+    {
+        T_Type a = linear( innerOffset.y, values[0] );
+        T_Type b = linear( innerOffset.y, values[1] );
+        return linear( innerOffset.x, a, b );
+    }
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE
+    T_Type trilinear( 
+        const isaac_float3& innerOffset, 
+        const T_Type (&values)[2][2][2]
+    )
+    {
+        T_Type a = bilinear( isaac_float2( innerOffset.y, innerOffset.z ), values[0] );
+        T_Type b = bilinear( isaac_float2( innerOffset.y, innerOffset.z ), values[1] );
+        return linear( innerOffset.x, a, b );
+    }
+
+
+    template <int T_n, typename T_Type1, typename T_Type2>
+    ISAAC_DEVICE_INLINE bool isInLowerBounds( 
+        const isaac_vec_dim<T_n, T_Type1>& vec, 
+        const isaac_vec_dim<T_n, T_Type2>& lBounds )
+    {
+        for( int i = 0; i < T_n; ++i)
+        {
+            if( vec[i] < lBounds[i] )
+                return false;
+        }
+        return true;
+    }
+
+    template <int T_n, typename T_Type1, typename T_Type2>
+    ISAAC_DEVICE_INLINE bool isInUpperBounds( 
+        const isaac_vec_dim<T_n, T_Type1>& vec, 
+        const isaac_vec_dim<T_n, T_Type2>& uBounds )
+    {
+        for( int i = 0; i < T_n; ++i)
+        {
+            if( vec[i] >= uBounds[i] )
+                return false;
+        }
+        return true;
+    }
 
 void mergeJSON(json_t* result, json_t* candidate)
 {

@@ -96,7 +96,7 @@ namespace isaac
                             isaac_float result = isaac_float( 0 );
 
                             // apply functorchain
-                           result = applyFunctorChain<T_Source::featureDim>(&data, sourceNumber);
+                           result = applyFunctorChain(&data, sourceNumber);
 
                             // apply transferfunction
                             ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(
@@ -145,7 +145,7 @@ namespace isaac
         >
         ALPAKA_FN_ACC void operator()(
             T_Acc const & acc,
-            const GBuffer gBuffer,
+            GBuffer gBuffer,
             const T_ParticleList particleSources,   //source simulation particles
             const T_TransferArray transferArray,    //array of pointers to transfer functions
             const T_SourceWeight sourceWeight,      //weights of all sources 
@@ -180,7 +180,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
 
             isaac_float4 particleColor;
             isaac_float depth = std::numeric_limits<isaac_float>::max( );
@@ -285,12 +285,12 @@ namespace isaac
             // calculate lighting properties for the last hit particle
             particleNormal = glm::normalize( particleNormal );
             particleColor.a = isaac_float( 1 );
-            setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], particleColor );
+            gBuffer.color[pixel] = transformColor( particleColor );
             //save the particle normal in the normal g buffer
-            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = particleNormal;
+            gBuffer.normal[pixel] = particleNormal;
             
             //save the cell depth in our g buffer (depth)
-            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth + ray.startDepth;
+            gBuffer.depth[pixel] = depth + ray.startDepth;
         }
     };
 

@@ -194,7 +194,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
 
             isaac_float depth = ray.endDepth;
 
@@ -297,9 +297,9 @@ namespace isaac
             if( !hit )
                 return;
 
-            setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], hitColor );
-            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = hitNormal;
-            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
+            gBuffer.color[pixel] = transformColor( hitColor );
+            gBuffer.normal[pixel] = hitNormal;
+            gBuffer.depth[pixel] = depth;
 
         }
     };
@@ -471,7 +471,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
             if( ray.endDepth <= ray.startDepth )
                 return;
 
@@ -553,9 +553,9 @@ namespace isaac
 
             if( hit )
             {   
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
-                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = normal;
-                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], hitColor );
+                gBuffer.depth[pixel] = depth;
+                gBuffer.normal[pixel] = normal;
+                gBuffer.color[pixel] = transformColor( hitColor );
             }
         }
     };
