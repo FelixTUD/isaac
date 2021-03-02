@@ -66,35 +66,35 @@ namespace isaac
         isaac_int nr[T_n];
     };
 
-    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <1>* data, const int nr)
+    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <1>& data, const int nr)
     {
         return reinterpret_cast<FunctorChainPointer1> ( FunctionChain[nr] )(
-                *( reinterpret_cast< isaac_float_dim< 1 > * > ( data ) ),
+                *( reinterpret_cast< isaac_float_dim< 1 > * > ( &data ) ),
                 nr
             );
     }
 
-    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <2>* data, const int nr)
+    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <2>& data, const int nr)
     {
 
         return reinterpret_cast<FunctorChainPointer2> ( FunctionChain[nr] )(
-                *( reinterpret_cast< isaac_float_dim< 2 > * > ( data ) ),
+                *( reinterpret_cast< isaac_float_dim< 2 > * > ( &data ) ),
                 nr
             );
     }
 
-    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <3>* data, const int nr)
+    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <3>& data, const int nr)
     {
         return reinterpret_cast<FunctorChainPointer3> ( FunctionChain[nr] )(
-                *( reinterpret_cast< isaac_float_dim< 3 > * > ( data ) ),
+                *( reinterpret_cast< isaac_float_dim< 3 > * > ( &data ) ),
                 nr
             );
     }
 
-    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <4>* data, const int nr)
+    ISAAC_DEVICE_INLINE isaac_float applyFunctorChain(isaac_float_dim <4>& data, const int nr)
     {
         return reinterpret_cast<FunctorChainPointer4> ( FunctionChain[nr] )(
-                *( reinterpret_cast< isaac_float_dim< 4 > * > ( data ) ),
+                *( reinterpret_cast< isaac_float_dim< 4 > * > ( &data ) ),
                 nr
             );
     }

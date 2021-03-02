@@ -33,9 +33,6 @@ namespace isaac
     /**
      * @brief Calculate SSAO factor
      * 
-     * Requires AO Buffer     (dim 1)
-     *          Depth Buffer  (dim 1)
-     *          Normal Buffer (dim 3)
      * 
      */
     struct SSAOKernel {
@@ -169,15 +166,12 @@ namespace isaac
                     //get the neighbour depth value
                     isaac_float depthSample = gBuffer.depth.safeMemoryAccess(isaac_int2( pixel ) + isaac_int2(i, j) * radius);
 
-                    // only increase the counter if the neighbour depth is closer to the camera
-                    // use <= because we will discard pixels with a depth/ao value 0.0 (for background pixels and image merging), 
-                    // but planes will have pixels with depth/ao with 0 because of neighbor pixels
                     if(depthSample < refDepth) {
                         occlusion += 1.0f;
                     }
                 }
             }
-            isaac_float depth = glm::clamp( (occlusion / 47.0f), 0.0f, 1.0f );
+            isaac_float depth = glm::clamp( (occlusion / 42.0f), 0.0f, 1.0f );
 
             //save the depth value in our ao buffer
             gBuffer.aoStrength[pixel] = depth;
@@ -187,8 +181,6 @@ namespace isaac
     /**
      * @brief Filter SSAO artifacts and return the color with depth simulation
      * 
-     * Requires Color Buffer      (dim 4)
-     * Requires AO Values Buffer  (dim 1)
      * 
      */
     struct SSAOFilterKernel {

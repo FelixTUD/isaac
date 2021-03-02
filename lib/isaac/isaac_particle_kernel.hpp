@@ -96,7 +96,7 @@ namespace isaac
                             isaac_float result = isaac_float( 0 );
 
                             // apply functorchain
-                           result = applyFunctorChain(&data, sourceNumber);
+                           result = applyFunctorChain(data, sourceNumber);
 
                             // apply transferfunction
                             ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(

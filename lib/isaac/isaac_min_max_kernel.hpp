@@ -70,7 +70,7 @@ namespace isaac
                                    * ( localSize.y + 2 * ISAAC_GUARD_SIZE )
                                )];
                 };
-                isaac_float value = applyFunctorChain(&data, nr);
+                isaac_float value = applyFunctorChain(data, nr);
                 min = glm::min( min, value );
                 max = glm::max( max, value );
             }
@@ -120,7 +120,7 @@ namespace isaac
 
                     data = particleIterator.getAttribute( );
 
-                    isaac_float value = applyFunctorChain(&data, nr);
+                    isaac_float value = applyFunctorChain(data, nr);
                     min = glm::min( min, value );
                     max = glm::max( max, value );
                 }
