@@ -240,7 +240,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
             if( ray.endDepth <= ray.startDepth )
                 return;
 
@@ -326,9 +326,9 @@ namespace isaac
 #endif
 
             // Blend solid color and new volume color
-            isaac_float4 solidColor = transformColor( gBuffer.color[pixel] );
+            isaac_float4 solidColor = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
             color = color + ( 1 - color.w ) * solidColor;
-            gBuffer.color[pixel] = transformColor( color );
+            setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
         }
     };
 

@@ -159,12 +159,15 @@ namespace isaac
             */
             //closer to the camera
             isaac_float occlusion = 0.0f;
-            isaac_float refDepth = gBuffer.depth[pixel];
+            isaac_float refDepth = gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x];
             for(int i = -3; i <= 3; ++i) {
                 for(int j = -3; j <= 3; ++j) {
+                    //avoid out of bounds by simple min max
+                    isaac_int x = glm::clamp(pixel.x + i * radius, gBuffer.startOffset.x, gBuffer.startOffset.x + gBuffer.size.x);
+                    isaac_int y = glm::clamp(pixel.y + j * radius, gBuffer.startOffset.y, gBuffer.startOffset.y + gBuffer.size.y);
 
                     //get the neighbour depth value
-                    isaac_float depthSample = gBuffer.depth.safeMemoryAccess(isaac_int2( pixel ) + isaac_int2(i, j) * radius);
+                    isaac_float depthSample = gBuffer.depth[x + y * gBuffer.size.x];
 
                     if(depthSample < refDepth) {
                         occlusion += 1.0f;
@@ -174,7 +177,7 @@ namespace isaac
             isaac_float depth = glm::clamp( (occlusion / 42.0f), 0.0f, 1.0f );
 
             //save the depth value in our ao buffer
-            gBuffer.aoStrength[pixel] = depth;
+            gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x] = depth;
         }
     };
 
@@ -208,9 +211,9 @@ namespace isaac
             * 
             * If the real ssao algorithm is implemented, a real filter will be necessary
             */
-            isaac_float depth = gBuffer.aoStrength[pixel];
+            isaac_float depth = gBuffer.aoStrength[pixel.x + pixel.y * gBuffer.size.x];
             
-            isaac_float4 colorValues = transformColor( gBuffer.color[pixel] );
+            isaac_float4 colorValues = getColor( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x] );
 
             //read the weight from the global ao settings and merge them with the color value
             isaac_float weight = aoProperties.weight;
@@ -224,7 +227,7 @@ namespace isaac
             };
 
             //finally replace the old color value with the new ssao filtered color value
-            gBuffer.color[pixel] = transformColor( finalColor );
+            setColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], finalColor);
             
         }
     };

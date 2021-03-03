@@ -302,7 +302,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
 
             isaac_float depth = ray.endDepth;
 
@@ -402,9 +402,9 @@ namespace isaac
 
             if( hit )
             {
-                gBuffer.color[pixel] = transformColor( hitColor );
-                gBuffer.normal[pixel] = hitNormal;
-                gBuffer.depth[pixel] = depth;
+                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], hitColor );
+                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = hitNormal;
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
             }
 
 
@@ -576,7 +576,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
             if( ray.endDepth <= ray.startDepth )
                 return;
 
@@ -620,7 +620,7 @@ namespace isaac
             bool hit = false;
             isaac_float depth = ray.endDepth;
             isaac_float4 hitColor = isaac_float4( 0 );
-            isaac_float3 normal;
+            isaac_float3 hitNormal;
             isaac_float oldValues[boost::mpl::size< T_SourceList >::type::value];
             for(int i = 0; i < boost::mpl::size< T_SourceList >::type::value; i++)
                 oldValues[i] = 0;
@@ -650,16 +650,16 @@ namespace isaac
                     oldValues,
                     hit,
                     hitColor,
-                    normal,
+                    hitNormal,
                     depth
                 );
             }
 
             if( hit )
             {   
-                gBuffer.depth[pixel] = depth;
-                gBuffer.normal[pixel] = normal;
-                gBuffer.color[pixel] = transformColor( hitColor );
+                setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], hitColor );
+                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = hitNormal;
+                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
             }
         }
     };

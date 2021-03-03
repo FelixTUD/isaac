@@ -19,7 +19,21 @@
 
 namespace isaac
 {
+    ISAAC_HOST_DEVICE_INLINE void setColor( uint32_t & destination, const isaac_float4 & color )
+    {
+        isaac_uint4 result = clamp( color, isaac_float( 0 ), isaac_float( 1 ) ) * isaac_float( 255 );
+        destination = (result.w << 24) | (result.z << 16) | (result.y << 8) | (result.x << 0);
+    }
 
+    ISAAC_HOST_DEVICE_INLINE isaac_float4 getColor( const uint32_t & samplePoint )
+    {
+        return {
+            ((samplePoint >>  0) & 0xff) / 255.0f,
+            ((samplePoint >>  8) & 0xff) / 255.0f,
+            ((samplePoint >> 16) & 0xff) / 255.0f,
+            ((samplePoint >> 24) & 0xff) / 255.0f
+        };
+    }
 
     ISAAC_HOST_DEVICE_INLINE isaac_byte4 transformColor( const isaac_float4 & floatColor )
     {

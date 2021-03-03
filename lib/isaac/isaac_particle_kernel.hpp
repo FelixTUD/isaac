@@ -180,7 +180,7 @@ namespace isaac
             if( !clipRay(ray, inputClipping ) )
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
 
             isaac_float4 particleColor;
             isaac_float depth = std::numeric_limits<isaac_float>::max( );
@@ -285,12 +285,12 @@ namespace isaac
             // calculate lighting properties for the last hit particle
             particleNormal = glm::normalize( particleNormal );
             particleColor.a = isaac_float( 1 );
-            gBuffer.color[pixel] = transformColor( particleColor );
+            setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], particleColor );
             //save the particle normal in the normal g buffer
-            gBuffer.normal[pixel] = particleNormal;
+            gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = particleNormal;
             
             //save the cell depth in our g buffer (depth)
-            gBuffer.depth[pixel] = depth + ray.startDepth;
+            gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth + ray.startDepth;
         }
     };
 
