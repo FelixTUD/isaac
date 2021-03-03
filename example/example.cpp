@@ -416,32 +416,6 @@ int main(
             devAcc,
             dataSize
         );
-
-    auto hostBufferNoise = 
-        alpaka::allocBuf<
-            isaac_float,
-            ISAAC_IDX_TYPE
-        >(
-            devHost,
-            dataSize
-        );
-    auto hostBufferLIC = 
-        alpaka::allocBuf<
-            isaac_float,
-            ISAAC_IDX_TYPE
-        >(
-            devHost,
-            dataSize
-        );
-    auto deviceBufferLIC =
-        alpaka::allocBuf<
-            isaac_float,
-            ISAAC_IDX_TYPE
-        >(
-            devAcc,
-            dataSize
-        );
-
     auto hostBuffer3 =
         alpaka::allocBuf<
             isaac_float3,
@@ -467,9 +441,6 @@ int main(
     TestSource2 testSource2(
         alpaka::getPtrNative( deviceBuffer2 )
     );
-    TestSource2 testSourceNoise(
-        alpaka::getPtrNative( deviceBufferLIC )
-    );
 
     ParticleSource1 particleTestSource1(
         alpaka::getPtrNative( deviceBuffer3 ),
@@ -478,7 +449,6 @@ int main(
 
     using SourceList = boost::fusion::list<
         TestSource1,
-        TestSource2,
         TestSource2
     >;
 
@@ -489,132 +459,8 @@ int main(
     ParticleList particleSources( particleTestSource1 );
     SourceList sources(
         testSource1,
-        testSource2,
-        testSourceNoise
+        testSource2
     );
-
-    for( size_t x = 0; x < localSize.x; x++ )
-    {
-        for( size_t y = 0; y < localSize.y; y++ )
-        {
-            for( size_t z = 0; z < localSize.z; z++ )
-            {
-                size_t pos =
-                    x + y * localSize.x + z * localSize.x * localSize.y;
-                isaac_float value = std::rand()/isaac_float( RAND_MAX );
-                alpaka::getPtrNative( hostBufferNoise )[pos] = value < 0.002 ? value : 0;
-            }
-        }
-    }
-    const isaac_float gauss5[3] = {6, 4, 1};
-    for( int x = 0; x < localSize.x; x++ )
-    {
-        for( int y = 0; y < localSize.y; y++ )
-        {
-            for( int z = 0; z < localSize.z; z++ )
-            {
-
-                
-                isaac_float result(0);
-                for(int i = -2; i < 3; i++)
-                {
-                    isaac_int3 coord(x + i, y, z);
-                    //coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
-                    size_t pos =
-                        coord.x + coord.y * localSize.x + coord.z * localSize.x * localSize.y;
-                    if(isInLowerBounds(coord, isaac_int3(0)) && isInUpperBounds(coord, isaac_int3(localSize - 1)))
-                        result += alpaka::getPtrNative( hostBufferNoise )[pos] * gauss5[glm::abs(i)];  
-                }
-                size_t oldPos =
-                        x + y * localSize.x + z * localSize.x * localSize.y;
-                alpaka::getPtrNative( hostBufferLIC )[oldPos] = result;
-            }
-        }
-    }
-    for( int x = 0; x < localSize.x; x++ )
-    {
-        for( int y = 0; y < localSize.y; y++ )
-        {
-            for( int z = 0; z < localSize.z; z++ )
-            {
-
-                isaac_float result(0);
-                for(int i = -2; i < 3; i++)
-                {
-                    isaac_int3 coord(x, y + i, z);
-                    //coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
-                    size_t pos =
-                        coord.x + coord.y * localSize.x + coord.z * localSize.x * localSize.y;
-                    if(isInLowerBounds(coord, isaac_int3(0)) && isInUpperBounds(coord, isaac_int3(localSize - 1)))
-                        result += alpaka::getPtrNative( hostBufferLIC )[pos] * gauss5[glm::abs(i)];  
-                }
-                size_t oldPos =
-                        x + y * localSize.x + z * localSize.x * localSize.y;
-                alpaka::getPtrNative( hostBufferNoise )[oldPos] = result;
-            }
-        }
-    }
-
-    for( int x = 0; x < localSize.x; x++ )
-    {
-        for( int y = 0; y < localSize.y; y++ )
-        {
-            for( int z = 0; z < localSize.z; z++ )
-            {
-
-                isaac_float result(0);
-                for(int i = -2; i < 3; i++)
-                {
-                    isaac_int3 coord(x, y, z + i);
-                    //coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
-                    size_t pos =
-                        coord.x + coord.y * localSize.x + coord.z * localSize.x * localSize.y;
-                    if(isInLowerBounds(coord, isaac_int3(0)) && isInUpperBounds(coord, isaac_int3(localSize - 1)))
-                        result += alpaka::getPtrNative( hostBufferNoise )[pos] * gauss5[glm::abs(i)];  
-                }
-                size_t oldPos =
-                        x + y * localSize.x + z * localSize.x * localSize.y;
-                alpaka::getPtrNative( hostBufferLIC )[oldPos] = result;
-            }
-        }
-    }
-    
-    for( size_t x = 0; x < localSize.x; x++ )
-    {
-        for( size_t y = 0; y < localSize.y; y++ )
-        {
-            for( size_t z = 0; z < localSize.z; z++ )
-            {
-                isaac_float3 coord(x, y, z);
-                size_t oldPos =
-                        x + y * localSize.x + z * localSize.x * localSize.y;
-                isaac_float result(0);
-                int steps = 50;
-                for(int i = 0; i < steps; i++)
-                {
-                    isaac_float3 tangent(-(position.y + coord.y - globalSize.y * 0.5f) / isaac_float(globalSize.y), (position.x + coord.x - globalSize.x * 0.5f)  / isaac_float(globalSize.x), 0.001f);
-                    isaac_float weight = glm::length(tangent);
-                    tangent.z = weight;
-                    tangent = glm::normalize(tangent) * 0.5f;
-                    //coord = glm::clamp(coord + tangent, isaac_float3(0), isaac_float3(localSize - 1));
-                    coord += tangent;
-                    size_t pos =
-                        ISAAC_IDX_TYPE(coord.x) + ISAAC_IDX_TYPE(coord.y) * localSize.x + ISAAC_IDX_TYPE(coord.z) * localSize.x * localSize.y;
-                    if(isInLowerBounds(coord, isaac_float3(0)) && isInUpperBounds(coord, isaac_float3(localSize - 1)))
-                        result += alpaka::getPtrNative( hostBufferLIC )[pos] * (steps - i) * weight;  
-                }
-                alpaka::getPtrNative( hostBufferNoise )[oldPos] = result;
-
-            }
-        }
-    }
-    alpaka::memcpy(
-        stream,
-        deviceBufferLIC,
-        hostBufferNoise,
-        prod
-    );
-
 
 #if ISAAC_NO_SIMULATION == 1
     if ( !filename ) {
