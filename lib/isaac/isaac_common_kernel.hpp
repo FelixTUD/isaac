@@ -193,7 +193,7 @@ namespace isaac
 
     struct ClearBufferKernel {
         template <typename T_Acc>
-        ALPAKA_FN_ACC void operator() (
+        ISAAC_DEVICE void operator() (
             T_Acc const &acc,
             GBuffer gBuffer,
             isaac_float4 bgColor
@@ -222,7 +222,7 @@ namespace isaac
 
     struct ShadingKernel {
         template <typename T_Acc>
-        ALPAKA_FN_ACC void operator() (
+        ISAAC_DEVICE void operator() (
             T_Acc const &acc,
             GBuffer gBuffer,
             const AOParams aoProperties,
@@ -359,7 +359,7 @@ namespace isaac
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             const T_Source source,
             void * const pointer,

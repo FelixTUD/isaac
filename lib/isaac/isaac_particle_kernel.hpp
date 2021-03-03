@@ -42,7 +42,7 @@ namespace isaac
             typename T_TransferArray,
             typename T_SourceWeight
         >
-        ISAAC_HOST_DEVICE_INLINE void operator()(
+        ISAAC_DEVICE_INLINE void operator()(
             const T_NR & nr,
             const T_Source & source,                   //particle source
             const isaac_float3 & start,               //ray start position in local volume
@@ -143,7 +143,7 @@ namespace isaac
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             GBuffer gBuffer,
             const T_ParticleList particleSources,   //source simulation particles

@@ -179,7 +179,7 @@ namespace isaac
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             FunctorChainPointerN * const functorChain
         ) const
@@ -241,7 +241,7 @@ namespace isaac
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             FunctorChainPointerN * const functorChainChooseDevice,
             FunctorChainPointerN const * const functorChain,

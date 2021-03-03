@@ -61,13 +61,18 @@
 
 
 
-#include "isaac/isaac_kernel.hpp"
 #include "isaac/isaac_communicator.hpp"
 #include "isaac/isaac_helper.hpp"
 #include "isaac/isaac_controllers.hpp"
 #include "isaac/isaac_compositors.hpp"
 #include "isaac/isaac_compositors.hpp"
 #include "isaac/isaac_version.hpp"
+// include all kernels
+#include "isaac_particle_kernel.hpp"
+#include "isaac_ssao_kernel.hpp"
+#include "isaac_min_max_kernel.hpp"
+#include "isaac_iso_kernel.hpp"
+#include "isaac_volume_kernel.hpp"
 
 
 namespace isaac
@@ -315,6 +320,7 @@ namespace isaac
              * @param I is the index of the current source
              * @param particleSource is the current particle source
              * @param weight is the array with all source weights
+             * @param pointer is a pointer to user defined data for updating the source
              * @param weightArrayOffset is the offset in the array to the particle sources
              *
              */
@@ -887,7 +893,7 @@ namespace isaac
                 AllocatePointerArrayIterator( ),
                 pointerArray,
                 localSize,
-                pointer_array_alpaka,
+                pointerArrayAlpaka,
                 acc
             );
 
@@ -4096,7 +4102,7 @@ namespace isaac
             isaac_float,
             FraDim,
             ISAAC_IDX_TYPE
-        >> pointer_array_alpaka;
+        >> pointerArrayAlpaka;
 
         TransferDeviceStruct<
             (
@@ -4132,7 +4138,6 @@ namespace isaac
                 + boost::mpl::size< T_ParticleList >::type::value
             )
         > minMaxArray;
-        const static ISAAC_IDX_TYPE transfer_size = T_transferSize;
         FunctionsStruct functions[(
             boost::mpl::size< T_SourceList >::type::value
             + boost::mpl::size< T_ParticleList >::type::value

@@ -27,7 +27,7 @@ namespace isaac
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             const T_Source source,
             const int nr,
@@ -90,7 +90,7 @@ namespace isaac
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             const T_ParticleSource particleSource,
             const int nr,

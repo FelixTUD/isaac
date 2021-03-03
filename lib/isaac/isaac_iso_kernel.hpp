@@ -23,6 +23,120 @@ namespace isaac
 {
 
     template<
+        isaac_int T_interpolation,
+        isaac_int T_index,
+        typename T_NR,
+        typename T_Source,
+        typename T_PointerArray
+    >
+    ISAAC_DEVICE_INLINE isaac_float getCompGradient(
+        const T_Source & source,
+        const isaac_float3 & pos,
+        const T_PointerArray & pointerArray,
+        const isaac_size3 &  localSize
+    )
+    {
+        isaac_float3 front = { 0, 0, 0 };
+        front[T_index] = -1;
+        front = front + pos;
+        checkCoord< 
+            T_Source
+        >(
+            front,
+            localSize
+        );
+
+        isaac_float3 back = { 0, 0, 0 };
+        back[T_index] = 1;
+        back = back + pos;
+        checkCoord< 
+            T_Source
+        >(
+            back,
+            localSize
+        );
+
+        isaac_float d;
+        if( T_interpolation )
+        {
+            d = back[T_index] - front[T_index];
+        }
+        else
+        {
+            d = isaac_int( back[T_index] ) - isaac_int( front[T_index] );
+        }
+
+        return (
+            getValue<
+                T_interpolation,
+                T_NR
+            >(
+                source,
+                back,
+                pointerArray,
+                localSize
+            ) - getValue<
+                T_interpolation,
+                T_NR
+            >(
+                source,
+                front,
+                pointerArray,
+                localSize
+            )
+        ) / d;
+    }
+
+    template<
+        isaac_int T_interpolation,
+        typename T_NR,
+        typename T_Source,
+        typename T_PointerArray
+    >
+    ISAAC_DEVICE_INLINE isaac_float3 getGradient(
+        const T_Source & source,
+        const isaac_float3 & pos,
+        const T_PointerArray & pointerArray,
+        const isaac_size3 &  localSize
+    )
+    {
+
+        isaac_float3 gradient = {
+            getCompGradient<
+                T_interpolation,
+                0,
+                T_NR
+            >(
+                source,
+                pos,
+                pointerArray,
+                localSize
+            ),
+            getCompGradient<
+                T_interpolation,
+                1,
+                T_NR
+            >(
+                source,
+                pos,
+                pointerArray,
+                localSize
+            ),
+            getCompGradient<
+                T_interpolation,
+                2,
+                T_NR
+            >(
+                source,
+                pos,
+                pointerArray,
+                localSize
+            )
+        };
+        return gradient;
+    }
+
+    template<
         ISAAC_IDX_TYPE T_transferSize,
         typename T_Filter,
         isaac_int T_interpolation
@@ -36,7 +150,7 @@ namespace isaac
             typename T_IsoThreshold,
             typename T_PointerArray
         >
-        ISAAC_HOST_DEVICE_INLINE void operator()(
+        ISAAC_DEVICE_INLINE void operator()(
             const T_NR & nr,
             const T_Source & source,
             const Ray & ray,
@@ -50,7 +164,6 @@ namespace isaac
             const T_PointerArray & pointerArray,
             const isaac_float3 & scale,
             const bool & first,
-            const isaac_float3 & clippingNormal,
             bool & hit,
             isaac_float4 & hitColor,
             isaac_float3 & hitNormal,
@@ -90,9 +203,6 @@ namespace isaac
 
                 isaac_float testDepth = t0 + (t1 - t0) * ( isoThreshold - value0 ) / ( value1 - value0 );
                 testDepth = glm::clamp( testDepth, t0, t1 );
-                //if( isinf(testDepth ))
-                //    testDepth = t1;
-                //isaac_float testDepth = t0;
 
                 if( testDepth > depth )
                     return;
@@ -131,10 +241,9 @@ namespace isaac
                 isaac_float gradientLength = glm::length(gradient);
                 if( first || gradientLength == isaac_float(0))
                 {
-                    gradient = clippingNormal;
+                    gradient = ray.clippingNormal;
                     gradientLength = isaac_float( 1 );
                 }
-                //gradient *= scale;
                 hitNormal = -gradient / gradientLength;
             }
         }
@@ -147,15 +256,14 @@ namespace isaac
         typename T_PointerArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        isaac_int T_interpolation,
-        isaac_int T_isoSurface
+        isaac_int T_interpolation
     >
     struct IsoCellTraversalRenderKernel
     {
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             GBuffer gBuffer,
             const T_SourceList sources,              //source of volumes
@@ -265,9 +373,7 @@ namespace isaac
                     sourceIsoThreshold,
                     pointerArray,
                     scale,
-                    //TODO: maybe remove first and clippingNormal
                     first,
-                    ray.clippingNormal,
                     hit,
                     hitColor,
                     hitNormal,
@@ -294,12 +400,13 @@ namespace isaac
                 }
             }
 
-            if( !hit )
-                return;
+            if( hit )
+            {
+                gBuffer.color[pixel] = transformColor( hitColor );
+                gBuffer.normal[pixel] = hitNormal;
+                gBuffer.depth[pixel] = depth;
+            }
 
-            gBuffer.color[pixel] = transformColor( hitColor );
-            gBuffer.normal[pixel] = hitNormal;
-            gBuffer.depth[pixel] = depth;
 
         }
     };
@@ -307,8 +414,7 @@ namespace isaac
         template<
         ISAAC_IDX_TYPE T_transferSize,
         typename T_Filter,
-        isaac_int T_interpolation,
-        isaac_int T_isoSurface
+        isaac_int T_interpolation
     >
     struct IsoStepSourceIterator
     {
@@ -319,7 +425,7 @@ namespace isaac
             typename T_IsoTheshold,
             typename T_PointerArray
         >
-        ISAAC_HOST_DEVICE_INLINE void operator()(
+        ISAAC_DEVICE_INLINE void operator()(
             const T_NR & nr,
             const T_Source & source,
             const Ray & ray,
@@ -424,15 +530,14 @@ namespace isaac
         typename T_PointerArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        isaac_int T_interpolation,
-        isaac_int T_isoSurface
+        isaac_int T_interpolation
     >
     struct IsoStepRenderKernel
     {
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             GBuffer gBuffer,
             const T_SourceList sources,              //source of volumes
@@ -530,8 +635,7 @@ namespace isaac
                     IsoStepSourceIterator<
                         T_transferSize,
                         T_Filter,
-                        T_interpolation,
-                        T_isoSurface
+                        T_interpolation
                     >( ),
                     ray,
                     t,
@@ -691,50 +795,68 @@ namespace isaac
             const ClippingStruct & clipping
         )
         {
-
-#define ISAAC_KERNEL_START \
-            { \
-                IsoStepRenderKernel \
-                < \
-                    T_SourceList, \
-                    T_TransferArray, \
-                    T_IsoThreshold, \
-                    T_PointerArray, \
-                    T_Filter, \
-                    T_transferSize,
-#define ISAAC_KERNEL_END \
-                > \
-                kernel; \
-                auto const instance \
-                ( \
-                    alpaka::createTaskKernel<T_Acc> \
-                    ( \
-                        workdiv, \
-                        kernel, \
-                        gBuffer, \
-                        sources, \
-                        stepSize, \
-                        transferArray, \
-                        sourceIsoThreshold, \
-                        pointerArray, \
-                        scale, \
-                        clipping \
-                    ) \
-                ); \
-                alpaka::enqueue(stream, instance); \
-            }
             if( interpolation )
             {
-                ISAAC_KERNEL_START 1,
-                        1 ISAAC_KERNEL_END
+                IsoStepRenderKernel
+                <
+                    T_SourceList,
+                    T_TransferArray,
+                    T_IsoThreshold,
+                    T_PointerArray,
+                    T_Filter,
+                    T_transferSize,
+                    1
+                >
+                kernel;
+                auto const instance
+                (
+                    alpaka::createTaskKernel<T_Acc>
+                    (
+                        workdiv,
+                        kernel,
+                        gBuffer,
+                        sources,
+                        stepSize,
+                        transferArray,
+                        sourceIsoThreshold,
+                        pointerArray,
+                        scale,
+                        clipping
+                    )
+                );
+                alpaka::enqueue(stream, instance);
             }
             else
             {
-                ISAAC_KERNEL_START 0,
-                        1 ISAAC_KERNEL_END
+                IsoStepRenderKernel
+                <
+                    T_SourceList,
+                    T_TransferArray,
+                    T_IsoThreshold,
+                    T_PointerArray,
+                    T_Filter,
+                    T_transferSize,
+                    0
+                >
+                kernel;
+                auto const instance
+                (
+                    alpaka::createTaskKernel<T_Acc>
+                    (
+                        workdiv,
+                        kernel,
+                        gBuffer,
+                        sources,
+                        stepSize,
+                        transferArray,
+                        sourceIsoThreshold,
+                        pointerArray,
+                        scale,
+                        clipping
+                    )
+                );
+                alpaka::enqueue(stream, instance);
             }
-#undef ISAAC_KERNEL_START
-#undef ISAAC_KERNEL_END
         }
     };
 }

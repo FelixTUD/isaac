@@ -21,26 +21,14 @@ namespace isaac
 {
 
 
-    ISAAC_HOST_DEVICE_INLINE 
-    isaac_byte4 transformColor( const isaac_float4 & floatColor )
+    ISAAC_HOST_DEVICE_INLINE isaac_byte4 transformColor( const isaac_float4 & floatColor )
     {
         return isaac_byte4( clamp( floatColor, isaac_float( 0 ), isaac_float( 1 ) ) * isaac_float( 255 ) );
     }
 
-    ISAAC_HOST_DEVICE_INLINE 
-    isaac_float4 transformColor( const isaac_byte4 & byteColor )
+    ISAAC_HOST_DEVICE_INLINE isaac_float4 transformColor( const isaac_byte4 & byteColor )
     {
         return isaac_float4( byteColor ) / isaac_float( 255 );
-    }
-
-    ISAAC_HOST_DEVICE_INLINE isaac_float4 getColor( const uint32_t & samplePoint )
-    {
-        return {
-            ((samplePoint >>  0) & 0xff) / 255.0f,
-            ((samplePoint >>  8) & 0xff) / 255.0f,
-            ((samplePoint >> 16) & 0xff) / 255.0f,
-            ((samplePoint >> 24) & 0xff) / 255.0f
-        };
     }
 
     template<typename T_Type>
@@ -55,8 +43,7 @@ namespace isaac
     }
 
     template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type linear( 
+    ISAAC_HOST_DEVICE_INLINE T_Type linear( 
         const isaac_float& innerOffset, 
         const T_Type & v1,
         const T_Type & v2
@@ -66,8 +53,7 @@ namespace isaac
     }
 
     template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type bilinear( 
+    ISAAC_HOST_DEVICE_INLINE T_Type bilinear( 
         const isaac_float2& innerOffset, 
         const T_Type & bl,
         const T_Type & br,
@@ -81,8 +67,7 @@ namespace isaac
     }
 
     template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type trilinear( 
+    ISAAC_HOST_DEVICE_INLINE T_Type trilinear( 
         const isaac_float3& innerOffset, 
         const T_Type & fbl,
         const T_Type & fbr,
@@ -100,8 +85,7 @@ namespace isaac
     }
 
     template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type linear( 
+    ISAAC_HOST_DEVICE_INLINE T_Type linear( 
         const isaac_float& innerOffset, 
         const T_Type (&values)[2]
     )
@@ -110,8 +94,7 @@ namespace isaac
     }
 
     template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type bilinear( 
+    ISAAC_HOST_DEVICE_INLINE T_Type bilinear( 
         const isaac_float2& innerOffset, 
         const T_Type (&values)[2][2]
     )
@@ -122,8 +105,7 @@ namespace isaac
     }
 
     template<typename T_Type>
-    ISAAC_HOST_DEVICE_INLINE
-    T_Type trilinear( 
+    ISAAC_HOST_DEVICE_INLINE T_Type trilinear( 
         const isaac_float3& innerOffset, 
         const T_Type (&values)[2][2][2]
     )
@@ -135,7 +117,7 @@ namespace isaac
 
 
     template <int T_n, typename T_Type1, typename T_Type2>
-    ISAAC_DEVICE_INLINE bool isInLowerBounds( 
+    ISAAC_HOST_DEVICE_INLINE bool isInLowerBounds( 
         const isaac_vec_dim<T_n, T_Type1>& vec, 
         const isaac_vec_dim<T_n, T_Type2>& lBounds )
     {
@@ -148,7 +130,7 @@ namespace isaac
     }
 
     template <int T_n, typename T_Type1, typename T_Type2>
-    ISAAC_DEVICE_INLINE bool isInUpperBounds( 
+    ISAAC_HOST_DEVICE_INLINE bool isInUpperBounds( 
         const isaac_vec_dim<T_n, T_Type1>& vec, 
         const isaac_vec_dim<T_n, T_Type2>& uBounds )
     {

@@ -26,8 +26,7 @@ namespace isaac
         typename T_Source,
         typename T_PointerArray
     >
-    ISAAC_HOST_DEVICE_INLINE isaac_float
-    getValue(
+    ISAAC_DEVICE_INLINE isaac_float getValue(
         const T_Source & source,
         const isaac_float3 & pos,
         const T_PointerArray & pointerArray,
@@ -153,13 +152,12 @@ namespace isaac
      * @tparam T_interpolation 
      * @param coord 
      * @param localSize 
-     * @return ISAAC_HOST_DEVICE_INLINE check_coord clamped coordiantes
+     * @return check_coord clamped coordiantes
      */
     template<
         typename T_Source
     >
-    ISAAC_HOST_DEVICE_INLINE void
-    checkCoord(
+    ISAAC_HOST_DEVICE_INLINE void checkCoord(
         isaac_float3 & coord,
         const isaac_size3 &  localSize
     )
@@ -177,126 +175,9 @@ namespace isaac
     }
 
     template<
-        isaac_int T_interpolation,
-        isaac_int T_index,
-        typename T_NR,
-        typename T_Source,
-        typename T_PointerArray
-    >
-    ISAAC_HOST_DEVICE_INLINE isaac_float
-    getCompGradient(
-        const T_Source & source,
-        const isaac_float3 & pos,
-        const T_PointerArray & pointerArray,
-        const isaac_size3 &  localSize
-    )
-    {
-        isaac_float3 front = { 0, 0, 0 };
-        front[T_index] = -1;
-        front = front + pos;
-        checkCoord< 
-            T_Source
-        >(
-            front,
-            localSize
-        );
-
-        isaac_float3 back = { 0, 0, 0 };
-        back[T_index] = 1;
-        back = back + pos;
-        checkCoord< 
-            T_Source
-        >(
-            back,
-            localSize
-        );
-
-        isaac_float d;
-        if( T_interpolation )
-        {
-            d = back[T_index] - front[T_index];
-        }
-        else
-        {
-            d = isaac_int( back[T_index] ) - isaac_int( front[T_index] );
-        }
-
-        return (
-            getValue<
-                T_interpolation,
-                T_NR
-            >(
-                source,
-                back,
-                pointerArray,
-                localSize
-            ) - getValue<
-                T_interpolation,
-                T_NR
-            >(
-                source,
-                front,
-                pointerArray,
-                localSize
-            )
-        ) / d;
-    }
-
-    template<
-        isaac_int T_interpolation,
-        typename T_NR,
-        typename T_Source,
-        typename T_PointerArray
-    >
-    ISAAC_HOST_DEVICE_INLINE isaac_float3
-    getGradient(
-        const T_Source & source,
-        const isaac_float3 & pos,
-        const T_PointerArray & pointerArray,
-        const isaac_size3 &  localSize
-    )
-    {
-
-        isaac_float3 gradient = {
-            getCompGradient<
-                T_interpolation,
-                0,
-                T_NR
-            >(
-                source,
-                pos,
-                pointerArray,
-                localSize
-            ),
-            getCompGradient<
-                T_interpolation,
-                1,
-                T_NR
-            >(
-                source,
-                pos,
-                pointerArray,
-                localSize
-            ),
-            getCompGradient<
-                T_interpolation,
-                2,
-                T_NR
-            >(
-                source,
-                pos,
-                pointerArray,
-                localSize
-            )
-        };
-        return gradient;
-    }
-
-    template<
         ISAAC_IDX_TYPE T_transferSize,
         typename T_Filter,
-        isaac_int T_interpolation,
-        isaac_int T_isoSurface
+        isaac_int T_interpolation
     >
     struct MergeVolumeSourceIterator
     {
@@ -305,10 +186,9 @@ namespace isaac
             typename T_Source,
             typename T_TransferArray,
             typename T_SourceWeight,
-            typename T_PointerArray,
-            typename T_Feedback
+            typename T_PointerArray
         >
-        ISAAC_HOST_DEVICE_INLINE void operator()(
+        ISAAC_DEVICE_INLINE void operator()(
             const T_NR & nr,
             const T_Source & source,
             const isaac_float3 & pos,
@@ -316,12 +196,7 @@ namespace isaac
             const T_TransferArray & transferArray,
             const T_SourceWeight & sourceWeight,
             const T_PointerArray & pointerArray,
-            const isaac_float3 & scale,
-            const bool & first,
-            const isaac_float3 & clippingNormal,
-            T_Feedback & feedback,
-            isaac_float4 & color,
-            isaac_float3 & normal
+            isaac_float4 & color
         ) const
         {
             if( boost::mpl::at_c<
@@ -343,39 +218,11 @@ namespace isaac
                 );
                 lookupValue = glm::clamp( lookupValue, ISAAC_IDX_TYPE( 0 ), T_transferSize - 1 );
                 isaac_float4 value = transferArray.pointer[T_NR::value][lookupValue];
-                if( T_isoSurface )
-                {
-                    if( value.w >= sourceWeight.value[T_NR::value] )
-                    {
-                        isaac_float3 gradient = getGradient<
-                            T_interpolation,
-                            T_NR
-                        >(
-                            source,
-                            pos,
-                            pointerArray,
-                            localSize
-                        );
-
-                        if( first )
-                        {
-                            gradient = clippingNormal;
-                        }
-                        //gradient *= scale;
-                        normal = glm::normalize(-gradient);
-                        color = value;
-                        color.w = isaac_float( 1 );
-                        feedback = 1;
-                    }
-                }
-                else
-                {
-                    value.w *= sourceWeight.value[T_NR::value];
-                    color.x = color.x + value.x * value.w;
-                    color.y = color.y + value.y * value.w;
-                    color.z = color.z + value.z * value.w;
-                    color.w = color.w + value.w;
-                }
+                value.w *= sourceWeight.value[T_NR::value];
+                color.x = color.x + value.x * value.w;
+                color.y = color.y + value.y * value.w;
+                color.z = color.z + value.z * value.w;
+                color.w = color.w + value.w;
             }
         }
     };
@@ -387,15 +234,14 @@ namespace isaac
         typename T_PointerArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        isaac_int T_interpolation,
-        isaac_int T_isoSurface
+        isaac_int T_interpolation
     >
     struct VolumeRenderKernel
     {
         template<
             typename T_Acc
         >
-        ALPAKA_FN_ACC void operator()(
+        ISAAC_DEVICE void operator()(
             T_Acc const & acc,
             GBuffer gBuffer,
             const T_SourceList sources,              //source of volumes
@@ -454,7 +300,6 @@ namespace isaac
             );
             isaac_float factor = stepSize / min_size * 2.0f;
             isaac_float4 value = isaac_float4(0);
-            isaac_int result = 0;
             isaac_float oma;
             isaac_float4 colorAdd;
             isaac_int startSteps = glm::ceil( ray.startDepth / stepSize );
@@ -480,62 +325,35 @@ namespace isaac
                 endSteps--;
                 pos = startUnscaled + stepVec * isaac_float( endSteps );
             }
-            isaac_float depth = 0;
             isaac_float4 color = isaac_float4( 0 );
-            isaac_float3 normal;
             //iterate over the volume
             for( isaac_int i = startSteps; i <= endSteps; i++ )
             {
                 pos = startUnscaled + stepVec * isaac_float( i );
-                result = 0;
-                bool first = ray.isClipped && i == startSteps;
                 forEachWithMplParams(
                     sources,
                     MergeVolumeSourceIterator<
                         T_transferSize,
                         T_Filter,
-                        T_interpolation,
-                        T_isoSurface
+                        T_interpolation
                     >( ),
                     pos,
                     SimulationSize.localSize,
                     transferArray,
                     sourceWeight,
                     pointerArray,
-                    scale,
-                    first,
-                    ray.clippingNormal,
-                    result,
-                    value,
-                    normal
+                    value
                 );
-                if( T_isoSurface )
+                oma = isaac_float( 1 ) - color.w;
+                value *= factor;
+                colorAdd = oma * value;
+                color += colorAdd;
+                if( color.w > isaac_float( 0.99 ) )
                 {
-                    if( result )
-                    {
-                        depth = i * stepSize;
-                        color = value;
-                        break;
-                    }
-                }
-                else
-                {
-                    oma = isaac_float( 1 ) - color.w;
-                    value *= factor;
-                    colorAdd = oma * value;
-                    color += colorAdd;
-                    if( color.w > isaac_float( 0.99 ) )
-                    {
-                        break;
-                    }
+                    break;
                 }
             }
 
-            //indicates how strong particle ao should be when gas is overlapping
-            //isaac_float ao_blend = 0.0f;
-            //if (!isInLowerBounds(startUnscaled + stepVec * isaac_float(startSteps), isaac_float3(0))
-            //    || !isInUpperBounds(startUnscaled + stepVec * isaac_float(endSteps), isaac_float3( SimulationSize.localSize )))
-            //    color = isaac_float4(1, 1, 1, 1);
 #if ISAAC_SHOWBORDER == 1
             if ( color.w <= isaac_float ( 0.99 ) ) {
                 oma = isaac_float ( 1 ) - color.w;
@@ -547,32 +365,10 @@ namespace isaac
             }
 #endif
 
-
-            
-            //save the particle normal in the normal g buffer
-            //gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = particle_normal;
-            
-            //save the cell depth in our g buffer (depth)
-            //march_length takes the old particle_color w component 
-            //the w component stores the particle depth and will be replaced later by new alpha values and 
-            //is therefore stored in march_length
-            //LINE 2044
-            //color = isaac_float4(endSteps / 1000.0f);
-            //color.w = 1;
-            //setColor ( gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color );
-            //return;
-            if( !T_isoSurface )
-            {
-                isaac_float4 solidColor = transformColor( gBuffer.color[pixel] );
-                color = color + ( 1 - color.w ) * solidColor;
-                gBuffer.color[pixel] = transformColor( color );
-            }
-            else if( result )
-            {   
-                gBuffer.depth[pixel] = depth;
-                gBuffer.normal[pixel] = normal;
-                gBuffer.color[pixel] = transformColor( color );
-            }
+            // Blend solid color and new volume color
+            isaac_float4 solidColor = transformColor( gBuffer.color[pixel] );
+            color = color + ( 1 - color.w ) * solidColor;
+            gBuffer.color[pixel] = transformColor( color );
         }
     };
 
@@ -707,50 +503,68 @@ namespace isaac
             const ClippingStruct & clipping
         )
         {
-
-#define ISAAC_KERNEL_START \
-            { \
-                VolumeRenderKernel \
-                < \
-                    T_SourceList, \
-                    T_TransferArray, \
-                    T_SourceWeight, \
-                    T_PointerArray, \
-                    T_Filter, \
-                    T_transferSize,
-#define ISAAC_KERNEL_END \
-                > \
-                kernel; \
-                auto const instance \
-                ( \
-                    alpaka::createTaskKernel<T_Acc> \
-                    ( \
-                        workdiv, \
-                        kernel, \
-                        gBuffer, \
-                        sources, \
-                        stepSize, \
-                        transferArray, \
-                        sourceWeight, \
-                        pointerArray, \
-                        scale, \
-                        clipping \
-                    ) \
-                ); \
-                alpaka::enqueue(stream, instance); \
-            }
             if( interpolation )
             {
-                ISAAC_KERNEL_START 1,
-                        0 ISAAC_KERNEL_END
+                VolumeRenderKernel
+                <
+                    T_SourceList,
+                    T_TransferArray,
+                    T_SourceWeight,
+                    T_PointerArray,
+                    T_Filter,
+                    T_transferSize,
+                    1
+                >
+                kernel;
+                auto const instance
+                (
+                    alpaka::createTaskKernel<T_Acc>
+                    (
+                        workdiv,
+                        kernel,
+                        gBuffer,
+                        sources,
+                        stepSize,
+                        transferArray,
+                        sourceWeight,
+                        pointerArray,
+                        scale,
+                        clipping
+                    )
+                );
+                alpaka::enqueue(stream, instance);
             }
             else
             {
-                ISAAC_KERNEL_START 0,
-                        0 ISAAC_KERNEL_END
+                VolumeRenderKernel
+                <
+                    T_SourceList,
+                    T_TransferArray,
+                    T_SourceWeight,
+                    T_PointerArray,
+                    T_Filter,
+                    T_transferSize,
+                    0
+                >
+                kernel;
+                auto const instance
+                (
+                    alpaka::createTaskKernel<T_Acc>
+                    (
+                        workdiv,
+                        kernel,
+                        gBuffer,
+                        sources,
+                        stepSize,
+                        transferArray,
+                        sourceWeight,
+                        pointerArray,
+                        scale,
+                        clipping
+                    )
+                );
+                alpaka::enqueue(stream, instance);
             }
-#undef ISAAC_KERNEL_START
-#undef ISAAC_KERNEL_END
         }
     };
 }

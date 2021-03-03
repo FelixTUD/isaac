@@ -37,7 +37,7 @@ namespace isaac
      */
     struct SSAOKernel {
         template <typename T_Acc>
-        ALPAKA_FN_ACC void operator() (
+        ISAAC_DEVICE void operator() (
             T_Acc const &acc,
             GBuffer gBuffer,
             AOParams aoProperties              //properties for ambient occlusion
@@ -185,7 +185,7 @@ namespace isaac
      */
     struct SSAOFilterKernel {
         template <typename T_Acc>
-        ALPAKA_FN_ACC void operator() (
+        ISAAC_DEVICE void operator() (
             T_Acc const &acc,
             GBuffer gBuffer,
             AOParams aoProperties              //properties for ambient occlusion
