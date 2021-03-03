@@ -55,7 +55,6 @@ namespace isaac
         else
         {
             isaac_int3 coord;
-#if 1
             isaac_float_dim <T_Source::featureDim> data8[2][2][2];
             for( int x = 0; x < 2; x++ )
             {
@@ -98,45 +97,6 @@ namespace isaac
             }
 
             data = trilinear( glm::fract( pos ), data8 );
-// new memory access test
-#else
-            isaac_float_dim <T_Source::featureDim> data8[8];
-            for( int i = 0; i < 8; ++i )
-            {
-                coord.x = isaac_int( pos.x ) + i % 2;
-                coord.y = isaac_int( pos.y ) + ( i / 2 ) % 2;
-                coord.z = isaac_int( pos.z ) + ( i / 4 ) % 2;
-                if( !T_Source::hasGuard && T_Source::persistent )
-                {
-                    if( isaac_uint( coord.x ) >= localSize.x )
-                    {
-                        coord.x = isaac_int( pos.x ) + 1 - i % 2;
-                    }
-                    if( isaac_uint( coord.y ) >= localSize.y )
-                    {
-                        coord.y = isaac_int( pos.y ) + 1 - ( i / 2 ) % 2;
-                    }
-                    if( isaac_uint( coord.z ) >= localSize.z )
-                    {
-                        coord.z = isaac_int( pos.z ) + 1 - ( i / 4 ) % 2;
-                    }
-                    
-                }
-                if( T_Source::persistent )
-                {
-                    data8[i] = source[coord];
-                }
-                else
-                {
-                    data8[i] = ptr[coord.x + ISAAC_GUARD_SIZE + ( coord.y + ISAAC_GUARD_SIZE ) 
-                                            * ( localSize.x + 2 * ISAAC_GUARD_SIZE ) + ( coord.z + ISAAC_GUARD_SIZE ) 
-                                            * ( ( localSize.x + 2 * ISAAC_GUARD_SIZE ) 
-                                            * ( localSize.y + 2 * ISAAC_GUARD_SIZE ) )];
-                }
-            }
-
-            data = trilinear( glm::fract( pos ), data8[0], data8[1], data8[2], data8[3], data8[4], data8[5], data8[6], data8[7] );
-#endif
         }
         isaac_float result = isaac_float( 0 );
 
