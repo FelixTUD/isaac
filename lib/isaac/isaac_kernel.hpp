@@ -16,12 +16,12 @@
 #pragma once
 
 
-#include "isaac_iso_kernel.hpp"
-#include "isaac_min_max_kernel.hpp"
 #include "isaac_particle_kernel.hpp"
 #include "isaac_ssao_kernel.hpp"
-#include "isaac_texture.hpp"
+#include "isaac_min_max_kernel.hpp"
+#include "isaac_iso_kernel.hpp"
 #include "isaac_volume_kernel.hpp"
+#include "isaac_texture.hpp"
 
 #include <float.h>
 
@@ -39,7 +39,7 @@ namespace isaac
         typename T_Source,
         typename T_PointerArray
     >
-    ISAAC_DEVICE_INLINE isaac_float
+    ISAAC_HOST_DEVICE_INLINE isaac_float
     get_value(
         const T_Source & source,
         const isaac_float3 & pos,
@@ -160,12 +160,12 @@ namespace isaac
      * @tparam T_LocalSize 
      * @param coord 
      * @param localSize 
-     * @return check_coord clamped coordiantes
+     * @return ISAAC_HOST_DEVICE_INLINE check_coord clamped coordiantes
      */
     template<
         bool T_interpolation
     >
-    ISAAC_DEVICE_INLINE void
+    ISAAC_HOST_DEVICE_INLINE void
     check_coord(
         isaac_float3 & coord,
         const isaac_size3 &  localSize
@@ -183,12 +183,12 @@ namespace isaac
      * @tparam T_LocalSize 
      * @param coord 
      * @param localSize 
-     * @return check_coord_with_guard clamped coordinate
+     * @return ISAAC_HOST_DEVICE_INLINE check_coord_with_guard clamped coordinate
      */
     template<
         bool T_interpolation
     >
-    ISAAC_DEVICE_INLINE void
+    ISAAC_HOST_DEVICE_INLINE void
     check_coord_with_guard(
         isaac_float3 & coord,
         const isaac_size3 & localSize
@@ -217,7 +217,7 @@ namespace isaac
             typename T_PointerArray,
             typename T_Feedback
         >
-        ISAAC_DEVICE_INLINE void operator()(
+        ISAAC_HOST_DEVICE_INLINE void operator()(
             const T_NR & nr,
             const T_Source & source,
             isaac_float4 & color,
@@ -487,11 +487,11 @@ namespace isaac
                             gradient = gradient / l;
                             isaac_float3 light = step / stepLength;
                             isaac_float ac = fabs( glm::dot( gradient, light ) );
-#    if ISAAC_SPECULAR == 1
+#if ISAAC_SPECULAR == 1
                             color = value * ac + ac * ac * ac * ac;
-#    else
+#else
                             color = value * ac;
-#    endif
+#endif
                         }
                         color.w = isaac_float( 1 );
                         feedback = 1;
@@ -528,7 +528,7 @@ namespace isaac
         template<
             typename T_Acc
         >
-        ISAAC_DEVICE void operator()(
+        ALPAKA_FN_ACC void operator()(
             T_Acc const & acc,
             uint32_t * const pixels,                //ptr to output pixels
             isaac_float3 * const gDepth,            //depth buffer
@@ -1099,7 +1099,7 @@ namespace isaac
                 
             }
 
-#    if ISAAC_SHOWBORDER == 1
+#if ISAAC_SHOWBORDER == 1
             if ( color.w <= isaac_float ( 0.99 ) ) {
                 oma = isaac_float ( 1 ) - color.w;
                 color_add.x = 0;
@@ -1108,7 +1108,7 @@ namespace isaac
                 color_add.w = oma * factor * isaac_float ( 10 );
                 color += color_add;
             }
-#    endif
+#endif
 
 
             setColor ( pixels[pixel.x + pixel.y * framebuffer_size.x], color );
@@ -1311,9 +1311,9 @@ namespace isaac
                 ISAAC_IDX_TYPE( ( readback_viewport[2] + block_size.x - 1 ) / block_size.x ),
                 ISAAC_IDX_TYPE( ( readback_viewport[3] + block_size.y - 1 ) / block_size.y )
             };
-#    if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
             if ( boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<TAccDim, ISAAC_IDX_TYPE> > >::value )
-#    endif
+#endif
             {
                 grid_size.x = ISAAC_IDX_TYPE( readback_viewport[2] );
                 grid_size.y = ISAAC_IDX_TYPE( readback_viewport[3] );
@@ -1345,32 +1345,45 @@ namespace isaac
                     threads
                 )
             );
-#    define ISAAC_KERNEL_START                                                                                        \
-        {                                                                                                             \
-            isaacRenderKernel < T_ParticleList, T_SourceList, T_TransferArray, T_SourceWeight, T_PointerArray,        \
-                T_Filter, T_transferSize,
-#    define ISAAC_KERNEL_END                                                                                          \
-        > kernel;                                                                                                     \
-        auto const instance(alpaka::createTaskKernel<T_Acc>(                                                          \
-            workdiv,                                                                                                  \
-            kernel,                                                                                                   \
-            framebuffer,                                                                                              \
-            depthBuffer,                                                                                              \
-            normalBuffer,                                                                                             \
-            framebuffer_size,                                                                                         \
-            framebuffer_start,                                                                                        \
-            particleSources,                                                                                          \
-            sources,                                                                                                  \
-            step,                                                                                                     \
-            backgroundColor,                                                                                          \
-            transferArray,                                                                                            \
-            sourceWeight,                                                                                             \
-            pointerArray,                                                                                             \
-            scale,                                                                                                    \
-            clipping,                                                                                                 \
-            ambientOcclusion));                                                                                       \
-        alpaka::enqueue(stream, instance);                                                                            \
-        }
+#define ISAAC_KERNEL_START \
+            { \
+                isaacRenderKernel \
+                < \
+                    T_ParticleList, \
+                    T_SourceList, \
+                    T_TransferArray, \
+                    T_SourceWeight, \
+                    T_PointerArray, \
+                    T_Filter, \
+                    T_transferSize,
+#define ISAAC_KERNEL_END \
+                > \
+                kernel; \
+                auto const instance \
+                ( \
+                    alpaka::createTaskKernel<T_Acc> \
+                    ( \
+                        workdiv, \
+                        kernel, \
+                        framebuffer, \
+                        depthBuffer, \
+                        normalBuffer, \
+                        framebuffer_size, \
+                        framebuffer_start, \
+                        particleSources, \
+                        sources, \
+                        step, \
+                        backgroundColor, \
+                        transferArray, \
+                        sourceWeight, \
+                        pointerArray, \
+                        scale, \
+                        clipping, \
+                        ambientOcclusion \
+                    ) \
+                ); \
+                alpaka::enqueue(stream, instance); \
+            }
             if( interpolation )
             {
                 if( isoSurface )
@@ -1389,12 +1402,12 @@ namespace isaac
                 ISAAC_KERNEL_START 0,
                         0 ISAAC_KERNEL_END
             }
-#    undef ISAAC_KERNEL_START
-#    undef ISAAC_KERNEL_END
+#undef ISAAC_KERNEL_START
+#undef ISAAC_KERNEL_END
         }
     };
 #endif
 
-} // namespace isaac
+} //namespace isaac;
 
 #pragma GCC diagnostic pop
