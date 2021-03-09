@@ -133,7 +133,7 @@ namespace isaac
                 offsetCoord = glm::clamp(
                     coord + isaac_int(guardSize),
                     isaac_int_dim<T_textureDim>(0),
-                    isaac_int_dim<T_textureDim>(sizeWithGuard - 1));
+                    isaac_int_dim<T_textureDim>(sizeWithGuard) - 1);
             }
             return get(offsetCoord - isaac_int(guardSize));
         }
