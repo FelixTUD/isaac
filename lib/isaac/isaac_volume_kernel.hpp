@@ -24,78 +24,69 @@ namespace isaac
     ISAAC_DEVICE_INLINE isaac_float getValue(
         const T_Source& source,
         const isaac_float3& pos,
-        const T_PointerArray& pointerArray,
+        const T_PointerArray& persistentArray,
         const isaac_size3& localSize)
     {
         isaac_float_dim<T_Source::featureDim> data;
-        isaac_float_dim<T_Source::featureDim>* ptr
-            = (isaac_float_dim<T_Source::featureDim>*) (pointerArray.pointer[T_NR::value]);
-        if(T_interpolation == 0)
+        isaac_float result = isaac_float(0);
+        if(T_Source::persistent)
         {
-            isaac_int3 coord = pos;
-            if(T_Source::persistent)
+            if(T_interpolation == 0)
             {
+                isaac_int3 coord = pos;
+
                 data = source[coord];
             }
             else
             {
-                data = ptr
-                    [coord.x + ISAAC_GUARD_SIZE + (coord.y + ISAAC_GUARD_SIZE) * (localSize.x + 2 * ISAAC_GUARD_SIZE)
-                     + (coord.z + ISAAC_GUARD_SIZE)
-                         * ((localSize.x + 2 * ISAAC_GUARD_SIZE) * (localSize.y + 2 * ISAAC_GUARD_SIZE))];
-            }
-        }
-        else
-        {
-            isaac_int3 coord;
-            isaac_float_dim<T_Source::featureDim> data8[2][2][2];
-            for(int x = 0; x < 2; x++)
-            {
-                for(int y = 0; y < 2; y++)
+                isaac_int3 coord;
+                isaac_float_dim<T_Source::featureDim> data8[2][2][2];
+                for(int x = 0; x < 2; x++)
                 {
-                    for(int z = 0; z < 2; z++)
+                    for(int y = 0; y < 2; y++)
                     {
-                        coord.x = isaac_int(pos.x) + x;
-                        coord.y = isaac_int(pos.y) + y;
-                        coord.z = isaac_int(pos.z) + z;
-                        if(!T_Source::hasGuard && T_Source::persistent)
+                        for(int z = 0; z < 2; z++)
                         {
-                            if(isaac_uint(coord.x) >= localSize.x)
+                            coord.x = isaac_int(pos.x) + x;
+                            coord.y = isaac_int(pos.y) + y;
+                            coord.z = isaac_int(pos.z) + z;
+                            if(T_Source::guardSize < 1)
                             {
-                                coord.x = isaac_int(pos.x) + 1 - x;
+                                if(isaac_uint(coord.x) >= localSize.x)
+                                {
+                                    coord.x = isaac_int(pos.x) + 1 - x;
+                                }
+                                if(isaac_uint(coord.y) >= localSize.y)
+                                {
+                                    coord.y = isaac_int(pos.y) + 1 - y;
+                                }
+                                if(isaac_uint(coord.z) >= localSize.z)
+                                {
+                                    coord.z = isaac_int(pos.z) + 1 - z;
+                                }
                             }
-                            if(isaac_uint(coord.y) >= localSize.y)
-                            {
-                                coord.y = isaac_int(pos.y) + 1 - y;
-                            }
-                            if(isaac_uint(coord.z) >= localSize.z)
-                            {
-                                coord.z = isaac_int(pos.z) + 1 - z;
-                            }
-                        }
-                        if(T_Source::persistent)
-                        {
                             data8[x][y][z] = source[coord];
-                        }
-                        else
-                        {
-                            data8[x][y][z] = ptr
-                                [coord.x + ISAAC_GUARD_SIZE
-                                 + (coord.y + ISAAC_GUARD_SIZE) * (localSize.x + 2 * ISAAC_GUARD_SIZE)
-                                 + (coord.z + ISAAC_GUARD_SIZE)
-                                     * ((localSize.x + 2 * ISAAC_GUARD_SIZE) * (localSize.y + 2 * ISAAC_GUARD_SIZE))];
                         }
                     }
                 }
+
+                data = trilinear(glm::fract(pos), data8);
             }
 
-            data = trilinear(glm::fract(pos), data8);
+            result = applyFunctorChain(data, T_NR::value);
         }
-        isaac_float result = isaac_float(0);
-
-
-        result = applyFunctorChain(data, T_NR::value);
-
+        else
+        {
+            Tex3D<isaac_float> texture = persistentArray.textures[T_NR::value];
+            if(T_interpolation == 0)
+            {
+                result = texture.sample<FilterType::NEAREST>(pos);
+            }
+            else
+            {
+                result = texture.sample<FilterType::LINEAR>(pos);
+            }
+        }
         return result;
     }
 
@@ -110,18 +101,10 @@ namespace isaac
     template<typename T_Source>
     ISAAC_HOST_DEVICE_INLINE void checkCoord(isaac_float3& coord, const isaac_size3& localSize)
     {
-        if(T_Source::hasGuard || !T_Source::persistent)
-        {
-            coord = glm::clamp(
-                coord,
-                isaac_float3(-ISAAC_GUARD_SIZE),
-                isaac_float3(localSize + ISAAC_IDX_TYPE(ISAAC_GUARD_SIZE - 1))
-                    - std::numeric_limits<isaac_float>::min());
-        }
-        else
-        {
-            coord = glm::clamp(coord, isaac_float3(0), isaac_float3(localSize - ISAAC_IDX_TYPE(1)));
-        }
+        coord = glm::clamp(
+            coord,
+            isaac_float3(-T_Source::guardSize),
+            isaac_float3(localSize + T_Source::guardSize - 1) - std::numeric_limits<isaac_float>::min());
     }
 
     template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, isaac_int T_interpolation>
@@ -140,12 +123,12 @@ namespace isaac
             const isaac_size3& localSize,
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
-            const T_PointerArray& pointerArray,
+            const T_PointerArray& persistentArray,
             isaac_float4& color) const
         {
             if(boost::mpl::at_c<T_Filter, T_NR::value>::type::value)
             {
-                isaac_float result = getValue<T_interpolation, T_NR>(source, pos, pointerArray, localSize);
+                isaac_float result = getValue<T_interpolation, T_NR>(source, pos, persistentArray, localSize);
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(result * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
                 isaac_float4 value = transferArray.pointer[T_NR::value][lookupValue];
@@ -176,7 +159,7 @@ namespace isaac
             isaac_float stepSize, // ray stepSize length
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_SourceWeight sourceWeight, // weights of sources for blending
-            const T_PointerArray pointerArray,
+            const T_PointerArray persistentArray,
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -201,7 +184,7 @@ namespace isaac
             if(!clipRay(ray, inputClipping))
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
             if(ray.endDepth <= ray.startDepth)
                 return;
 
@@ -247,7 +230,7 @@ namespace isaac
                     SimulationSize.localSize,
                     transferArray,
                     sourceWeight,
-                    pointerArray,
+                    persistentArray,
                     value);
                 oma = isaac_float(1) - color.w;
                 value *= factor;
@@ -272,9 +255,9 @@ namespace isaac
 #endif
 
             // Blend solid color and new volume color
-            isaac_float4 solidColor = getColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x]);
+            isaac_float4 solidColor = transformColor(gBuffer.color[pixel]);
             color = color + (1 - color.w) * solidColor;
-            setColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], color);
+            gBuffer.color[pixel] = transformColor(color);
         }
     };
 
@@ -299,7 +282,7 @@ namespace isaac
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
-            const T_PointerArray& pointerArray,
+            const T_PointerArray& persistentArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -325,7 +308,7 @@ namespace isaac
                         stepSize,
                         transferArray,
                         sourceWeight,
-                        pointerArray,
+                        persistentArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -351,7 +334,7 @@ namespace isaac
                         stepSize,
                         transferArray,
                         sourceWeight,
-                        pointerArray,
+                        persistentArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -390,7 +373,7 @@ namespace isaac
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
-            const T_PointerArray& pointerArray,
+            const T_PointerArray& persistentArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -415,7 +398,7 @@ namespace isaac
                     stepSize,
                     transferArray,
                     sourceWeight,
-                    pointerArray,
+                    persistentArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);
@@ -439,7 +422,7 @@ namespace isaac
                     stepSize,
                     transferArray,
                     sourceWeight,
-                    pointerArray,
+                    persistentArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);

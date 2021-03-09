@@ -157,30 +157,22 @@ namespace isaac
             }
         };
 
-        struct AllocatePointerArrayIterator
+        struct AllocatePersistentArrayIterator
         {
             template<typename T_Source, typename T_Array, typename T_LocalSize, typename T_Vector, typename T_DevAcc>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 const T_Source& source,
-                T_Array& pointerArray,
+                T_Array& persistentTextureArray,
                 const T_LocalSize& localSize,
-                T_Vector& alpaka_vector,
+                T_Vector& allocatorVector,
                 const T_DevAcc& acc) const
             {
-                if(T_Source::persistent)
+                if(!T_Source::persistent)
                 {
-                    pointerArray.pointer[I] = NULL;
-                }
-                else
-                {
-                    alpaka_vector.push_back(alpaka::Buf<T_DevAcc, isaac_float, FraDim, ISAAC_IDX_TYPE>(
-                        alpaka::allocBuf<isaac_float, ISAAC_IDX_TYPE>(
-                            acc,
-                            alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(
-                                T_Source::featureDim * (localSize[0] + 2 * ISAAC_GUARD_SIZE)
-                                * (localSize[1] + 2 * ISAAC_GUARD_SIZE) * (localSize[2] + 2 * ISAAC_GUARD_SIZE))))));
-                    pointerArray.pointer[I] = alpaka::getPtrNative(alpaka_vector.back());
+                    allocatorVector.push_back(
+                        Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                    persistentTextureArray.textures[I] = allocatorVector.back().getTexture();
                 }
             }
         };
@@ -215,7 +207,7 @@ namespace isaac
             }
         };
 
-        struct UpdatePointerArrayIterator
+        struct UpdatePersistentTextureIterator
         {
             template<
                 typename T_Source,
@@ -226,7 +218,7 @@ namespace isaac
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
-                T_Array& pointerArray,
+                T_Array& persistentTextureArray,
                 const isaac_size3& localSize,
                 const T_Weight& weight,
                 const T_IsoTheshold& isoThreshold,
@@ -237,22 +229,16 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(!T_Source::persistent && enabled)
                 {
-                    isaac_size2 gridSize = {
-                        ISAAC_IDX_TYPE((localSize[0] + ISAAC_GUARD_SIZE * 2 + 15) / 16),
-                        ISAAC_IDX_TYPE((localSize[1] + ISAAC_GUARD_SIZE * 2 + 15) / 16),
-                    };
-                    isaac_size2 blockSize = {
-                        ISAAC_IDX_TYPE(16),
-                        ISAAC_IDX_TYPE(16),
-                    };
-                    isaac_int3 localSizeArray
-                        = {isaac_int(localSize[0]), isaac_int(localSize[1]), isaac_int(localSize[2])};
+                    isaac_size2 gridSize
+                        = {ISAAC_IDX_TYPE((localSize.x + T_Source::guardSize * 2 + 15) / 16),
+                           ISAAC_IDX_TYPE((localSize.y + T_Source::guardSize * 2 + 15) / 16)};
+                    isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
                     if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
 #endif
                     {
-                        gridSize.x = ISAAC_IDX_TYPE(localSize[0] + ISAAC_GUARD_SIZE * 2);
-                        gridSize.y = ISAAC_IDX_TYPE(localSize[0] + ISAAC_GUARD_SIZE * 2);
+                        gridSize.x = ISAAC_IDX_TYPE(localSize.x + T_Source::guardSize * 2);
+                        gridSize.y = ISAAC_IDX_TYPE(localSize.y + T_Source::guardSize * 2);
                         blockSize.x = ISAAC_IDX_TYPE(1);
                         blockSize.y = ISAAC_IDX_TYPE(1);
                     }
@@ -263,13 +249,14 @@ namespace isaac
                     const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
                     const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
                     auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
-                    UpdateBufferKernel<T_Source> kernel;
+                    UpdatePersistendTextureKernel<T_Source> kernel;
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
+                        I,
                         source,
-                        pointerArray.pointer[I],
-                        localSizeArray));
+                        persistentTextureArray.textures[I],
+                        isaac_int3(localSize)));
                     alpaka::enqueue(stream, instance);
                     alpaka::wait(stream);
                 }
@@ -289,7 +276,7 @@ namespace isaac
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 const T_Source& source,
-                T_Array& pointerArray,
+                T_Array& persistentTextureArray,
                 T_Minmax& minMax,
                 T_LocalMinmax& localMinMax,
                 T_LocalSize& localSize,
@@ -325,7 +312,7 @@ namespace isaac
                         I,
                         alpaka::getPtrNative(localMinMax),
                         localSize,
-                        pointerArray.pointer[I]));
+                        persistentTextureArray.textures[I]));
                     alpaka::enqueue(stream, instance);
                     alpaka::wait(stream);
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
@@ -482,10 +469,6 @@ namespace isaac
             , sources(sources)
             , scale(scale)
             , icetBoundingBox(true)
-            , framebuffer(alpaka::allocBuf<uint32_t, ISAAC_IDX_TYPE>(acc, framebufferProd))
-            , framebufferAO(alpaka::allocBuf<isaac_float, ISAAC_IDX_TYPE>(acc, framebufferProd))
-            , framebufferDepth(alpaka::allocBuf<isaac_float, ISAAC_IDX_TYPE>(acc, framebufferProd))
-            , framebufferNormal(alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(acc, framebufferProd))
             , functor_chain_d(alpaka::allocBuf<FunctorChainPointerN, ISAAC_IDX_TYPE>(
                   acc,
                   ISAAC_IDX_TYPE(ISAAC_FUNCTOR_COMPLEX * 4)))
@@ -504,6 +487,10 @@ namespace isaac
             localParticleMinMaxArrayDevice(alpaka::allocBuf<MinMax, ISAAC_IDX_TYPE>(
                 acc,
                 ISAAC_IDX_TYPE(localParticleSize[0] * localParticleSize[1])))
+            , framebuffer(acc, framebufferSize)
+            , framebufferAO(acc, framebufferSize)
+            , framebufferNormal(acc, framebufferSize)
+            , framebufferDepth(acc, framebufferSize)
         {
 #if ISAAC_VALGRIND_TWEAKS == 1
             // Jansson has some optimizations for 2 and 4 byte aligned
@@ -572,7 +559,13 @@ namespace isaac
             updateFunctions();
 
             // non persistent buffer memory
-            forEachParams(sources, AllocatePointerArrayIterator(), pointerArray, localSize, pointerArrayAlpaka, acc);
+            forEachParams(
+                sources,
+                AllocatePersistentArrayIterator(),
+                persistentTextureArray,
+                localSize,
+                persistentTextureAllocators,
+                acc);
 
             // Transfer func memory:
             for(int i = 0;
@@ -1165,8 +1158,8 @@ namespace isaac
                 ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
                 forEachParams(
                     sources,
-                    UpdatePointerArrayIterator(),
-                    pointerArray,
+                    UpdatePersistentTextureIterator(),
+                    persistentTextureArray,
                     localSize,
                     sourceWeight,
                     sourceIsoThreshold,
@@ -1573,7 +1566,7 @@ namespace isaac
                 forEachParams(
                     sources,
                     CalcMinMaxIterator(),
-                    pointerArray,
+                    persistentTextureArray,
                     minMaxArray,
                     localMinMaxArrayDevice,
                     localSize,
@@ -1909,10 +1902,10 @@ namespace isaac
             GBuffer gBuffer;
             gBuffer.size = myself->framebufferSize;
             gBuffer.startOffset = framebufferStart;
-            gBuffer.color = alpaka::getPtrNative(myself->framebuffer);
-            gBuffer.depth = alpaka::getPtrNative(myself->framebufferDepth);
-            gBuffer.normal = alpaka::getPtrNative(myself->framebufferNormal);
-            gBuffer.aoStrength = alpaka::getPtrNative(myself->framebufferAO);
+            gBuffer.color = myself->framebuffer.getTexture();
+            gBuffer.depth = myself->framebufferDepth.getTexture();
+            gBuffer.normal = myself->framebufferNormal.getTexture();
+            gBuffer.aoStrength = myself->framebufferAO.getTexture();
 
             // reset the GBuffer to default values
             {
@@ -1951,7 +1944,7 @@ namespace isaac
                 T_SourceList,
                 TransferDeviceStruct<SourceListLength>,
                 IsoThresholdStruct<boost::mpl::size<T_SourceList>::type::value>,
-                PointerArrayStruct<boost::mpl::size<T_SourceList>::type::value>,
+                PersistentArrayStruct<boost::mpl::size<T_SourceList>::type::value>,
                 boost::mpl::vector<>,
                 T_transferSize,
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
@@ -1965,7 +1958,7 @@ namespace isaac
                     myself->step,
                     myself->transferDevice,
                     myself->sourceIsoThreshold,
-                    myself->pointerArray,
+                    myself->persistentTextureArray,
                     workdiv,
                     myself->interpolation,
                     isaac_scale,
@@ -2028,7 +2021,7 @@ namespace isaac
                 T_SourceList,
                 TransferDeviceStruct<SourceListLength>,
                 SourceWeightStruct<SourceListLength>,
-                PointerArrayStruct<boost::mpl::size<T_SourceList>::type::value>,
+                PersistentArrayStruct<boost::mpl::size<T_SourceList>::type::value>,
                 boost::mpl::vector<>,
                 T_transferSize,
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
@@ -2042,7 +2035,7 @@ namespace isaac
                     myself->step,
                     myself->transferDevice,
                     myself->sourceWeight,
-                    myself->pointerArray,
+                    myself->persistentTextureArray,
                     workdiv,
                     myself->interpolation,
                     isaac_scale,
@@ -2056,17 +2049,13 @@ namespace isaac
             ISAAC_START_TIME_MEASUREMENT(copy, myself->getTicksUs())
 
             // get memory view from IceT pixels on host
-            alpaka::ViewPlainPtr<T_Host, uint32_t, FraDim, ISAAC_IDX_TYPE> result_buffer(
-                (uint32_t*) (pixels),
+            alpaka::ViewPlainPtr<T_Host, isaac_byte4, FraDim, ISAAC_IDX_TYPE> result_buffer(
+                (isaac_byte4*) (pixels),
                 myself->host,
                 alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(myself->framebufferProd));
 
             // copy device framebuffer to result IceT pixel buffer
-            alpaka::memcpy(
-                myself->stream,
-                result_buffer,
-                myself->framebuffer,
-                alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(myself->framebufferProd));
+            myself->framebuffer.copyToBuffer(myself->stream, result_buffer);
 
             // stop timer and calculate copy time
             ISAAC_STOP_TIME_MEASUREMENT(myself->copyTime, +=, copy, myself->getTicksUs())
@@ -2343,16 +2332,16 @@ namespace isaac
         alpaka::Vec<FraDim, ISAAC_IDX_TYPE> framebufferProd;
 
         // framebuffer pixel values
-        alpaka::Buf<DevAcc, uint32_t, FraDim, ISAAC_IDX_TYPE> framebuffer;
+        Tex2DAllocator<DevAcc, isaac_byte4> framebuffer;
 
         // ambient occlusion factor values
-        alpaka::Buf<DevAcc, isaac_float, FraDim, ISAAC_IDX_TYPE> framebufferAO;
+        Tex2DAllocator<DevAcc, isaac_float> framebufferAO;
 
         // pixel depth information
-        alpaka::Buf<DevAcc, isaac_float, FraDim, ISAAC_IDX_TYPE> framebufferDepth;
+        Tex2DAllocator<DevAcc, isaac_float> framebufferDepth;
 
         // pixel normal information
-        alpaka::Buf<DevAcc, isaac_float3, FraDim, ISAAC_IDX_TYPE> framebufferNormal;
+        Tex2DAllocator<DevAcc, isaac_float3> framebufferNormal;
 
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functor_chain_d;
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functorChainChooseDevice;
@@ -2413,7 +2402,7 @@ namespace isaac
 
         std::vector<alpaka::Buf<DevAcc, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferDeviceBuf;
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
-        std::vector<alpaka::Buf<DevAcc, isaac_float, FraDim, ISAAC_IDX_TYPE>> pointerArrayAlpaka;
+        std::vector<Tex3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
 
         TransferDeviceStruct<(
             boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
@@ -2425,7 +2414,7 @@ namespace isaac
             boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
             sourceWeight;
         IsoThresholdStruct<(boost::mpl::size<T_SourceList>::type::value)> sourceIsoThreshold;
-        PointerArrayStruct<(boost::mpl::size<T_SourceList>::type::value)> pointerArray;
+        PersistentArrayStruct<(boost::mpl::size<T_SourceList>::type::value)> persistentTextureArray;
         MinMaxArray<(boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
             minMaxArray;
         FunctionsStruct

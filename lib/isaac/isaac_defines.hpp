@@ -35,10 +35,6 @@
 #    define ISAAC_MAX_SOURCES 16
 #endif
 
-#ifndef ISAAC_GUARD_SIZE
-#    define ISAAC_GUARD_SIZE 1
-#endif
-
 #ifndef ISAAC_DEFAULT_STEP
 #    define ISAAC_DEFAULT_STEP 0.5
 #endif

@@ -21,11 +21,16 @@
 
 namespace isaac
 {
-    template<isaac_int T_interpolation, isaac_int T_index, typename T_NR, typename T_Source, typename T_PointerArray>
+    template<
+        isaac_int T_interpolation,
+        isaac_int T_index,
+        typename T_NR,
+        typename T_Source,
+        typename T_PersistentArray>
     ISAAC_DEVICE_INLINE isaac_float getCompGradient(
         const T_Source& source,
         const isaac_float3& pos,
-        const T_PointerArray& pointerArray,
+        const T_PersistentArray& persistentTextureArray,
         const isaac_size3& localSize)
     {
         isaac_float3 front = {0, 0, 0};
@@ -48,22 +53,22 @@ namespace isaac
             d = isaac_int(back[T_index]) - isaac_int(front[T_index]);
         }
 
-        return (getValue<T_interpolation, T_NR>(source, back, pointerArray, localSize)
-                - getValue<T_interpolation, T_NR>(source, front, pointerArray, localSize))
+        return (getValue<T_interpolation, T_NR>(source, back, persistentTextureArray, localSize)
+                - getValue<T_interpolation, T_NR>(source, front, persistentTextureArray, localSize))
             / d;
     }
 
-    template<isaac_int T_interpolation, typename T_NR, typename T_Source, typename T_PointerArray>
+    template<isaac_int T_interpolation, typename T_NR, typename T_Source, typename T_PersistentArray>
     ISAAC_DEVICE_INLINE isaac_float3 getGradient(
         const T_Source& source,
         const isaac_float3& pos,
-        const T_PointerArray& pointerArray,
+        const T_PersistentArray& persistentTextureArray,
         const isaac_size3& localSize)
     {
         isaac_float3 gradient
-            = {getCompGradient<T_interpolation, 0, T_NR>(source, pos, pointerArray, localSize),
-               getCompGradient<T_interpolation, 1, T_NR>(source, pos, pointerArray, localSize),
-               getCompGradient<T_interpolation, 2, T_NR>(source, pos, pointerArray, localSize)};
+            = {getCompGradient<T_interpolation, 0, T_NR>(source, pos, persistentTextureArray, localSize),
+               getCompGradient<T_interpolation, 1, T_NR>(source, pos, persistentTextureArray, localSize),
+               getCompGradient<T_interpolation, 2, T_NR>(source, pos, persistentTextureArray, localSize)};
         return gradient;
     }
 
@@ -75,7 +80,7 @@ namespace isaac
             typename T_Source,
             typename T_TransferArray,
             typename T_IsoThreshold,
-            typename T_PointerArray>
+            typename T_PersistentArray>
         ISAAC_DEVICE_INLINE void operator()(
             const T_NR& nr,
             const T_Source& source,
@@ -87,7 +92,7 @@ namespace isaac
             const isaac_size3& localSize,
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
-            const T_PointerArray& pointerArray,
+            const T_PersistentArray& persistentTextureArray,
             const isaac_float3& scale,
             const bool& first,
             bool& hit,
@@ -102,7 +107,8 @@ namespace isaac
                 // get value of p1
                 isaac_float3 p1Unscaled = p1 / scale;
                 checkCoord<T_Source>(p1Unscaled, localSize);
-                isaac_float result1 = getValue<T_interpolation, T_NR>(source, p1Unscaled, pointerArray, localSize);
+                isaac_float result1
+                    = getValue<T_interpolation, T_NR>(source, p1Unscaled, persistentTextureArray, localSize);
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(result1 * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
                 isaac_float value1 = transferArray.pointer[T_NR::value][lookupValue].a;
@@ -125,13 +131,14 @@ namespace isaac
                 isaac_float3 posUnscaled = pos / scale;
                 checkCoord<T_Source>(posUnscaled, localSize);
                 // get color of hit
-                isaac_float result = getValue<T_interpolation, T_NR>(source, posUnscaled, pointerArray, localSize);
+                isaac_float result
+                    = getValue<T_interpolation, T_NR>(source, posUnscaled, persistentTextureArray, localSize);
                 lookupValue = ISAAC_IDX_TYPE(glm::round(result * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
                 hitColor = transferArray.pointer[T_NR::value][lookupValue];
                 hitColor.a = 1.0f;
                 isaac_float3 gradient
-                    = getGradient<T_interpolation, T_NR>(source, posUnscaled, pointerArray, localSize);
+                    = getGradient<T_interpolation, T_NR>(source, posUnscaled, persistentTextureArray, localSize);
                 isaac_float gradientLength = glm::length(gradient);
                 if(first || gradientLength == isaac_float(0))
                 {
@@ -147,7 +154,7 @@ namespace isaac
         typename T_SourceList,
         typename T_TransferArray,
         typename T_IsoThreshold,
-        typename T_PointerArray,
+        typename T_PersistentArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         isaac_int T_interpolation>
@@ -161,7 +168,7 @@ namespace isaac
             isaac_float stepSize, // ray stepSize length
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_IsoThreshold sourceIsoThreshold, // weights of sources for blending
-            const T_PointerArray pointerArray,
+            const T_PersistentArray persistentTextureArray,
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -186,7 +193,7 @@ namespace isaac
             if(!clipRay(ray, inputClipping))
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
 
             isaac_float depth = ray.endDepth;
 
@@ -250,7 +257,7 @@ namespace isaac
                     SimulationSize.localSize,
                     transferArray,
                     sourceIsoThreshold,
-                    pointerArray,
+                    persistentTextureArray,
                     scale,
                     first,
                     hit,
@@ -280,9 +287,9 @@ namespace isaac
 
             if(hit)
             {
-                setColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], hitColor);
-                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = hitNormal;
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
+                gBuffer.color[pixel] = transformColor(hitColor);
+                gBuffer.normal[pixel] = hitNormal;
+                gBuffer.depth[pixel] = depth;
             }
         }
     };
@@ -295,7 +302,7 @@ namespace isaac
             typename T_Source,
             typename T_TransferArray,
             typename T_IsoTheshold,
-            typename T_PointerArray>
+            typename T_PersistentArray>
         ISAAC_DEVICE_INLINE void operator()(
             const T_NR& nr,
             const T_Source& source,
@@ -306,7 +313,7 @@ namespace isaac
             const isaac_size3& localSize,
             const T_TransferArray& transferArray,
             const T_IsoTheshold& sourceIsoThreshold,
-            const T_PointerArray& pointerArray,
+            const T_PersistentArray& persistentTextureArray,
             const isaac_float3& scale,
             const bool& first,
             isaac_float* oldValues,
@@ -317,7 +324,7 @@ namespace isaac
         {
             if(boost::mpl::at_c<T_Filter, T_NR::value>::type::value)
             {
-                isaac_float value = getValue<T_interpolation, T_NR>(source, pos, pointerArray, localSize);
+                isaac_float value = getValue<T_interpolation, T_NR>(source, pos, persistentTextureArray, localSize);
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(value * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
                 value = transferArray.pointer[T_NR::value][lookupValue].a;
@@ -343,13 +350,14 @@ namespace isaac
                 isaac_float3 posUnscaled = newPos / scale;
                 checkCoord<T_Source>(posUnscaled, localSize);
                 // get color of hit
-                isaac_float result = getValue<T_interpolation, T_NR>(source, posUnscaled, pointerArray, localSize);
+                isaac_float result
+                    = getValue<T_interpolation, T_NR>(source, posUnscaled, persistentTextureArray, localSize);
                 lookupValue = ISAAC_IDX_TYPE(glm::round(result * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
                 hitColor = transferArray.pointer[T_NR::value][lookupValue];
                 hitColor.a = 1.0f;
                 isaac_float3 gradient
-                    = getGradient<T_interpolation, T_NR>(source, posUnscaled, pointerArray, localSize);
+                    = getGradient<T_interpolation, T_NR>(source, posUnscaled, persistentTextureArray, localSize);
                 isaac_float gradientLength = glm::length(gradient);
                 if(first)
                 {
@@ -366,7 +374,7 @@ namespace isaac
         typename T_SourceList,
         typename T_TransferArray,
         typename T_IsoTheshold,
-        typename T_PointerArray,
+        typename T_PersistentArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         isaac_int T_interpolation>
@@ -380,7 +388,7 @@ namespace isaac
             isaac_float stepSize, // ray stepSize length
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_IsoTheshold sourceIsoThreshold, // weights of sources for blending
-            const T_PointerArray pointerArray,
+            const T_PersistentArray persistentTextureArray,
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -405,7 +413,7 @@ namespace isaac
             if(!clipRay(ray, inputClipping))
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
             if(ray.endDepth <= ray.startDepth)
                 return;
 
@@ -458,7 +466,7 @@ namespace isaac
                     SimulationSize.localSize,
                     transferArray,
                     sourceIsoThreshold,
-                    pointerArray,
+                    persistentTextureArray,
                     scale,
                     first,
                     oldValues,
@@ -470,9 +478,9 @@ namespace isaac
 
             if(hit)
             {
-                setColor(gBuffer.color[pixel.x + pixel.y * gBuffer.size.x], hitColor);
-                gBuffer.normal[pixel.x + pixel.y * gBuffer.size.x] = hitNormal;
-                gBuffer.depth[pixel.x + pixel.y * gBuffer.size.x] = depth;
+                gBuffer.color[pixel] = transformColor(hitColor);
+                gBuffer.normal[pixel] = hitNormal;
+                gBuffer.depth[pixel] = depth;
             }
         }
     };
@@ -482,7 +490,7 @@ namespace isaac
         typename T_SourceList,
         typename T_TransferArray,
         typename T_IsoThreshold,
-        typename T_PointerArray,
+        typename T_PersistentArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -498,7 +506,7 @@ namespace isaac
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
-            const T_PointerArray& pointerArray,
+            const T_PersistentArray& persistentTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -510,7 +518,7 @@ namespace isaac
                     T_SourceList,
                     T_TransferArray,
                     T_IsoThreshold,
-                    T_PointerArray,
+                    T_PersistentArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::false_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -524,7 +532,7 @@ namespace isaac
                         stepSize,
                         transferArray,
                         sourceIsoThreshold,
-                        pointerArray,
+                        persistentTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -536,7 +544,7 @@ namespace isaac
                     T_SourceList,
                     T_TransferArray,
                     T_IsoThreshold,
-                    T_PointerArray,
+                    T_PersistentArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::true_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -550,7 +558,7 @@ namespace isaac
                         stepSize,
                         transferArray,
                         sourceIsoThreshold,
-                        pointerArray,
+                        persistentTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -563,7 +571,7 @@ namespace isaac
         typename T_SourceList,
         typename T_TransferArray,
         typename T_IsoThreshold,
-        typename T_PointerArray,
+        typename T_PersistentArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -573,7 +581,7 @@ namespace isaac
         T_SourceList,
         T_TransferArray,
         T_IsoThreshold,
-        T_PointerArray,
+        T_PersistentArray,
         T_Filter,
         T_transferSize,
         T_WorkDiv,
@@ -589,7 +597,7 @@ namespace isaac
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
-            const T_PointerArray& pointerArray,
+            const T_PersistentArray& persistentTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -601,7 +609,7 @@ namespace isaac
                     T_SourceList,
                     T_TransferArray,
                     T_IsoThreshold,
-                    T_PointerArray,
+                    T_PersistentArray,
                     T_Filter,
                     T_transferSize,
                     1>
@@ -614,7 +622,7 @@ namespace isaac
                     stepSize,
                     transferArray,
                     sourceIsoThreshold,
-                    pointerArray,
+                    persistentTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);
@@ -625,7 +633,7 @@ namespace isaac
                     T_SourceList,
                     T_TransferArray,
                     T_IsoThreshold,
-                    T_PointerArray,
+                    T_PersistentArray,
                     T_Filter,
                     T_transferSize,
                     0>
@@ -638,7 +646,7 @@ namespace isaac
                     stepSize,
                     transferArray,
                     sourceIsoThreshold,
-                    pointerArray,
+                    persistentTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);

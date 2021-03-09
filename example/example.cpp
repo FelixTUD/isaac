@@ -23,9 +23,9 @@
 
 using namespace isaac;
 
-#define VOLUME_X 64
-#define VOLUME_Y 64
-#define VOLUME_Z 64
+#define VOLUME_X 256
+#define VOLUME_Y 256
+#define VOLUME_Z 512
 
 #define PARTICLE_VOLUME_X 64
 #define PARTICLE_VOLUME_Y 64
@@ -40,7 +40,7 @@ class TestSource1
 {
 public:
     static const ISAAC_IDX_TYPE featureDim = 3;
-    static const bool hasGuard = false;
+    static const ISAAC_IDX_TYPE guardSize = 0;
     static const bool persistent = true;
 
 
@@ -78,8 +78,8 @@ class TestSource2
 {
 public:
     static const ISAAC_IDX_TYPE featureDim = 1;
-    static const bool hasGuard = false;
-    static const bool persistent = false;
+    static const ISAAC_IDX_TYPE guardSize = 0;
+    static const bool persistent = true;
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource2(isaac_float* ptr) : ptr(ptr)
