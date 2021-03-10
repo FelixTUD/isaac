@@ -104,7 +104,8 @@ namespace isaac
         coord = glm::clamp(
             coord,
             isaac_float3(-T_Source::guardSize),
-            isaac_float3(localSize + T_Source::guardSize - 1) - std::numeric_limits<isaac_float>::min());
+            isaac_float3(localSize + T_Source::guardSize - ISAAC_IDX_TYPE(1))
+                - std::numeric_limits<isaac_float>::min());
     }
 
     template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, isaac_int T_interpolation>
