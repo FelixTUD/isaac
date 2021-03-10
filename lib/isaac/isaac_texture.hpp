@@ -250,9 +250,31 @@ namespace isaac
             alpaka::memcpy(queue, viewDst, buffer, bufferExtent);
         }
 
+        template<typename T_Queue, typename T_DstDev>
+        void copyToTexture(T_Queue& queue, TextureAllocator<T_DstDev, T_Type, T_textureDim>& textureDst) const
+        {
+            assert(bufferExtent == textureDst.getBufferExtent());
+            alpaka::memcpy(queue, textureDst.getTextureView(), buffer, bufferExtent);
+        }
+
         Texture<T_Type, T_textureDim> getTexture() const
         {
             return texture;
+        }
+
+        Texture<T_Type, T_textureDim>& getTexture()
+        {
+            return texture;
+        }
+
+        alpaka::Buf<T_DevAcc, T_Type, FraDim, ISAAC_IDX_TYPE>& getTextureView()
+        {
+            return buffer;
+        }
+
+        ISAAC_IDX_TYPE getBufferExtent()
+        {
+            return bufferExtent;
         }
 
     private:

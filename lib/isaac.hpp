@@ -64,13 +64,23 @@ namespace isaac
         typename T_Acc,
         typename T_Stream,
         typename T_AccDim,
+        typename T_VolumeSourceList,
+        typename T_FieldSourceList,
         typename T_ParticleList,
-        typename T_SourceList,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_Controller,
         typename T_Compositor>
     class IsaacVisualization
     {
+        static const int vSourceListSize = boost::mpl::size<T_VolumeSourceList>::type::value;
+        static const int fSourceListSize = boost::mpl::size<T_FieldSourceList>::type::value;
+        static const int pSourceListSize = boost::mpl::size<T_ParticleList>::type::value;
+
+        static const int volumeFieldSourceListSize = vSourceListSize + fSourceListSize;
+
+        static const int combinedSourceListSize = vSourceListSize + fSourceListSize + pSourceListSize;
+
+
     public:
         IsaacCommunicator* getCommunicator()
         {
@@ -82,7 +92,7 @@ namespace isaac
         using FraDim = alpaka::DimInt<1>;
         using TexDim = alpaka::DimInt<1>;
 
-        struct source_2_json_iterator
+        struct Source2jsonIterator
         {
             template<typename T_Source, typename T_JsonRoot>
             ISAAC_HOST_INLINE void operator()(const int I, const T_Source& s, T_JsonRoot& jsonRoot) const
@@ -91,18 +101,6 @@ namespace isaac
                 json_array_append_new(jsonRoot, content);
                 json_object_set_new(content, "name", json_string(T_Source::getName().c_str()));
                 json_object_set_new(content, "feature dimension", json_integer(s.featureDim));
-            }
-        };
-
-        struct ParticleSource2jsonIterator
-        {
-            template<typename T_Source, typename T_JsonRoot>
-            ISAAC_HOST_INLINE void operator()(const int I, const T_Source& s, T_JsonRoot& jsonRoot) const
-            {
-                json_t* content = json_object();
-                json_array_append_new(jsonRoot, content);
-                json_object_set_new(content, "name", json_string(T_Source::getName().c_str()));
-                json_object_set_new(content, "feature dimension", json_integer(3));
             }
         };
 
@@ -139,13 +137,13 @@ namespace isaac
 
         struct UpdateFunctorChainIterator
         {
-            template<typename T_Source, typename T_Functions, typename T_Offset, typename T_Dest>
+            template<typename T_Source, typename T_Functions, typename T_Dest>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 const T_Source& source,
                 const T_Functions& functions,
-                const T_Offset& offset,
-                T_Dest& dest) const
+                T_Dest& dest,
+                const int offset = 0) const
             {
                 isaac_int chain_nr = 0;
                 for(int i = 0; i < ISAAC_MAX_FUNCTORS; i++)
@@ -166,13 +164,14 @@ namespace isaac
                 T_Array& persistentTextureArray,
                 const T_LocalSize& localSize,
                 T_Vector& allocatorVector,
-                const T_DevAcc& acc) const
+                const T_DevAcc& acc,
+                const int offset = 0) const
             {
                 if(!T_Source::persistent)
                 {
                     allocatorVector.push_back(
                         Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
-                    persistentTextureArray.textures[I] = allocatorVector.back().getTexture();
+                    persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
                 }
             }
         };
@@ -223,9 +222,11 @@ namespace isaac
                 const T_Weight& weight,
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
-                T_Stream__& stream) const
+                T_Stream__& stream,
+                int offset = 0) const
             {
-                bool enabled = weight.value[I] != isaac_float(0) || isoThreshold.value[I] != isaac_float(0);
+                int index = I + offset;
+                bool enabled = weight.value[index] != isaac_float(0) || isoThreshold.value[index] != isaac_float(0);
                 source.update(enabled, pointer);
                 if(!T_Source::persistent && enabled)
                 {
@@ -253,9 +254,69 @@ namespace isaac
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
-                        I,
+                        index,
                         source,
-                        persistentTextureArray.textures[I],
+                        persistentTextureArray.textures[index],
+                        isaac_int3(localSize)));
+                    alpaka::enqueue(stream, instance);
+                    alpaka::wait(stream);
+                }
+            }
+        };
+
+        struct UpdateLICTextureIterator
+        {
+            template<
+                typename T_Source,
+                typename T_Array,
+                typename T_Weight,
+                typename T_IsoTheshold,
+                typename T_Stream__>
+            ISAAC_HOST_INLINE void operator()(
+                const int I,
+                T_Source& source,
+                T_Array& persistentTextureArray,
+                const Tex3D<isaac_float>& noiseTexture,
+                const isaac_size3& localSize,
+                const T_Weight& weight,
+                const T_IsoTheshold& isoThreshold,
+                void* pointer,
+                T_Stream__& stream,
+                int offset = 0) const
+            {
+                int index = I + offset;
+                bool enabled = weight.value[index] != isaac_float(0) || isoThreshold.value[index] != isaac_float(0);
+                source.update(enabled, pointer);
+                if(!T_Source::persistent && enabled)
+                {
+                    isaac_size2 gridSize
+                        = {ISAAC_IDX_TYPE((localSize.x + T_Source::guardSize * 2 + 15) / 16),
+                           ISAAC_IDX_TYPE((localSize.y + T_Source::guardSize * 2 + 15) / 16)};
+                    isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+                    if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
+#endif
+                    {
+                        gridSize.x = ISAAC_IDX_TYPE(localSize.x + T_Source::guardSize * 2);
+                        gridSize.y = ISAAC_IDX_TYPE(localSize.y + T_Source::guardSize * 2);
+                        blockSize.x = ISAAC_IDX_TYPE(1);
+                        blockSize.y = ISAAC_IDX_TYPE(1);
+                    }
+                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
+                        ISAAC_IDX_TYPE(1),
+                        ISAAC_IDX_TYPE(1),
+                        ISAAC_IDX_TYPE(1));
+                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
+                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
+                    auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
+                    UpdateLICTextureKernel<T_Source> kernel;
+                    auto const instance(alpaka::createTaskKernel<T_Acc>(
+                        workdiv,
+                        kernel,
+                        index,
+                        source,
+                        persistentTextureArray.textures[index],
+                        noiseTexture,
                         isaac_int3(localSize)));
                     alpaka::enqueue(stream, instance);
                     alpaka::wait(stream);
@@ -281,8 +342,10 @@ namespace isaac
                 T_LocalMinmax& localMinMax,
                 T_LocalSize& localSize,
                 T_Stream__& stream,
-                const T_Host__& host) const
+                const T_Host__& host,
+                const int offset = 0) const
             {
+                const int index = I + offset;
                 isaac_size2 gridSize = (localSize + ISAAC_IDX_TYPE(15)) / ISAAC_IDX_TYPE(16);
                 isaac_size2 blockSize(16);
 
@@ -309,10 +372,10 @@ namespace isaac
                         workdiv,
                         kernel,
                         source,
-                        I,
+                        index,
                         alpaka::getPtrNative(localMinMax),
                         localSize,
-                        persistentTextureArray.textures[I]));
+                        persistentTextureArray.textures[index]));
                     alpaka::enqueue(stream, instance);
                     alpaka::wait(stream);
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
@@ -325,17 +388,17 @@ namespace isaac
                         localMinMax,
                         alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(localSize.x * localSize.y));
                 }
-                minMax.min[I] = std::numeric_limits<isaac_float>::max();
-                minMax.max[I] = -std::numeric_limits<isaac_float>::max();
+                minMax.min[index] = std::numeric_limits<isaac_float>::max();
+                minMax.max[index] = -std::numeric_limits<isaac_float>::max();
                 for(ISAAC_IDX_TYPE i = 0; i < localSize.x * localSize.y; i++)
                 {
-                    if(localMinMaxHostArray[i].min < minMax.min[I])
+                    if(localMinMaxHostArray[i].min < minMax.min[index])
                     {
-                        minMax.min[I] = localMinMaxHostArray[i].min;
+                        minMax.min[index] = localMinMaxHostArray[i].min;
                     }
-                    if(localMinMaxHostArray[i].max > minMax.max[I])
+                    if(localMinMaxHostArray[i].max > minMax.max[index])
                     {
-                        minMax.max[I] = localMinMaxHostArray[i].max;
+                        minMax.max[index] = localMinMaxHostArray[i].max;
                     }
                 }
             }
@@ -435,8 +498,9 @@ namespace isaac
             const isaac_size3 localSize,
             const isaac_size3 localParticleSize,
             const isaac_size3 position,
+            T_VolumeSourceList& volumeSources,
+            T_FieldSourceList& fieldSources,
             T_ParticleList& particleSources,
-            T_SourceList& sources,
             isaac_float3 scale
 
             )
@@ -465,8 +529,9 @@ namespace isaac
             , interpolation(false)
             , step(isaac_float(ISAAC_DEFAULT_STEP))
             , framebufferProd(ISAAC_IDX_TYPE(framebufferSize.x) * ISAAC_IDX_TYPE(framebufferSize.y))
+            , volumeSources(volumeSources)
+            , fieldSources(fieldSources)
             , particleSources(particleSources)
-            , sources(sources)
             , scale(scale)
             , icetBoundingBox(true)
             , functor_chain_d(alpaka::allocBuf<FunctorChainPointerN, ISAAC_IDX_TYPE>(
@@ -474,10 +539,8 @@ namespace isaac
                   ISAAC_IDX_TYPE(ISAAC_FUNCTOR_COMPLEX * 4)))
             ,
 
-            functorChainChooseDevice(alpaka::allocBuf<FunctorChainPointerN, ISAAC_IDX_TYPE>(
-                acc,
-                ISAAC_IDX_TYPE(
-                    (boost ::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value))))
+            functorChainChooseDevice(
+                alpaka::allocBuf<FunctorChainPointerN, ISAAC_IDX_TYPE>(acc, ISAAC_IDX_TYPE(combinedSourceListSize)))
             ,
 
             localMinMaxArrayDevice(
@@ -491,6 +554,8 @@ namespace isaac
             , framebufferAO(acc, framebufferSize)
             , framebufferNormal(acc, framebufferSize)
             , framebufferDepth(acc, framebufferSize)
+            , hostNoiseTextureAllocator(host, localSize)
+            , deviceNoiseTextureAllocator(acc, localSize)
         {
 #if ISAAC_VALGRIND_TWEAKS == 1
             // Jansson has some optimizations for 2 and 4 byte aligned
@@ -533,6 +598,22 @@ namespace isaac
             distance = -4.5f;
             updateModelview();
 
+
+            for(int z = 0; z < localSize.z; z++)
+            {
+                for(int y = 0; y < localSize.y; y++)
+                {
+                    for(int x = 0; x < localSize.x; x++)
+                    {
+                        isaac_float value = std::rand() / isaac_float(RAND_MAX);
+                        if(value <= 0.9999)
+                            value = 0;
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = value;
+                    }
+                }
+            }
+            hostNoiseTextureAllocator.copyToTexture(stream, deviceNoiseTextureAllocator);
+
             // Create functor chain pointer lookup table
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
                 ISAAC_IDX_TYPE(1),
@@ -550,9 +631,7 @@ namespace isaac
             alpaka::enqueue(stream, instance);
             alpaka::wait(stream);
             // Init functions:
-            for(int i = 0;
-                i < (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value);
-                i++)
+            for(int i = 0; i < combinedSourceListSize; i++)
             {
                 functions[i].source = std::string("idem");
             }
@@ -560,17 +639,25 @@ namespace isaac
 
             // non persistent buffer memory
             forEachParams(
-                sources,
+                volumeSources,
                 AllocatePersistentArrayIterator(),
                 persistentTextureArray,
                 localSize,
                 persistentTextureAllocators,
                 acc);
 
+            int offset = vSourceListSize;
+            forEachParams(
+                fieldSources,
+                AllocatePersistentArrayIterator(),
+                persistentTextureArray,
+                localSize,
+                persistentTextureAllocators,
+                acc,
+                offset);
+
             // Transfer func memory:
-            for(int i = 0;
-                i < (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value);
-                i++)
+            for(int i = 0; i < combinedSourceListSize; i++)
             {
                 sourceWeight.value[i] = ISAAC_DEFAULT_WEIGHT;
                 transferDeviceBuf.push_back(alpaka::Buf<DevAcc, isaac_float4, TexDim, ISAAC_IDX_TYPE>(
@@ -584,53 +671,25 @@ namespace isaac
                 transferDevice.pointer[i] = alpaka::getPtrNative(transferDeviceBuf[i]);
                 transferHost.pointer[i] = alpaka::getPtrNative(transferHostBuf[i]);
                 // Init volume transfer func with a alpha ramp from 0 -> 1
-                if(i < boost::mpl::size<T_SourceList>::type::value)
+                if(i < volumeFieldSourceListSize)
                 {
                     sourceIsoThreshold.value[i] = isaac_float(0);
                     transferHost.description[i].insert(std::pair<isaac_uint, isaac_float4>(
                         0,
-                        getHSVA(
-                            isaac_float(2 * i) * M_PI
-                                / isaac_float(
-                                    (boost::mpl::size<T_SourceList>::type::value
-                                     + boost::mpl::size<T_ParticleList>::type::value)),
-                            1,
-                            1,
-                            0)));
+                        getHSVA(isaac_float(2 * i) * M_PI / isaac_float(combinedSourceListSize), 1, 1, 0)));
                     transferHost.description[i].insert(std::pair<isaac_uint, isaac_float4>(
                         T_transferSize,
-                        getHSVA(
-                            isaac_float(2 * i) * M_PI
-                                / isaac_float(
-                                    (boost::mpl::size<T_SourceList>::type::value
-                                     + boost::mpl::size<T_ParticleList>::type::value)),
-                            1,
-                            1,
-                            1)));
+                        getHSVA(isaac_float(2 * i) * M_PI / isaac_float(combinedSourceListSize), 1, 1, 1)));
                 }
                 // Init particle transfer func with constant alpha = 1
                 else
                 {
                     transferHost.description[i].insert(std::pair<isaac_uint, isaac_float4>(
                         0,
-                        getHSVA(
-                            isaac_float(2 * i) * M_PI
-                                / isaac_float(
-                                    (boost::mpl::size<T_SourceList>::type::value
-                                     + boost::mpl::size<T_ParticleList>::type::value)),
-                            1,
-                            1,
-                            1)));
+                        getHSVA(isaac_float(2 * i) * M_PI / isaac_float(combinedSourceListSize), 1, 1, 1)));
                     transferHost.description[i].insert(std::pair<isaac_uint, isaac_float4>(
                         T_transferSize,
-                        getHSVA(
-                            isaac_float(2 * i) * M_PI
-                                / isaac_float(
-                                    (boost::mpl::size<T_SourceList>::type::value
-                                     + boost::mpl::size<T_ParticleList>::type::value)),
-                            1,
-                            1,
-                            1)));
+                        getHSVA(isaac_float(2 * i) * M_PI / isaac_float(combinedSourceListSize), 1, 1, 1)));
                 }
             }
             updateTransfer();
@@ -712,8 +771,9 @@ namespace isaac
                 json_t* jsonSourcesArray = json_array();
                 json_object_set_new(jsonRoot, "sources", jsonSourcesArray);
 
-                forEachParams(sources, source_2_json_iterator(), jsonSourcesArray);
-                forEachParams(particleSources, source_2_json_iterator(), jsonSourcesArray);
+                forEachParams(volumeSources, Source2jsonIterator(), jsonSourcesArray);
+                forEachParams(fieldSources, Source2jsonIterator(), jsonSourcesArray);
+                forEachParams(particleSources, Source2jsonIterator(), jsonSourcesArray);
 
                 json_object_set_new(jsonRoot, "interpolation", json_boolean(interpolation));
                 json_object_set_new(jsonRoot, "step", json_real(step));
@@ -915,12 +975,8 @@ namespace isaac
         {
             ISAAC_WAIT_VISUALIZATION
             IsaacFunctorPool functors;
-            isaac_float4 functorParameterHost
-                [(boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)
-                 * ISAAC_MAX_FUNCTORS];
-            for(int i = 0;
-                i < (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value);
-                i++)
+            isaac_float4 functorParameterHost[combinedSourceListSize * ISAAC_MAX_FUNCTORS];
+            for(int i = 0; i < combinedSourceListSize; i++)
             {
                 functions[i].errorCode = 0;
                 // Going from | to |...
@@ -1026,23 +1082,18 @@ namespace isaac
             }
 
             // Calculate functor chain nr per source
-            DestArrayStruct<(
-                boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
-                dest;
-            int zero = 0;
-            forEachParams(sources, UpdateFunctorChainIterator(), functions, zero, dest);
-            forEachParams(
-                particleSources,
-                UpdateFunctorChainIterator(),
-                functions,
-                boost::mpl::size<T_SourceList>::type::value,
-                dest);
+            DestArrayStruct<combinedSourceListSize> dest;
+            forEachParams(volumeSources, UpdateFunctorChainIterator(), functions, dest);
+            int offset = vSourceListSize;
+            forEachParams(fieldSources, UpdateFunctorChainIterator(), functions, dest, offset);
+            offset = volumeFieldSourceListSize;
+            forEachParams(particleSources, UpdateFunctorChainIterator(), functions, dest, offset);
+
+
             alpaka::ViewPlainPtr<T_Host, isaac_float4, FraDim, ISAAC_IDX_TYPE> parameterBuffer(
                 functorParameterHost,
                 host,
-                alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(
-                    ISAAC_MAX_FUNCTORS
-                    * (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value))));
+                alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(ISAAC_MAX_FUNCTORS * combinedSourceListSize)));
 
             alpaka::Vec<alpaka::DimInt<1u>, ISAAC_IDX_TYPE> const parameterDeviceExtent(ISAAC_IDX_TYPE(16));
             auto parameterDeviceView(
@@ -1051,9 +1102,7 @@ namespace isaac
                 stream,
                 parameterDeviceView,
                 parameterBuffer,
-                alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(
-                    ISAAC_MAX_FUNCTORS
-                    * (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value))));
+                alpaka::Vec<FraDim, ISAAC_IDX_TYPE>(ISAAC_IDX_TYPE(ISAAC_MAX_FUNCTORS * combinedSourceListSize)));
 
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
                 ISAAC_IDX_TYPE(1),
@@ -1065,11 +1114,7 @@ namespace isaac
                 ISAAC_IDX_TYPE(1));
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
             auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
-            UpdateFunctorChainPointerKernel<
-                (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value),
-                DestArrayStruct<(
-                    boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>>
-                kernel;
+            UpdateFunctorChainPointerKernel<combinedSourceListSize, DestArrayStruct<combinedSourceListSize>> kernel;
             auto const instance(alpaka::createTaskKernel<T_Acc>(
                 workdiv,
                 kernel,
@@ -1087,17 +1132,14 @@ namespace isaac
                 stream,
                 functionChainDeviceView,
                 functorChainChooseDevice,
-                ISAAC_IDX_TYPE(
-                    (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)));
+                ISAAC_IDX_TYPE(combinedSourceListSize));
         }
 
 
         void updateTransfer()
         {
             ISAAC_WAIT_VISUALIZATION
-            for(int i = 0;
-                i < (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value);
-                i++)
+            for(int i = 0; i < combinedSourceListSize; i++)
             {
                 auto next = transferHost.description[i].begin();
                 auto before = next;
@@ -1157,7 +1199,7 @@ namespace isaac
             {
                 ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
                 forEachParams(
-                    sources,
+                    volumeSources,
                     UpdatePersistentTextureIterator(),
                     persistentTextureArray,
                     localSize,
@@ -1165,12 +1207,20 @@ namespace isaac
                     sourceIsoThreshold,
                     pointer,
                     stream);
+                int offset = vSourceListSize;
                 forEachParams(
-                    particleSources,
-                    UpdateParticleSourceIterator(),
+                    fieldSources,
+                    UpdateLICTextureIterator(),
+                    persistentTextureArray,
+                    deviceNoiseTextureAllocator.getTexture(),
+                    localSize,
                     sourceWeight,
+                    sourceIsoThreshold,
                     pointer,
-                    boost::mpl::size<T_SourceList>::type::value);
+                    stream,
+                    offset);
+                offset = volumeFieldSourceListSize;
+                forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
                 ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
             }
             ISAAC_WAIT_VISUALIZATION
@@ -1564,7 +1614,7 @@ namespace isaac
             if(sendMinMax)
             {
                 forEachParams(
-                    sources,
+                    volumeSources,
                     CalcMinMaxIterator(),
                     persistentTextureArray,
                     minMaxArray,
@@ -1572,9 +1622,20 @@ namespace isaac
                     localSize,
                     stream,
                     host);
+                int offset = vSourceListSize;
+                forEachParams(
+                    fieldSources,
+                    CalcMinMaxIterator(),
+                    persistentTextureArray,
+                    minMaxArray,
+                    localMinMaxArrayDevice,
+                    localSize,
+                    stream,
+                    host,
+                    offset);
                 forEachParams(
                     particleSources,
-                    CalcParticleMinMaxIterator<boost::mpl::size<T_SourceList>::type::value>(),
+                    CalcParticleMinMaxIterator<volumeFieldSourceListSize>(),
                     minMaxArray,
                     localParticleMinMaxArrayDevice,
                     localParticleSize,
@@ -1586,7 +1647,7 @@ namespace isaac
                     MPI_Reduce(
                         MPI_IN_PLACE,
                         minMaxArray.min,
-                        (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value),
+                        combinedSourceListSize,
                         MPI_FLOAT,
                         MPI_MIN,
                         master,
@@ -1594,7 +1655,7 @@ namespace isaac
                     MPI_Reduce(
                         MPI_IN_PLACE,
                         minMaxArray.max,
-                        (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value),
+                        combinedSourceListSize,
                         MPI_FLOAT,
                         MPI_MAX,
                         master,
@@ -1602,22 +1663,8 @@ namespace isaac
                 }
                 else
                 {
-                    MPI_Reduce(
-                        minMaxArray.min,
-                        NULL,
-                        (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value),
-                        MPI_FLOAT,
-                        MPI_MIN,
-                        master,
-                        mpiWorld);
-                    MPI_Reduce(
-                        minMaxArray.max,
-                        NULL,
-                        (boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value),
-                        MPI_FLOAT,
-                        MPI_MAX,
-                        master,
-                        mpiWorld);
+                    MPI_Reduce(minMaxArray.min, NULL, combinedSourceListSize, MPI_FLOAT, MPI_MIN, master, mpiWorld);
+                    MPI_Reduce(minMaxArray.max, NULL, combinedSourceListSize, MPI_FLOAT, MPI_MAX, master, mpiWorld);
                 }
             }
 
@@ -1896,9 +1943,6 @@ namespace isaac
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.y, gridSize.x);
             alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE> const workdiv(grid, blocks, threads);
 
-            const int SourceListLength
-                = boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value;
-
             GBuffer gBuffer;
             gBuffer.size = myself->framebufferSize;
             gBuffer.startOffset = framebufferStart;
@@ -1918,15 +1962,15 @@ namespace isaac
             // call particle render kernel
             ParticleRenderKernelCaller<
                 T_ParticleList,
-                TransferDeviceStruct<SourceListLength>,
-                SourceWeightStruct<SourceListLength>,
+                TransferDeviceStruct<combinedSourceListSize>,
+                SourceWeightStruct<combinedSourceListSize>,
                 boost::mpl::vector<>,
                 T_transferSize,
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
                 T_Acc,
                 T_Stream,
-                boost::mpl::size<T_SourceList>::type::value,
-                boost::mpl::size<T_ParticleList>::type::value>::
+                volumeFieldSourceListSize,
+                pSourceListSize>::
                 call(
                     myself->stream,
                     gBuffer,
@@ -1941,20 +1985,20 @@ namespace isaac
 
             // call iso render kernel
             IsoRenderKernelCaller<
-                T_SourceList,
-                TransferDeviceStruct<SourceListLength>,
-                IsoThresholdStruct<boost::mpl::size<T_SourceList>::type::value>,
-                PersistentArrayStruct<boost::mpl::size<T_SourceList>::type::value>,
+                T_VolumeSourceList,
+                TransferDeviceStruct<combinedSourceListSize>,
+                IsoThresholdStruct<volumeFieldSourceListSize>,
+                PersistentArrayStruct<volumeFieldSourceListSize>,
                 boost::mpl::vector<>,
                 T_transferSize,
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
                 T_Acc,
                 T_Stream,
-                boost::mpl::size<T_SourceList>::type::value>::
+                vSourceListSize>::
                 call(
                     myself->stream,
                     gBuffer,
-                    myself->sources,
+                    myself->volumeSources,
                     myself->step,
                     myself->transferDevice,
                     myself->sourceIsoThreshold,
@@ -2018,20 +2062,20 @@ namespace isaac
 
             // call volume render kernel
             VolumeRenderKernelCaller<
-                T_SourceList,
-                TransferDeviceStruct<SourceListLength>,
-                SourceWeightStruct<SourceListLength>,
-                PersistentArrayStruct<boost::mpl::size<T_SourceList>::type::value>,
+                T_VolumeSourceList,
+                TransferDeviceStruct<combinedSourceListSize>,
+                SourceWeightStruct<combinedSourceListSize>,
+                PersistentArrayStruct<volumeFieldSourceListSize>,
                 boost::mpl::vector<>,
                 T_transferSize,
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
                 T_Acc,
                 T_Stream,
-                boost::mpl::size<T_SourceList>::type::value>::
+                vSourceListSize>::
                 call(
                     myself->stream,
                     gBuffer,
-                    myself->sources,
+                    myself->volumeSources,
                     myself->step,
                     myself->transferDevice,
                     myself->sourceWeight,
@@ -2043,6 +2087,29 @@ namespace isaac
 
             // wait until render kernel has finished
             alpaka::wait(myself->stream);
+
+            {
+                int offset = vSourceListSize;
+                TestVolumeRenderKernel<
+                    TransferDeviceStruct<combinedSourceListSize>,
+                    SourceWeightStruct<combinedSourceListSize>,
+                    1,
+                    T_transferSize,
+                    vSourceListSize>
+                    kernel;
+                auto const instance(alpaka::createTaskKernel<T_Acc>(
+                    workdiv,
+                    kernel,
+                    gBuffer,
+                    myself->persistentTextureArray.textures[offset],
+                    myself->step,
+                    myself->transferDevice,
+                    myself->sourceWeight,
+                    isaac_scale,
+                    myself->clipping));
+                alpaka::enqueue(myself->stream, instance);
+                alpaka::wait(myself->stream);
+            }
 
             // stop and restart time for delta calculation
             ISAAC_STOP_TIME_MEASUREMENT(myself->kernelTime, +=, kernel, myself->getTicksUs())
@@ -2113,10 +2180,7 @@ namespace isaac
                 if(myself->sendTransfer)
                 {
                     json_object_set_new(myself->jsonRoot, "transfer array", matrix = json_array());
-                    for(ISAAC_IDX_TYPE i = 0; i
-                        < (boost::mpl::size<T_SourceList>::type::value
-                           + boost::mpl::size<T_ParticleList>::type::value);
-                        i++)
+                    for(ISAAC_IDX_TYPE i = 0; i < combinedSourceListSize; i++)
                     {
                         json_t* transfer = json_array();
                         json_array_append_new(matrix, transfer);
@@ -2139,10 +2203,7 @@ namespace isaac
                         }
                     }
                     json_object_set_new(myself->jsonRoot, "transfer points", matrix = json_array());
-                    for(ISAAC_IDX_TYPE i = 0; i
-                        < (boost::mpl::size<T_SourceList>::type::value
-                           + boost::mpl::size<T_ParticleList>::type::value);
-                        i++)
+                    for(ISAAC_IDX_TYPE i = 0; i < combinedSourceListSize; i++)
                     {
                         json_t* points = json_array();
                         json_array_append_new(matrix, points);
@@ -2163,10 +2224,7 @@ namespace isaac
                 if(myself->sendFunctions)
                 {
                     json_object_set_new(myself->jsonRoot, "functions", matrix = json_array());
-                    for(ISAAC_IDX_TYPE i = 0; i
-                        < (boost::mpl::size<T_SourceList>::type::value
-                           + boost::mpl::size<T_ParticleList>::type::value);
-                        i++)
+                    for(ISAAC_IDX_TYPE i = 0; i < combinedSourceListSize; i++)
                     {
                         json_t* f = json_object();
                         json_array_append_new(matrix, f);
@@ -2177,10 +2235,7 @@ namespace isaac
                 if(myself->sendWeight)
                 {
                     json_object_set_new(myself->jsonRoot, "weight", matrix = json_array());
-                    for(ISAAC_IDX_TYPE i = 0; i
-                        < (boost::mpl::size<T_SourceList>::type::value
-                           + boost::mpl::size<T_ParticleList>::type::value);
-                        i++)
+                    for(ISAAC_IDX_TYPE i = 0; i < combinedSourceListSize; i++)
                     {
                         json_array_append_new(matrix, json_real(myself->sourceWeight.value[i]));
                     }
@@ -2200,7 +2255,7 @@ namespace isaac
                 if(myself->sendIsoThreshold)
                 {
                     json_object_set_new(myself->jsonRoot, "iso threshold", matrix = json_array());
-                    for(ISAAC_IDX_TYPE i = 0; i < boost::mpl::size<T_SourceList>::type::value; i++)
+                    for(ISAAC_IDX_TYPE i = 0; i < volumeFieldSourceListSize; i++)
                     {
                         json_array_append_new(matrix, json_real(myself->sourceIsoThreshold.value[i]));
                     }
@@ -2208,10 +2263,7 @@ namespace isaac
                 if(myself->sendMinMax)
                 {
                     json_object_set_new(myself->jsonRoot, "minmax", matrix = json_array());
-                    for(ISAAC_IDX_TYPE i = 0; i
-                        < (boost::mpl::size<T_SourceList>::type::value
-                           + boost::mpl::size<T_ParticleList>::type::value);
-                        i++)
+                    for(ISAAC_IDX_TYPE i = 0; i < combinedSourceListSize; i++)
                     {
                         json_t* v = json_object();
                         json_array_append_new(matrix, v);
@@ -2343,6 +2395,9 @@ namespace isaac
         // pixel normal information
         Tex2DAllocator<DevAcc, isaac_float3> framebufferNormal;
 
+        Tex3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
+        Tex3DAllocator<T_Host, isaac_float> hostNoiseTextureAllocator;
+
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functor_chain_d;
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functorChainChooseDevice;
         alpaka::Buf<DevAcc, MinMax, FraDim, ISAAC_IDX_TYPE> localMinMaxArrayDevice;
@@ -2393,8 +2448,9 @@ namespace isaac
         isaac_int master;
         isaac_int numProc;
         isaac_uint metaNr;
+        T_VolumeSourceList& volumeSources;
+        T_FieldSourceList& fieldSources;
         T_ParticleList& particleSources;
-        T_SourceList& sources;
         IceTContext icetContext[T_Controller::passCount];
         IsaacVisualizationMetaEnum thrMetaTargets;
         pthread_t visualizationThread;
@@ -2404,21 +2460,16 @@ namespace isaac
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
         std::vector<Tex3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
 
-        TransferDeviceStruct<(
-            boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
-            transferDevice;
-        TransferHostStruct<(
-            boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
-            transferHost;
-        SourceWeightStruct<(
-            boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
-            sourceWeight;
-        IsoThresholdStruct<(boost::mpl::size<T_SourceList>::type::value)> sourceIsoThreshold;
-        PersistentArrayStruct<(boost::mpl::size<T_SourceList>::type::value)> persistentTextureArray;
-        MinMaxArray<(boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)>
-            minMaxArray;
-        FunctionsStruct
-            functions[(boost::mpl::size<T_SourceList>::type::value + boost::mpl::size<T_ParticleList>::type::value)];
+        TransferDeviceStruct<combinedSourceListSize> transferDevice;
+        TransferHostStruct<combinedSourceListSize> transferHost;
+        SourceWeightStruct<combinedSourceListSize> sourceWeight;
+        MinMaxArray<combinedSourceListSize> minMaxArray;
+        FunctionsStruct functions[combinedSourceListSize];
+
+        // Iso threshold array and persistent textures only needed for volume and field sources
+        IsoThresholdStruct<volumeFieldSourceListSize> sourceIsoThreshold;
+        PersistentArrayStruct<volumeFieldSourceListSize> persistentTextureArray;
+
         ISAAC_IDX_TYPE maxSize;
         ISAAC_IDX_TYPE maxSizeScaled;
         IceTFloat backgroundColor[4];
@@ -2436,8 +2487,9 @@ namespace isaac
         typename T_Acc,
         typename T_Stream,
         typename T_AccDim,
+        typename T_VolumeSourceList,
+        typename T_FieldSourceList,
         typename T_ParticleList,
-        typename T_SourceList,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_Controller,
         typename T_Compositor>
@@ -2446,8 +2498,9 @@ namespace isaac
         T_Acc,
         T_Stream,
         T_AccDim,
+        T_VolumeSourceList,
+        T_FieldSourceList,
         T_ParticleList,
-        T_SourceList,
         T_transferSize,
         T_Controller,
         T_Compositor>*
@@ -2456,8 +2509,9 @@ namespace isaac
             T_Acc,
             T_Stream,
             T_AccDim,
+            T_VolumeSourceList,
+            T_FieldSourceList,
             T_ParticleList,
-            T_SourceList,
             T_transferSize,
             T_Controller,
             T_Compositor>::myself

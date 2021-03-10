@@ -368,4 +368,38 @@ namespace isaac
             }
         }
     };
+
+
+    template<typename T_Source>
+    struct UpdateLICTextureKernel
+    {
+        template<typename T_Acc>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            const int nr,
+            const T_Source source,
+            Tex3D<isaac_float> texture,
+            const Tex3D<isaac_float> noiseTexture,
+            const isaac_int3 localSize) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
+                return;
+            coord.x -= T_Source::guardSize;
+            coord.y -= T_Source::guardSize;
+
+
+            coord.z = -T_Source::guardSize;
+            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            {
+                isaac_float3 value = source[coord];
+                isaac_float weight = applyFunctorChain(value, nr);
+                texture[coord] = noiseTexture[coord] * weight
+                    + texture.sample<FilterType::LINEAR, BorderType::VALUE>(
+                          isaac_float3(coord) + glm::normalize(value))
+                        * isaac_float(0.99);
+            }
+        }
+    };
 } // namespace isaac

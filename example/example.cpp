@@ -23,9 +23,9 @@
 
 using namespace isaac;
 
-#define VOLUME_X 256
-#define VOLUME_Y 256
-#define VOLUME_Z 512
+#define VOLUME_X 128
+#define VOLUME_Y 128
+#define VOLUME_Z 128
 
 #define PARTICLE_VOLUME_X 64
 #define PARTICLE_VOLUME_Y 64
@@ -41,7 +41,7 @@ class TestSource1
 public:
     static const ISAAC_IDX_TYPE featureDim = 3;
     static const ISAAC_IDX_TYPE guardSize = 0;
-    static const bool persistent = true;
+    static const bool persistent = false;
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource1(isaac_float3* ptr) : ptr(ptr)
@@ -79,7 +79,7 @@ class TestSource2
 public:
     static const ISAAC_IDX_TYPE featureDim = 1;
     static const ISAAC_IDX_TYPE guardSize = 0;
-    static const bool persistent = true;
+    static const bool persistent = false;
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource2(isaac_float* ptr) : ptr(ptr)
@@ -265,14 +265,11 @@ int main(int argc, char** argv)
     DevHost devHost(alpaka::getDevByIdx<PltfHost>(0u));
     Stream stream(devAcc);
 
-    const isaac_size_dim<SimDim::value> globalSize(d[0] * VOLUME_X, d[1] * VOLUME_Y, d[2] * VOLUME_Z);
-    const isaac_size_dim<SimDim::value> localSize(
-        ISAAC_IDX_TYPE(VOLUME_X),
-        ISAAC_IDX_TYPE(VOLUME_Y),
-        ISAAC_IDX_TYPE(VOLUME_Z));
+    const isaac_size3 globalSize(d[0] * VOLUME_X, d[1] * VOLUME_Y, d[2] * VOLUME_Z);
+    const isaac_size3 localSize(ISAAC_IDX_TYPE(VOLUME_X), ISAAC_IDX_TYPE(VOLUME_Y), ISAAC_IDX_TYPE(VOLUME_Z));
+    const isaac_size3 position(p[0] * VOLUME_X, p[1] * VOLUME_Y, p[2] * VOLUME_Z);
     const alpaka::Vec<DatDim, ISAAC_IDX_TYPE> dataSize(
         ISAAC_IDX_TYPE(VOLUME_X) * ISAAC_IDX_TYPE(VOLUME_Y) * ISAAC_IDX_TYPE(VOLUME_Z));
-    const isaac_size_dim<SimDim::value> position(p[0] * VOLUME_X, p[1] * VOLUME_Y, p[2] * VOLUME_Z);
     const alpaka::Vec<alpaka::DimInt<1>, ISAAC_IDX_TYPE> particleCount(ISAAC_IDX_TYPE(PARTICLE_COUNT));
 
     // The whole size of the rendered sub volumes
@@ -282,29 +279,39 @@ int main(int argc, char** argv)
 
     auto hostBuffer1 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devHost, dataSize);
     auto deviceBuffer1 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devAcc, dataSize);
+
     auto hostBuffer2 = alpaka::allocBuf<isaac_float, ISAAC_IDX_TYPE>(devHost, dataSize);
     auto deviceBuffer2 = alpaka::allocBuf<isaac_float, ISAAC_IDX_TYPE>(devAcc, dataSize);
-    auto hostBuffer3 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devHost, particleCount);
-    auto deviceBuffer3 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devAcc, particleCount);
+
+    auto hostBuffer3 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devHost, dataSize);
+    auto deviceBuffer3 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devAcc, dataSize);
+
+    auto hostBuffer4 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devHost, particleCount);
+    auto deviceBuffer4 = alpaka::allocBuf<isaac_float3, ISAAC_IDX_TYPE>(devAcc, particleCount);
 
     // Creating source list
 
     TestSource1 testSource1(alpaka::getPtrNative(deviceBuffer1));
     TestSource2 testSource2(alpaka::getPtrNative(deviceBuffer2));
 
-    ParticleSource1 particleTestSource1(alpaka::getPtrNative(deviceBuffer3), PARTICLE_COUNT);
+    TestSource1 fieldSource(alpaka::getPtrNative(deviceBuffer3));
 
-    using SourceList = boost::fusion::list<TestSource1, TestSource2>;
+    ParticleSource1 particleTestSource1(alpaka::getPtrNative(deviceBuffer4), PARTICLE_COUNT);
+
+    using VolumeSourceList = boost::fusion::list<TestSource1, TestSource2, TestSource1>;
+
+    using FieldSourceList = boost::fusion::list<TestSource1>;
 
     using ParticleList = boost::fusion::list<ParticleSource1>;
 
+    VolumeSourceList volumeSources(testSource1, testSource2, fieldSource);
+    FieldSourceList fieldSources(fieldSource);
     ParticleList particleSources(particleTestSource1);
-    SourceList sources(testSource1, testSource2);
 
 #if ISAAC_NO_SIMULATION == 1
     if(!filename)
     {
-        update_data(
+        updateData(
             stream,
             hostBuffer1,
             deviceBuffer1,
@@ -317,7 +324,7 @@ int main(int argc, char** argv)
             globalSize);
     }
 
-    update_particles(stream, hostBuffer3, deviceBuffer3, particleCount, 0.0f);
+    updateParticles(stream, hostBuffer4, deviceBuffer4, particleCount, 0.0f);
 
 
 #endif
@@ -349,8 +356,9 @@ int main(int argc, char** argv)
         Acc, // Alpaka specific Accelerator Dev Type
         Stream, // Alpaka specific Stream Type
         AccDim, // Alpaka specific Acceleration Dimension Type
+        VolumeSourceList, // The boost::fusion list of Source Types
+        FieldSourceList,
         ParticleList,
-        decltype(sources), // The boost::fusion list of Source Types
         1024, // Size of the transfer functions
 #if(ISAAC_STEREO == 0)
         isaac::DefaultController,
@@ -377,8 +385,9 @@ int main(int argc, char** argv)
         localSize, // Local size of the subvolume
         {PARTICLE_VOLUME_X, PARTICLE_VOLUME_Y, PARTICLE_VOLUME_Z},
         position, // Position of the subvolume in the globale volume
+        volumeSources, // instances of the volumeSources to render
+        fieldSources,
         particleSources,
-        sources, // instances of the sources to render
         scaling);
 
     // Setting up the metadata description (only master, but however slaves could then add metadata, too, it would be
@@ -439,7 +448,7 @@ int main(int argc, char** argv)
 #if ISAAC_NO_SIMULATION == 0
             if(!filename)
             {
-                update_data(
+                updateData(
                     stream,
                     hostBuffer1,
                     deviceBuffer1,
@@ -452,7 +461,9 @@ int main(int argc, char** argv)
                     globalSize);
             }
 
-            update_particles(stream, hostBuffer3, deviceBuffer3, particleCount, a);
+            updateVectorField(stream, hostBuffer3, deviceBuffer3, a, localSize, position, globalSize);
+
+            updateParticles(stream, hostBuffer4, deviceBuffer4, particleCount, a);
 
 #endif
 

@@ -20,6 +20,108 @@
 
 namespace isaac
 {
+    template<
+        typename T_TransferArray,
+        typename T_SourceWeight,
+        int T_interpolation,
+        ISAAC_IDX_TYPE T_transferSize,
+        int T_offset>
+    struct TestVolumeRenderKernel
+    {
+        template<typename T_Acc>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            GBuffer gBuffer,
+            Tex3D<isaac_float> buffer,
+            isaac_float stepSize, // ray stepSize length
+            const T_TransferArray transferArray, // mapping to simulation memory
+            const T_SourceWeight sourceWeight, // weights of sources for blending
+            const isaac_float3 scale, // isaac set scaling
+            const ClippingStruct inputClipping // clipping planes
+        ) const
+        {
+            // get pixel values from thread ids
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_uint2 pixel = isaac_uint2(alpThreadIdx[2], alpThreadIdx[1]);
+            // apply framebuffer offset to pixel
+            // stop if pixel position is out of bounds
+            pixel = pixel + gBuffer.startOffset;
+            if(!isInUpperBounds(pixel, gBuffer.size))
+                return;
+
+            Ray ray = pixelToRay(isaac_float2(pixel), isaac_float2(gBuffer.size));
+
+            if(!clipRay(ray, inputClipping))
+                return;
+
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            if(ray.endDepth <= ray.startDepth)
+                return;
+
+            // Starting the main loop
+            isaac_float min_size = ISAAC_MIN(
+                int(SimulationSize.globalSize.x),
+                ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
+            isaac_float factor = stepSize / min_size * 2.0f;
+            isaac_float4 colorAdd;
+            isaac_int startSteps = glm::ceil(ray.startDepth / stepSize);
+            isaac_int endSteps = glm::floor(ray.endDepth / stepSize);
+            isaac_float3 stepVec = stepSize * ray.dir / scale;
+            // unscale all data for correct memory access
+            isaac_float3 startUnscaled = ray.start / scale;
+
+            // move startSteps and endSteps to valid positions in the volume
+            isaac_float3 pos = startUnscaled + stepVec * isaac_float(startSteps);
+            while((!isInLowerBounds(pos, isaac_float3(0)) || !isInUpperBounds(pos, SimulationSize.localSize))
+                  && startSteps <= endSteps)
+            {
+                startSteps++;
+                pos = startUnscaled + stepVec * isaac_float(startSteps);
+            }
+            pos = startUnscaled + stepVec * isaac_float(endSteps);
+            while((!isInLowerBounds(pos, isaac_float3(0)) || !isInUpperBounds(pos, SimulationSize.localSize))
+                  && startSteps <= endSteps)
+            {
+                endSteps--;
+                pos = startUnscaled + stepVec * isaac_float(endSteps);
+            }
+            isaac_float4 color = isaac_float4(0);
+            // iterate over the volume
+            for(isaac_int i = startSteps; i <= endSteps; i++)
+            {
+                pos = startUnscaled + stepVec * isaac_float(i);
+                isaac_float texValue;
+                if(T_interpolation == 0)
+                {
+                    texValue = buffer.sample<FilterType::NEAREST>(pos);
+                }
+                else
+                {
+                    texValue = buffer.sample<FilterType::LINEAR>(pos);
+                }
+                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
+                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
+                isaac_float4 value = transferArray.pointer[T_offset][lookupValue];
+                value.w *= sourceWeight.value[T_offset];
+                value.r *= value.w;
+                value.g *= value.w;
+                value.b *= value.w;
+                value *= factor;
+                colorAdd = (isaac_float(1) - color.w) * value;
+                color += colorAdd;
+                if(color.w > isaac_float(0.99))
+                {
+                    break;
+                }
+            }
+            // Blend solid color and new volume color
+            isaac_float4 solidColor = transformColor(gBuffer.color[pixel]);
+            color = color + (1 - color.w) * solidColor;
+            gBuffer.color[pixel] = transformColor(color);
+        }
+    };
+
+
     template<isaac_int T_interpolation, typename T_NR, typename T_Source, typename T_PointerArray>
     ISAAC_DEVICE_INLINE isaac_float getValue(
         const T_Source& source,
@@ -143,7 +245,7 @@ namespace isaac
     };
 
     template<
-        typename T_SourceList,
+        typename T_VolumeSourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
@@ -156,7 +258,7 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            const T_SourceList sources, // source of volumes
+            const T_VolumeSourceList sources, // source of volumes
             isaac_float stepSize, // ray stepSize length
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_SourceWeight sourceWeight, // weights of sources for blending
@@ -264,7 +366,7 @@ namespace isaac
 
 
     template<
-        typename T_SourceList,
+        typename T_VolumeSourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
@@ -279,7 +381,7 @@ namespace isaac
         inline static void call(
             T_Stream stream,
             const GBuffer& gBuffer,
-            const T_SourceList& sources,
+            const T_VolumeSourceList& sources,
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
@@ -289,10 +391,10 @@ namespace isaac
             const isaac_float3& scale,
             const ClippingStruct& clipping)
         {
-            if(sourceWeight.value[boost::mpl::size<T_SourceList>::type::value - T_n] == isaac_float(0))
+            if(sourceWeight.value[boost::mpl::size<T_VolumeSourceList>::type::value - T_n] == isaac_float(0))
             {
                 VolumeRenderKernelCaller<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
@@ -318,7 +420,7 @@ namespace isaac
             else
             {
                 VolumeRenderKernelCaller<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
@@ -345,7 +447,7 @@ namespace isaac
     };
 
     template<
-        typename T_SourceList,
+        typename T_VolumeSourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
@@ -355,7 +457,7 @@ namespace isaac
         typename T_Acc,
         typename T_Stream>
     struct VolumeRenderKernelCaller<
-        T_SourceList,
+        T_VolumeSourceList,
         T_TransferArray,
         T_SourceWeight,
         T_PointerArray,
@@ -370,7 +472,7 @@ namespace isaac
         inline static void call(
             T_Stream stream,
             const GBuffer& gBuffer,
-            const T_SourceList& sources,
+            const T_VolumeSourceList& sources,
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
@@ -383,7 +485,7 @@ namespace isaac
             if(interpolation)
             {
                 VolumeRenderKernel<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
@@ -407,7 +509,7 @@ namespace isaac
             else
             {
                 VolumeRenderKernel<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,

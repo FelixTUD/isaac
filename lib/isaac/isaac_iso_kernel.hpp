@@ -151,7 +151,7 @@ namespace isaac
     };
 
     template<
-        typename T_SourceList,
+        typename T_VolumeSourceList,
         typename T_TransferArray,
         typename T_IsoThreshold,
         typename T_PersistentArray,
@@ -164,7 +164,7 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            const T_SourceList sources, // source of volumes
+            const T_VolumeSourceList sources, // source of volumes
             isaac_float stepSize, // ray stepSize length
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_IsoThreshold sourceIsoThreshold, // weights of sources for blending
@@ -236,8 +236,8 @@ namespace isaac
             // iterate over all cells on the ray path
             // check if the ray leaves the local volume, has a particle hit or exceeds the max ray distance
             isaac_float t0 = ray.startDepth;
-            isaac_float oldValues[boost::mpl::size<T_SourceList>::type::value];
-            for(int i = 0; i < boost::mpl::size<T_SourceList>::type::value; i++)
+            isaac_float oldValues[boost::mpl::size<T_VolumeSourceList>::type::value];
+            for(int i = 0; i < boost::mpl::size<T_VolumeSourceList>::type::value; i++)
                 oldValues[i] = 0;
             bool first = true;
             while(hit == false && testedLength <= rayLength)
@@ -371,7 +371,7 @@ namespace isaac
     };
 
     template<
-        typename T_SourceList,
+        typename T_VolumeSourceList,
         typename T_TransferArray,
         typename T_IsoTheshold,
         typename T_PersistentArray,
@@ -384,7 +384,7 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            const T_SourceList sources, // source of volumes
+            const T_VolumeSourceList sources, // source of volumes
             isaac_float stepSize, // ray stepSize length
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_IsoTheshold sourceIsoThreshold, // weights of sources for blending
@@ -447,8 +447,8 @@ namespace isaac
             isaac_float depth = ray.endDepth;
             isaac_float4 hitColor = isaac_float4(0);
             isaac_float3 hitNormal;
-            isaac_float oldValues[ZeroCheck<boost::mpl::size<T_SourceList>::type::value>::value];
-            for(int i = 0; i < boost::mpl::size<T_SourceList>::type::value; i++)
+            isaac_float oldValues[ZeroCheck<boost::mpl::size<T_VolumeSourceList>::type::value>::value];
+            for(int i = 0; i < boost::mpl::size<T_VolumeSourceList>::type::value; i++)
                 oldValues[i] = 0;
             // iterate over the volume
             for(isaac_int i = startSteps; i <= endSteps && !hit; i++)
@@ -487,7 +487,7 @@ namespace isaac
 
 
     template<
-        typename T_SourceList,
+        typename T_VolumeSourceList,
         typename T_TransferArray,
         typename T_IsoThreshold,
         typename T_PersistentArray,
@@ -502,7 +502,7 @@ namespace isaac
         inline static void call(
             T_Stream stream,
             const GBuffer& gBuffer,
-            const T_SourceList& sources,
+            const T_VolumeSourceList& sources,
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
@@ -512,10 +512,10 @@ namespace isaac
             const isaac_float3& scale,
             const ClippingStruct& clipping)
         {
-            if(sourceIsoThreshold.value[boost::mpl::size<T_SourceList>::type::value - T_n] == isaac_float(0))
+            if(sourceIsoThreshold.value[boost::mpl::size<T_VolumeSourceList>::type::value - T_n] == isaac_float(0))
             {
                 IsoRenderKernelCaller<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
@@ -541,7 +541,7 @@ namespace isaac
             else
             {
                 IsoRenderKernelCaller<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
@@ -568,7 +568,7 @@ namespace isaac
     };
 
     template<
-        typename T_SourceList,
+        typename T_VolumeSourceList,
         typename T_TransferArray,
         typename T_IsoThreshold,
         typename T_PersistentArray,
@@ -578,7 +578,7 @@ namespace isaac
         typename T_Acc,
         typename T_Stream>
     struct IsoRenderKernelCaller<
-        T_SourceList,
+        T_VolumeSourceList,
         T_TransferArray,
         T_IsoThreshold,
         T_PersistentArray,
@@ -593,7 +593,7 @@ namespace isaac
         inline static void call(
             T_Stream stream,
             const GBuffer& gBuffer,
-            const T_SourceList& sources,
+            const T_VolumeSourceList& sources,
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
@@ -606,7 +606,7 @@ namespace isaac
             if(interpolation)
             {
                 IsoStepRenderKernel<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
@@ -630,7 +630,7 @@ namespace isaac
             else
             {
                 IsoStepRenderKernel<
-                    T_SourceList,
+                    T_VolumeSourceList,
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
