@@ -122,7 +122,7 @@ namespace isaac
     };
 
 
-    template<isaac_int T_interpolation, typename T_NR, typename T_Source, typename T_PointerArray>
+    template<isaac_int T_interpolation, int T_nr, typename T_Source, typename T_PointerArray>
     ISAAC_DEVICE_INLINE isaac_float getValue(
         const T_Source& source,
         const isaac_float3& pos,
@@ -175,11 +175,11 @@ namespace isaac
                 data = trilinear(glm::fract(pos), data8);
             }
 
-            result = applyFunctorChain(data, T_NR::value);
+            result = applyFunctorChain(data, T_nr);
         }
         else
         {
-            Tex3D<isaac_float> texture = persistentArray.textures[T_NR::value];
+            Tex3D<isaac_float> texture = persistentArray.textures[T_nr];
             if(T_interpolation == 0)
             {
                 result = texture.sample<FilterType::NEAREST>(pos);
@@ -210,7 +210,7 @@ namespace isaac
                 - std::numeric_limits<isaac_float>::min());
     }
 
-    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, isaac_int T_interpolation>
+    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, isaac_int T_interpolation, int T_offset = 0>
     struct MergeVolumeSourceIterator
     {
         template<
@@ -229,13 +229,14 @@ namespace isaac
             const T_PointerArray& persistentArray,
             isaac_float4& color) const
         {
-            if(boost::mpl::at_c<T_Filter, T_NR::value>::type::value)
+            if(boost::mpl::at_c<T_Filter, T_NR::value + T_offset>::type::value)
             {
-                isaac_float result = getValue<T_interpolation, T_NR>(source, pos, persistentArray, localSize);
+                isaac_float result
+                    = getValue<T_interpolation, T_NR::value + T_offset>(source, pos, persistentArray, localSize);
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(result * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                isaac_float4 value = transferArray.pointer[T_NR::value][lookupValue];
-                value.w *= sourceWeight.value[T_NR::value];
+                isaac_float4 value = transferArray.pointer[T_NR::value + T_offset][lookupValue];
+                value.w *= sourceWeight.value[T_NR::value + T_offset];
                 color.x = color.x + value.x * value.w;
                 color.y = color.y + value.y * value.w;
                 color.z = color.z + value.z * value.w;
@@ -246,6 +247,7 @@ namespace isaac
 
     template<
         typename T_VolumeSourceList,
+        typename T_FieldSourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
@@ -259,6 +261,7 @@ namespace isaac
             T_Acc const& acc,
             GBuffer gBuffer,
             const T_VolumeSourceList sources, // source of volumes
+            const T_FieldSourceList fieldSources,
             isaac_float stepSize, // ray stepSize length
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_SourceWeight sourceWeight, // weights of sources for blending
@@ -279,6 +282,7 @@ namespace isaac
             // set background color
             bool atLeastOne = true;
             forEachWithMplParams(sources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
+            forEachWithMplParams(fieldSources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
             if(!atLeastOne)
                 return;
 
@@ -335,6 +339,19 @@ namespace isaac
                     sourceWeight,
                     persistentArray,
                     value);
+                forEachWithMplParams(
+                    fieldSources,
+                    MergeVolumeSourceIterator<
+                        T_transferSize,
+                        T_Filter,
+                        T_interpolation,
+                        boost::mpl::size<T_VolumeSourceList>::type::value>(),
+                    pos,
+                    SimulationSize.localSize,
+                    transferArray,
+                    sourceWeight,
+                    persistentArray,
+                    value);
                 oma = isaac_float(1) - color.w;
                 value *= factor;
                 colorAdd = oma * value;
@@ -367,6 +384,7 @@ namespace isaac
 
     template<
         typename T_VolumeSourceList,
+        typename T_FieldSourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
@@ -382,6 +400,7 @@ namespace isaac
             T_Stream stream,
             const GBuffer& gBuffer,
             const T_VolumeSourceList& sources,
+            const T_FieldSourceList& fieldSources,
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
@@ -391,10 +410,14 @@ namespace isaac
             const isaac_float3& scale,
             const ClippingStruct& clipping)
         {
-            if(sourceWeight.value[boost::mpl::size<T_VolumeSourceList>::type::value - T_n] == isaac_float(0))
+            if(sourceWeight.value
+                   [boost::mpl::size<T_VolumeSourceList>::type::value
+                    + boost::mpl::size<T_FieldSourceList>::type::value - T_n]
+               == isaac_float(0))
             {
                 VolumeRenderKernelCaller<
                     T_VolumeSourceList,
+                    T_FieldSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
@@ -408,6 +431,7 @@ namespace isaac
                         stream,
                         gBuffer,
                         sources,
+                        fieldSources,
                         stepSize,
                         transferArray,
                         sourceWeight,
@@ -421,6 +445,7 @@ namespace isaac
             {
                 VolumeRenderKernelCaller<
                     T_VolumeSourceList,
+                    T_FieldSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
@@ -434,6 +459,7 @@ namespace isaac
                         stream,
                         gBuffer,
                         sources,
+                        fieldSources,
                         stepSize,
                         transferArray,
                         sourceWeight,
@@ -448,6 +474,7 @@ namespace isaac
 
     template<
         typename T_VolumeSourceList,
+        typename T_FieldSourceList,
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
@@ -458,6 +485,7 @@ namespace isaac
         typename T_Stream>
     struct VolumeRenderKernelCaller<
         T_VolumeSourceList,
+        T_FieldSourceList,
         T_TransferArray,
         T_SourceWeight,
         T_PointerArray,
@@ -473,6 +501,7 @@ namespace isaac
             T_Stream stream,
             const GBuffer& gBuffer,
             const T_VolumeSourceList& sources,
+            const T_FieldSourceList& fieldSources,
             const isaac_float& stepSize,
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
@@ -486,6 +515,7 @@ namespace isaac
             {
                 VolumeRenderKernel<
                     T_VolumeSourceList,
+                    T_FieldSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
@@ -498,6 +528,7 @@ namespace isaac
                     kernel,
                     gBuffer,
                     sources,
+                    fieldSources,
                     stepSize,
                     transferArray,
                     sourceWeight,
@@ -510,6 +541,7 @@ namespace isaac
             {
                 VolumeRenderKernel<
                     T_VolumeSourceList,
+                    T_FieldSourceList,
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
@@ -522,6 +554,7 @@ namespace isaac
                     kernel,
                     gBuffer,
                     sources,
+                    fieldSources,
                     stepSize,
                     transferArray,
                     sourceWeight,

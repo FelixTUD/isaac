@@ -55,9 +55,9 @@ void updateVectorField(
                 ISAAC_IDX_TYPE pos = x + y * localSize.x + z * localSize.x * localSize.y;
                 isaac_size3 coord(x, y, z);
                 isaac_float3 vector(
-                    -(position.y + coord.y - globalSize.y * 0.5f) / isaac_float(globalSize.y),
-                    (position.x + coord.x - globalSize.x * 0.5f) / isaac_float(globalSize.x),
-                    0.1f * s);
+                    -(position.y + coord.y - globalSize.y * 0.5f) * s / isaac_float(globalSize.y),
+                    (position.x + coord.x - globalSize.x * 0.5f) * s / isaac_float(globalSize.x),
+                    0.3f);
                 alpaka::getPtrNative(hostBuffer)[pos] = vector;
             }
         }

@@ -278,6 +278,7 @@ namespace isaac
                 T_Array& persistentTextureArray,
                 const Tex3D<isaac_float>& noiseTexture,
                 const isaac_size3& localSize,
+                const isaac_float3& scale,
                 const T_Weight& weight,
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
@@ -320,6 +321,7 @@ namespace isaac
                         persistentTextureArray.textures[index],
                         noiseTexture,
                         isaac_int3(localSize),
+                        scale,
                         timeStep));
                     alpaka::enqueue(stream, instance);
                     alpaka::wait(stream);
@@ -1276,6 +1278,7 @@ namespace isaac
                     persistentTextureArray,
                     deviceNoiseTextureAllocator.getTexture(),
                     localSize,
+                    scale,
                     sourceWeight,
                     sourceIsoThreshold,
                     pointer,
@@ -2050,6 +2053,7 @@ namespace isaac
             // call iso render kernel
             IsoRenderKernelCaller<
                 T_VolumeSourceList,
+                T_FieldSourceList,
                 TransferDeviceStruct<combinedSourceListSize>,
                 IsoThresholdStruct<volumeFieldSourceListSize>,
                 PersistentArrayStruct<volumeFieldSourceListSize>,
@@ -2058,11 +2062,12 @@ namespace isaac
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
                 T_Acc,
                 T_Stream,
-                vSourceListSize>::
+                volumeFieldSourceListSize>::
                 call(
                     myself->stream,
                     gBuffer,
                     myself->volumeSources,
+                    myself->fieldSources,
                     myself->step,
                     myself->transferDevice,
                     myself->sourceIsoThreshold,
@@ -2127,6 +2132,7 @@ namespace isaac
             // call volume render kernel
             VolumeRenderKernelCaller<
                 T_VolumeSourceList,
+                T_FieldSourceList,
                 TransferDeviceStruct<combinedSourceListSize>,
                 SourceWeightStruct<combinedSourceListSize>,
                 PersistentArrayStruct<volumeFieldSourceListSize>,
@@ -2135,11 +2141,12 @@ namespace isaac
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
                 T_Acc,
                 T_Stream,
-                vSourceListSize>::
+                volumeFieldSourceListSize>::
                 call(
                     myself->stream,
                     gBuffer,
                     myself->volumeSources,
+                    myself->fieldSources,
                     myself->step,
                     myself->transferDevice,
                     myself->sourceWeight,
@@ -2151,7 +2158,7 @@ namespace isaac
 
             // wait until render kernel has finished
             alpaka::wait(myself->stream);
-
+            if(false)
             {
                 int offset = vSourceListSize;
                 TestVolumeRenderKernel<

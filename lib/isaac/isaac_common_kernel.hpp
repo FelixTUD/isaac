@@ -381,6 +381,7 @@ namespace isaac
             Tex3D<isaac_float> texture,
             const Tex3D<isaac_float> noiseTexture,
             const isaac_int3 localSize,
+            const isaac_float3 scale,
             isaac_int timeStep) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
@@ -398,16 +399,16 @@ namespace isaac
                 isaac_float3 value = source[coord];
                 isaac_float weight = applyFunctorChain(value, nr);
                 texture[coord] = noiseTexture[coord] * weight
-                    + texture.sample<FilterType::LINEAR, BorderType::REPEAT>(
-                          isaac_float3(coord) + glm::normalize(value) * isaac_float(2.5))
+                    + texture.sample<FilterType::LINEAR, BorderType::VALUE>(
+                          isaac_float3(coord) + glm::normalize(value) * isaac_float(2.5) / scale)
                         * isaac_float(0.9);
 #else
                 isaac_float3 fCoord = coord;
                 isaac_float result = 0;
-                const int steps = 50;
+                const int steps = 30;
                 isaac_float3 value;
                 isaac_float weight;
-                // timeStep = 0;
+                timeStep = 0;
                 for(int i = 0; i < timeStep; i++)
                 {
                     if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
@@ -419,7 +420,7 @@ namespace isaac
                     result
                         += (noiseTexture.sample<FilterType::NEAREST, BorderType::REPEAT>(fCoord) * weight
                             * (steps - timeStep + i));
-                    fCoord += glm::normalize(value) * isaac_float(1);
+                    fCoord += glm::normalize(value) * isaac_float(2.5) / scale;
                 }
                 fCoord = coord;
                 for(int i = 0; i < steps - timeStep; i++)
@@ -433,7 +434,7 @@ namespace isaac
                     result
                         += (noiseTexture.sample<FilterType::LINEAR, BorderType::REPEAT>(fCoord) * weight
                             * (steps - timeStep - i));
-                    fCoord += glm::normalize(value) * isaac_float(1);
+                    fCoord += glm::normalize(value) * isaac_float(2.5) / scale;
                 }
                 texture[coord] = result;
 #endif

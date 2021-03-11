@@ -23,8 +23,8 @@
 
 using namespace isaac;
 
-#define VOLUME_X 128
-#define VOLUME_Y 128
+#define VOLUME_X 64
+#define VOLUME_Y 64
 #define VOLUME_Z 128
 
 #define PARTICLE_VOLUME_X 64
@@ -328,7 +328,7 @@ int main(int argc, char** argv)
 
 
 #endif
-    int sX = 1, sY = 1, sZ = 3;
+    int sX = 1, sY = 1, sZ = 1;
     if(filename)
     {
         read_vtk_to_memory(
