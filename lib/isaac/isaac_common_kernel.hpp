@@ -380,7 +380,8 @@ namespace isaac
             const T_Source source,
             Tex3D<isaac_float> texture,
             const Tex3D<isaac_float> noiseTexture,
-            const isaac_int3 localSize) const
+            const isaac_int3 localSize,
+            isaac_int timeStep) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
@@ -393,12 +394,49 @@ namespace isaac
             coord.z = -T_Source::guardSize;
             for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
+#if 1
                 isaac_float3 value = source[coord];
                 isaac_float weight = applyFunctorChain(value, nr);
                 texture[coord] = noiseTexture[coord] * weight
-                    + texture.sample<FilterType::LINEAR, BorderType::VALUE>(
-                          isaac_float3(coord) + glm::normalize(value))
-                        * isaac_float(0.99);
+                    + texture.sample<FilterType::LINEAR, BorderType::REPEAT>(
+                          isaac_float3(coord) + glm::normalize(value) * isaac_float(2.5))
+                        * isaac_float(0.9);
+#else
+                isaac_float3 fCoord = coord;
+                isaac_float result = 0;
+                const int steps = 50;
+                isaac_float3 value;
+                isaac_float weight;
+                // timeStep = 0;
+                for(int i = 0; i < timeStep; i++)
+                {
+                    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
+                       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize - ISAAC_IDX_TYPE(1))))
+                    {
+                        value = -source[isaac_int3(fCoord)];
+                        weight = applyFunctorChain(value, nr);
+                    }
+                    result
+                        += (noiseTexture.sample<FilterType::NEAREST, BorderType::REPEAT>(fCoord) * weight
+                            * (steps - timeStep + i));
+                    fCoord += glm::normalize(value) * isaac_float(1);
+                }
+                fCoord = coord;
+                for(int i = 0; i < steps - timeStep; i++)
+                {
+                    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
+                       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize - ISAAC_IDX_TYPE(1))))
+                    {
+                        value = source[isaac_int3(fCoord)];
+                        weight = applyFunctorChain(value, nr);
+                    }
+                    result
+                        += (noiseTexture.sample<FilterType::LINEAR, BorderType::REPEAT>(fCoord) * weight
+                            * (steps - timeStep - i));
+                    fCoord += glm::normalize(value) * isaac_float(1);
+                }
+                texture[coord] = result;
+#endif
             }
         }
     };

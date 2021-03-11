@@ -282,9 +282,11 @@ namespace isaac
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
                 T_Stream__& stream,
+                isaac_int timeStep,
                 int offset = 0) const
             {
                 int index = I + offset;
+                timeStep = timeStep % 50;
                 bool enabled = weight.value[index] != isaac_float(0) || isoThreshold.value[index] != isaac_float(0);
                 source.update(enabled, pointer);
                 if(!T_Source::persistent && enabled)
@@ -317,7 +319,8 @@ namespace isaac
                         source,
                         persistentTextureArray.textures[index],
                         noiseTexture,
-                        isaac_int3(localSize)));
+                        isaac_int3(localSize),
+                        timeStep));
                     alpaka::enqueue(stream, instance);
                     alpaka::wait(stream);
                 }
@@ -598,7 +601,7 @@ namespace isaac
             distance = -4.5f;
             updateModelview();
 
-
+            Tex3DAllocator<T_Host, isaac_float> tempTex(host, localSize);
             for(int z = 0; z < localSize.z; z++)
             {
                 for(int y = 0; y < localSize.y; y++)
@@ -608,7 +611,66 @@ namespace isaac
                         isaac_float value = std::rand() / isaac_float(RAND_MAX);
                         if(value <= 0.9999)
                             value = 0;
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = value;
+                        tempTex.getTexture()[isaac_int3(x, y, z)] = value;
+                    }
+                }
+            }
+
+            const isaac_float gauss5[3] = {6, 4, 1};
+            for(int z = 0; z < localSize.z; z++)
+            {
+                for(int y = 0; y < localSize.y; y++)
+                {
+                    for(int x = 0; x < localSize.x; x++)
+                    {
+                        isaac_float result(0);
+                        for(int i = -2; i < 3; i++)
+                        {
+                            isaac_int3 coord(x + i, y, z);
+                            // coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
+                            if(isInLowerBounds(coord, isaac_int3(0))
+                               && isInUpperBounds(coord, isaac_int3(localSize - 1)))
+                                result += tempTex.getTexture()[coord] * gauss5[glm::abs(i)];
+                        }
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result;
+                    }
+                }
+            }
+            for(int z = 0; z < localSize.z; z++)
+            {
+                for(int y = 0; y < localSize.y; y++)
+                {
+                    for(int x = 0; x < localSize.x; x++)
+                    {
+                        isaac_float result(0);
+                        for(int i = -2; i < 3; i++)
+                        {
+                            isaac_int3 coord(x, y + i, z);
+                            // coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
+                            if(isInLowerBounds(coord, isaac_int3(0))
+                               && isInUpperBounds(coord, isaac_int3(localSize - 1)))
+                                result += hostNoiseTextureAllocator.getTexture()[coord] * gauss5[glm::abs(i)];
+                        }
+                        tempTex.getTexture()[isaac_int3(x, y, z)] = result;
+                    }
+                }
+            }
+            for(int z = 0; z < localSize.z; z++)
+            {
+                for(int y = 0; y < localSize.y; y++)
+                {
+                    for(int x = 0; x < localSize.x; x++)
+                    {
+                        isaac_float result(0);
+                        for(int i = -2; i < 3; i++)
+                        {
+                            isaac_int3 coord(x, y, z + i);
+                            // coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
+                            if(isInLowerBounds(coord, isaac_int3(0))
+                               && isInUpperBounds(coord, isaac_int3(localSize - 1)))
+                                result += tempTex.getTexture()[coord] * gauss5[glm::abs(i)];
+                        }
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result;
                     }
                 }
             }
@@ -1218,7 +1280,9 @@ namespace isaac
                     sourceIsoThreshold,
                     pointer,
                     stream,
+                    timeStep,
                     offset);
+                timeStep++;
                 offset = volumeFieldSourceListSize;
                 forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
                 ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
@@ -2403,6 +2467,7 @@ namespace isaac
         alpaka::Buf<DevAcc, MinMax, FraDim, ISAAC_IDX_TYPE> localMinMaxArrayDevice;
         alpaka::Buf<DevAcc, MinMax, FraDim, ISAAC_IDX_TYPE> localParticleMinMaxArrayDevice;
 
+        isaac_int timeStep = 0;
         isaac_size3 globalSize;
         isaac_size3 localSize;
         isaac_size3 localParticleSize;

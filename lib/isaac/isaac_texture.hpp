@@ -65,7 +65,6 @@ namespace isaac
             this->guardSize = guardSize;
         }
 
-        // access between 0-1 in each dimension + guard
         template<FilterType T_filter = FilterType::NEAREST, BorderType T_border = BorderType::CLAMP>
         ISAAC_HOST_DEVICE_INLINE T_Type
         sample(const isaac_float_dim<T_textureDim>& coord, const T_Type& borderValue = T_Type(0)) const
@@ -118,14 +117,18 @@ namespace isaac
             isaac_int_dim<T_textureDim> offsetCoord;
             if(T_border == BorderType::REPEAT)
             {
+                // Modulo modification to also account for negative values
                 for(int i = 0; i < T_textureDim; ++i)
-                    offsetCoord[i] = (coord[i] + isaac_int(guardSize)) % sizeWithGuard[i];
+                {
+                    offsetCoord[i] = (sizeWithGuard[i] + ((coord[i] + isaac_int(guardSize)) % sizeWithGuard[i]))
+                        % sizeWithGuard[i];
+                }
             }
             else if(T_border == BorderType::VALUE)
             {
                 offsetCoord = coord + isaac_int(guardSize);
-                if(!isInLowerBounds(coord, isaac_int_dim<T_textureDim>(0))
-                   || !isInUpperBounds(coord, isaac_int_dim<T_textureDim>(sizeWithGuard)))
+                if(!isInLowerBounds(offsetCoord, isaac_int_dim<T_textureDim>(0))
+                   || !isInUpperBounds(offsetCoord, isaac_int_dim<T_textureDim>(sizeWithGuard)))
                     return borderValue;
             }
             else

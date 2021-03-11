@@ -45,7 +45,7 @@ void updateVectorField(
     const isaac::isaac_size3& globalSize)
 {
     using namespace isaac;
-    float s = sin(pos);
+    float s = sin(pos * 10);
     for(ISAAC_IDX_TYPE x = 0; x < localSize.x; x++)
     {
         for(ISAAC_IDX_TYPE y = 0; y < localSize.y; y++)
@@ -57,7 +57,7 @@ void updateVectorField(
                 isaac_float3 vector(
                     -(position.y + coord.y - globalSize.y * 0.5f) / isaac_float(globalSize.y),
                     (position.x + coord.x - globalSize.x * 0.5f) / isaac_float(globalSize.x),
-                    0.1f);
+                    0.1f * s);
                 alpaka::getPtrNative(hostBuffer)[pos] = vector;
             }
         }
