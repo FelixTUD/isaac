@@ -619,57 +619,57 @@ namespace isaac
             }
 
             const isaac_float gauss5[3] = {6, 4, 1};
-            for(int z = 0; z < localSize.z; z++)
+            for(ISAAC_IDX_TYPE z = 0; z < localSize.z; z++)
             {
-                for(int y = 0; y < localSize.y; y++)
+                for(ISAAC_IDX_TYPE y = 0; y < localSize.y; y++)
                 {
-                    for(int x = 0; x < localSize.x; x++)
+                    for(ISAAC_IDX_TYPE x = 0; x < localSize.x; x++)
                     {
                         isaac_float result(0);
-                        for(int i = -2; i < 3; i++)
+                        for(ISAAC_IDX_TYPE i = -2; i < 3; i++)
                         {
                             isaac_int3 coord(x + i, y, z);
                             // coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
                             if(isInLowerBounds(coord, isaac_int3(0))
-                               && isInUpperBounds(coord, isaac_int3(localSize - 1)))
+                               && isInUpperBounds(coord, isaac_int3(localSize - ISAAC_IDX_TYPE(1))))
                                 result += tempTex.getTexture()[coord] * gauss5[glm::abs(i)];
                         }
                         hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result;
                     }
                 }
             }
-            for(int z = 0; z < localSize.z; z++)
+            for(ISAAC_IDX_TYPE z = 0; z < localSize.z; z++)
             {
-                for(int y = 0; y < localSize.y; y++)
+                for(ISAAC_IDX_TYPE y = 0; y < localSize.y; y++)
                 {
-                    for(int x = 0; x < localSize.x; x++)
+                    for(ISAAC_IDX_TYPE x = 0; x < localSize.x; x++)
                     {
                         isaac_float result(0);
-                        for(int i = -2; i < 3; i++)
+                        for(ISAAC_IDX_TYPE i = -2; i < 3; i++)
                         {
                             isaac_int3 coord(x, y + i, z);
                             // coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
                             if(isInLowerBounds(coord, isaac_int3(0))
-                               && isInUpperBounds(coord, isaac_int3(localSize - 1)))
+                               && isInUpperBounds(coord, isaac_int3(localSize - ISAAC_IDX_TYPE(1))))
                                 result += hostNoiseTextureAllocator.getTexture()[coord] * gauss5[glm::abs(i)];
                         }
                         tempTex.getTexture()[isaac_int3(x, y, z)] = result;
                     }
                 }
             }
-            for(int z = 0; z < localSize.z; z++)
+            for(ISAAC_IDX_TYPE z = 0; z < localSize.z; z++)
             {
-                for(int y = 0; y < localSize.y; y++)
+                for(ISAAC_IDX_TYPE y = 0; y < localSize.y; y++)
                 {
-                    for(int x = 0; x < localSize.x; x++)
+                    for(ISAAC_IDX_TYPE x = 0; x < localSize.x; x++)
                     {
                         isaac_float result(0);
-                        for(int i = -2; i < 3; i++)
+                        for(ISAAC_IDX_TYPE i = -2; i < 3; i++)
                         {
                             isaac_int3 coord(x, y, z + i);
                             // coord = glm::clamp(coord, isaac_int3(0), isaac_int3(localSize - 1));
                             if(isInLowerBounds(coord, isaac_int3(0))
-                               && isInUpperBounds(coord, isaac_int3(localSize - 1)))
+                               && isInUpperBounds(coord, isaac_int3(localSize - ISAAC_IDX_TYPE(1))))
                                 result += tempTex.getTexture()[coord] * gauss5[glm::abs(i)];
                         }
                         hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result;

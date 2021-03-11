@@ -395,7 +395,7 @@ namespace isaac
             coord.z = -T_Source::guardSize;
             for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
-#if 1
+#if 0
                 isaac_float3 value = source[coord];
                 isaac_float weight = applyFunctorChain(value, nr);
                 texture[coord] = noiseTexture[coord] * weight
