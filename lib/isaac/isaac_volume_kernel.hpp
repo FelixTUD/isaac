@@ -93,11 +93,13 @@ namespace isaac
                 isaac_float texValue;
                 if(T_interpolation == 0)
                 {
-                    texValue = buffer.sample<FilterType::NEAREST>(pos);
+                    const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
+                    texValue = sampler.sample(buffer, pos);
                 }
                 else
                 {
-                    texValue = buffer.sample<FilterType::LINEAR>(pos);
+                    const Sampler<FilterType::LINEAR, BorderType::CLAMP> sampler;
+                    texValue = sampler.sample(buffer, pos);
                 }
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
@@ -182,11 +184,13 @@ namespace isaac
             Tex3D<isaac_float> texture = persistentArray.textures[T_nr];
             if(T_interpolation == 0)
             {
-                result = texture.sample<FilterType::NEAREST>(pos);
+                const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
+                result = sampler.sample(texture, pos);
             }
             else
             {
-                result = texture.sample<FilterType::LINEAR>(pos);
+                const Sampler<FilterType::LINEAR, BorderType::CLAMP> sampler;
+                result = sampler.sample(texture, pos);
             }
         }
         return result;

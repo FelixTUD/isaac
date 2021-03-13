@@ -393,48 +393,60 @@ namespace isaac
 
 
             coord.z = -T_Source::guardSize;
+            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
             for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
+                // isaac_float3 vector = source[coord];
+                // isaac_float weight = applyFunctorChain(vector, nr);
+                // isaac_float value = sampler.sample(noiseTexture, isaac_float3(coord)) * weight;
+                // texture[coord] = glm::clamp(value, isaac_float(0), isaac_float(1000));
+
 #if 0
-                isaac_float3 value = source[coord];
-                isaac_float weight = applyFunctorChain(value, nr);
-                texture[coord] = noiseTexture[coord] * weight
-                    + texture.sample<FilterType::LINEAR, BorderType::VALUE>(
-                          isaac_float3(coord) + glm::normalize(value) * isaac_float(2.5) / scale)
+                isaac_float3 vector = source[coord];
+                isaac_float weight = applyFunctorChain(vector, nr);
+
+                // Prevent division by 0;
+                isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
+                vector /= vectorLength;
+                isaac_float value = noiseTexture[coord] * weight
+                    + sampler.sample(texture, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
                         * isaac_float(0.9);
-#else
+#endif
+#if 1
                 isaac_float3 fCoord = coord;
                 isaac_float result = 0;
                 const int steps = 30;
-                isaac_float3 value;
+                isaac_float3 vector;
                 isaac_float weight;
                 timeStep = 0;
-                for(int i = 0; i < timeStep; i++)
-                {
-                    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
-                       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize - ISAAC_IDX_TYPE(1))))
-                    {
-                        value = -source[isaac_int3(fCoord)];
-                        weight = applyFunctorChain(value, nr);
-                    }
-                    result
-                        += (noiseTexture.sample<FilterType::NEAREST, BorderType::REPEAT>(fCoord) * weight
-                            * (steps - timeStep + i));
-                    fCoord += glm::normalize(value) * isaac_float(2.5) / scale;
-                }
+                // for(int i = 0; i < timeStep; i++)
+                //{
+                //    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
+                //       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize)))
+                //    {
+                //        vector = -source[isaac_int3(fCoord)];
+                //        weight = applyFunctorChain(vector, nr);
+                //        isaac_float vectorLength
+                //            = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
+                //        vector /= vectorLength;
+                //    }
+                //    result += (sampler.sample(noiseTexture, fCoord) * weight * (steps - timeStep + i));
+                //    fCoord += vector * isaac_float(2.5) / scale;
+                //}
                 fCoord = coord;
                 for(int i = 0; i < steps - timeStep; i++)
                 {
                     if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
-                       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize - ISAAC_IDX_TYPE(1))))
+                       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize)))
                     {
-                        value = source[isaac_int3(fCoord)];
-                        weight = applyFunctorChain(value, nr);
+                        vector = source[isaac_int3(fCoord)];
+                        weight = applyFunctorChain(vector, nr);
+                        isaac_float vectorLength
+                            = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
+                        vector /= vectorLength;
                     }
-                    result
-                        += (noiseTexture.sample<FilterType::LINEAR, BorderType::REPEAT>(fCoord) * weight
-                            * (steps - timeStep - i));
-                    fCoord += glm::normalize(value) * isaac_float(2.5) / scale;
+                    result += (sampler.sample(noiseTexture, fCoord) * weight * (steps - timeStep - i));
+                    fCoord += vector * isaac_float(2.5) / scale;
                 }
                 texture[coord] = result;
 #endif
