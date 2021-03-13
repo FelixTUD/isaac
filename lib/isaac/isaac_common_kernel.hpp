@@ -422,7 +422,7 @@ namespace isaac
                 // for(int i = 0; i < timeStep; i++)
                 //{
                 //    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
-                //       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize)))
+                //       && isInUpperBounds(fCoord, isaac_float3(localSize + isaac_int(T_Source::guardSize))))
                 //    {
                 //        vector = -source[isaac_int3(fCoord)];
                 //        weight = applyFunctorChain(vector, nr);
@@ -437,7 +437,7 @@ namespace isaac
                 for(int i = 0; i < steps - timeStep; i++)
                 {
                     if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
-                       && isInUpperBounds(fCoord, isaac_float3(localSize + T_Source::guardSize)))
+                       && isInUpperBounds(fCoord, isaac_float3(localSize + isaac_int(T_Source::guardSize))))
                     {
                         vector = source[isaac_int3(fCoord)];
                         weight = applyFunctorChain(vector, nr);
