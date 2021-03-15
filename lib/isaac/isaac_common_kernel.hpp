@@ -401,7 +401,7 @@ namespace isaac
                 // isaac_float value = sampler.sample(noiseTexture, isaac_float3(coord)) * weight;
                 // texture[coord] = glm::clamp(value, isaac_float(0), isaac_float(1000));
 
-#if 0
+#if 1
                 isaac_float3 vector = source[coord];
                 isaac_float weight = applyFunctorChain(vector, nr);
 
@@ -411,8 +411,9 @@ namespace isaac
                 isaac_float value = noiseTexture[coord] * weight
                     + sampler.sample(texture, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
                         * isaac_float(0.9);
+                texture[coord] = value;
 #endif
-#if 1
+#if 0
                 isaac_float3 fCoord = coord;
                 isaac_float result = 0;
                 const int steps = 30;
