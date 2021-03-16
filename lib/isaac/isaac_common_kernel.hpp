@@ -393,13 +393,13 @@ namespace isaac
 
 
             coord.z = -T_Source::guardSize;
-            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
+            Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
             for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
                 // isaac_float3 vector = source[coord];
                 // isaac_float weight = applyFunctorChain(vector, nr);
                 // isaac_float value = sampler.sample(noiseTexture, isaac_float3(coord)) * weight;
-                // texture[coord] = glm::clamp(value, isaac_float(0), isaac_float(1000));
+                // texture[coord] = value;
 
 #if 1
                 isaac_float3 vector = source[coord];
@@ -410,7 +410,7 @@ namespace isaac
                 vector /= vectorLength;
                 isaac_float value = noiseTexture[coord] * weight
                     + sampler.sample(texture, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
-                        * isaac_float(0.9);
+                        * isaac_float(0.95);
                 texture[coord] = value;
 #endif
 #if 0
