@@ -107,6 +107,38 @@ namespace isaac
             return guardSize;
         }
 
+        // TODO: this
+        /* Not yet working because of partial template specialization
+        template<typename T_Acc, typename T_AccDim, typename T_Stream, typename T_Kernel, typename... T_Args>
+        ISAAC_HOST_INLINE void kernelOnEachElement(T_Stream& stream, T_Kernel& kernel, T_Args&&... args)
+        {
+            isaac_size2 gridSize
+                = {ISAAC_IDX_TYPE((sizeWithGuard.x + 15) / 16), ISAAC_IDX_TYPE((sizeWithGuard.y + 15) / 16)};
+            isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+            if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
+#endif
+            {
+                gridSize.x = ISAAC_IDX_TYPE(sizeWithGuard.x);
+                gridSize.y = ISAAC_IDX_TYPE(sizeWithGuard.y);
+                blockSize.x = ISAAC_IDX_TYPE(1);
+                blockSize.y = ISAAC_IDX_TYPE(1);
+            }
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1));
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
+            auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
+
+
+            auto const instance(alpaka::createTaskKernel<T_Acc>(workdiv, kernel, this, args));
+            alpaka::enqueue(stream, instance);
+            alpaka::wait(stream);
+        }
+        */
+
 
     private:
         T_Type* bufferPtr = nullptr;

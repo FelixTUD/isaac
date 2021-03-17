@@ -525,7 +525,7 @@ int main(int argc, char** argv)
 
             // Visualization
             int start_drawing = visualization->getTicksUs();
-            json_t* meta = visualization->doVisualization(META_MASTER, NULL, true);
+            json_t* meta = visualization->doVisualization(META_MASTER, NULL, !pause);
             drawingTime += visualization->getTicksUs() - start_drawing;
 
             // Message check

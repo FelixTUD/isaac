@@ -155,7 +155,7 @@ namespace isaac
             }
         };
 
-        struct AllocatePersistentArrayIterator
+        struct AllocatePersistentTextureIterator
         {
             template<typename T_Source, typename T_Array, typename T_LocalSize, typename T_Vector, typename T_DevAcc>
             ISAAC_HOST_INLINE void operator()(
@@ -169,11 +169,41 @@ namespace isaac
             {
                 if(!T_Source::persistent)
                 {
-                    Tex3DAllocator<T_DevAcc, isaac_float> texAllocator
-                        = Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize);
-                    allocatorVector.push_back(texAllocator);
+                    allocatorVector.push_back(
+                        Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
                     persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
                 }
+            }
+        };
+
+        struct AllocateFieldTextureIterator
+        {
+            template<
+                typename T_Source,
+                typename T_Array,
+                typename T_LocalSize,
+                typename T_Vector,
+                typename T_LicArray,
+                typename T_DevAcc>
+            ISAAC_HOST_INLINE void operator()(
+                const int I,
+                const T_Source& source,
+                T_Array& persistentTextureArray,
+                const T_LocalSize& localSize,
+                T_Vector& allocatorVector,
+                T_Vector& licAllocators,
+                T_LicArray& licTextures,
+                T_LicArray& licTexturesBackBuffer,
+                const T_DevAcc& acc,
+                const int offset = 0) const
+            {
+                allocatorVector.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
+
+                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                licTextures.textures[I] = licAllocators.back().getTexture();
+                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                licTexturesBackBuffer.textures[I] = licAllocators.back().getTexture();
             }
         };
 
@@ -265,24 +295,24 @@ namespace isaac
             }
         };
 
-        struct UpdateLICTextureIterator
+        struct GenerateLICTextureIterator
         {
             template<
                 typename T_Source,
-                typename T_Array,
+                typename T_LicArray,
                 typename T_Weight,
                 typename T_IsoTheshold,
                 typename T_Stream__>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
-                T_Array& persistentTextureArray,
+                T_LicArray& licTextures,
+                T_LicArray& licTexturesBackBuffer,
                 const Tex3D<isaac_float>& noiseTexture,
                 const isaac_size3& localSize,
                 const isaac_float3& scale,
                 const T_Weight& weight,
                 const T_IsoTheshold& isoThreshold,
-                void* pointer,
                 T_Stream__& stream,
                 isaac_int timeStep,
                 int offset = 0) const
@@ -290,8 +320,72 @@ namespace isaac
                 int index = I + offset;
                 timeStep = timeStep % 50;
                 bool enabled = weight.value[index] != isaac_float(0) || isoThreshold.value[index] != isaac_float(0);
+                if(enabled)
+                {
+                    isaac_size2 gridSize
+                        = {ISAAC_IDX_TYPE((localSize.x + T_Source::guardSize * 2 + 15) / 16),
+                           ISAAC_IDX_TYPE((localSize.y + T_Source::guardSize * 2 + 15) / 16)};
+                    isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+                    if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
+#endif
+                    {
+                        gridSize.x = ISAAC_IDX_TYPE(localSize.x + T_Source::guardSize * 2);
+                        gridSize.y = ISAAC_IDX_TYPE(localSize.y + T_Source::guardSize * 2);
+                        blockSize.x = ISAAC_IDX_TYPE(1);
+                        blockSize.y = ISAAC_IDX_TYPE(1);
+                    }
+                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
+                        ISAAC_IDX_TYPE(1),
+                        ISAAC_IDX_TYPE(1),
+                        ISAAC_IDX_TYPE(1));
+                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
+                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
+                    auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
+                    GenerateLICTextureKernel<T_Source> kernel;
+                    auto const instance(alpaka::createTaskKernel<T_Acc>(
+                        workdiv,
+                        kernel,
+                        index,
+                        source,
+                        licTextures.textures[I],
+                        licTexturesBackBuffer.textures[I],
+                        noiseTexture,
+                        isaac_int3(localSize),
+                        scale,
+                        timeStep));
+                    alpaka::enqueue(stream, instance);
+                    alpaka::wait(stream);
+                }
+            }
+        };
+
+        struct UpdateLICTextureIterator
+        {
+            template<
+                typename T_Source,
+                typename T_Array,
+                typename T_LicArray,
+                typename T_Weight,
+                typename T_IsoTheshold,
+                typename T_Stream__>
+            ISAAC_HOST_INLINE void operator()(
+                const int I,
+                T_Source& source,
+                T_Array& persistentTextureArray,
+                const T_LicArray& licTextures,
+                const isaac_size3& localSize,
+                const isaac_float3& scale,
+                const T_Weight& weight,
+                const T_IsoTheshold& isoThreshold,
+                void* pointer,
+                T_Stream__& stream,
+                int offset = 0) const
+            {
+                int index = I + offset;
+                bool enabled = weight.value[index] != isaac_float(0) || isoThreshold.value[index] != isaac_float(0);
                 source.update(enabled, pointer);
-                if(!T_Source::persistent && enabled)
+                if(enabled)
                 {
                     isaac_size2 gridSize
                         = {ISAAC_IDX_TYPE((localSize.x + T_Source::guardSize * 2 + 15) / 16),
@@ -320,10 +414,9 @@ namespace isaac
                         index,
                         source,
                         persistentTextureArray.textures[index],
-                        noiseTexture,
+                        licTextures.textures[I],
                         isaac_int3(localSize),
-                        scale,
-                        timeStep));
+                        scale));
                     alpaka::enqueue(stream, instance);
                     alpaka::wait(stream);
                 }
@@ -713,7 +806,7 @@ namespace isaac
             // non persistent buffer memory
             forEachParams(
                 volumeSources,
-                AllocatePersistentArrayIterator(),
+                AllocatePersistentTextureIterator(),
                 persistentTextureArray,
                 localSize,
                 persistentTextureAllocators,
@@ -722,17 +815,15 @@ namespace isaac
             int offset = vSourceListSize;
             forEachParams(
                 fieldSources,
-                AllocatePersistentArrayIterator(),
+                AllocateFieldTextureIterator(),
                 persistentTextureArray,
                 localSize,
                 persistentTextureAllocators,
+                licTextureAllocators,
+                licTextures,
+                licTexturesBackBuffer,
                 acc,
                 offset);
-
-            for(auto& texAlloc : persistentTextureAllocators)
-            {
-                texAlloc.clearColor(stream);
-            }
 
             // Transfer func memory:
             for(int i = 0; i < combinedSourceListSize; i++)
@@ -1273,36 +1364,31 @@ namespace isaac
             void* pointer = NULL,
             bool redraw = true)
         {
+            bool updatePersistentBuffers = redraw;
+
             if(redraw)
             {
-                ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
-                forEachParams(
-                    volumeSources,
-                    UpdatePersistentTextureIterator(),
-                    persistentTextureArray,
-                    localSize,
-                    sourceWeight,
-                    sourceIsoThreshold,
-                    pointer,
-                    stream);
+                // ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
+                for(int i = 0; i < fSourceListSize; i++)
+                {
+                    std::swap(licTextures.textures[i], licTexturesBackBuffer.textures[i]);
+                }
                 int offset = vSourceListSize;
                 forEachParams(
                     fieldSources,
-                    UpdateLICTextureIterator(),
-                    persistentTextureArray,
+                    GenerateLICTextureIterator(),
+                    licTextures,
+                    licTexturesBackBuffer,
                     deviceNoiseTextureAllocator.getTexture(),
                     localSize,
                     scale,
                     sourceWeight,
                     sourceIsoThreshold,
-                    pointer,
                     stream,
                     timeStep,
                     offset);
-                timeStep++;
-                offset = volumeFieldSourceListSize;
-                forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
-                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
+
+                // ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
             }
             ISAAC_WAIT_VISUALIZATION
 
@@ -1594,6 +1680,8 @@ namespace isaac
             if(json_array_size(js = json_object_get(message, "functions")))
             {
                 redraw = true;
+                // set updatePersistentBuffers because they need new functor chain for updated values
+                updatePersistentBuffers = true;
                 json_array_foreach(js, index, value) functions[index].source = std::string(json_string_value(value));
                 updateFunctions();
                 sendFunctions = true;
@@ -1691,6 +1779,39 @@ namespace isaac
             }
             json_decref(message);
             thrMetaTargets = metaTargets;
+
+            if(updatePersistentBuffers)
+            {
+                ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
+                forEachParams(
+                    volumeSources,
+                    UpdatePersistentTextureIterator(),
+                    persistentTextureArray,
+                    localSize,
+                    sourceWeight,
+                    sourceIsoThreshold,
+                    pointer,
+                    stream);
+
+                int offset = vSourceListSize;
+                forEachParams(
+                    fieldSources,
+                    UpdateLICTextureIterator(),
+                    persistentTextureArray,
+                    licTextures,
+                    localSize,
+                    scale,
+                    sourceWeight,
+                    sourceIsoThreshold,
+                    pointer,
+                    stream,
+                    offset);
+
+                offset = volumeFieldSourceListSize;
+                forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
+                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
+            }
+            ISAAC_WAIT_VISUALIZATION
 
             if(sendMinMax)
             {
@@ -2545,6 +2666,9 @@ namespace isaac
         std::vector<alpaka::Buf<DevAcc, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferDeviceBuf;
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
         std::vector<Tex3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
+        std::vector<Tex3DAllocator<DevAcc, isaac_float>> licTextureAllocators;
+        PersistentArrayStruct<fSourceListSize> licTextures;
+        PersistentArrayStruct<fSourceListSize> licTexturesBackBuffer;
 
         TransferDeviceStruct<combinedSourceListSize> transferDevice;
         TransferHostStruct<combinedSourceListSize> transferHost;

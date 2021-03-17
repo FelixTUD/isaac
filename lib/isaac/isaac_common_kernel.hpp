@@ -371,14 +371,15 @@ namespace isaac
 
 
     template<typename T_Source>
-    struct UpdateLICTextureKernel
+    struct GenerateLICTextureKernel
     {
         template<typename T_Acc>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
             const T_Source source,
-            Tex3D<isaac_float> texture,
+            Tex3D<isaac_float> licTexture,
+            Tex3D<isaac_float> licTextureBackBuffer,
             const Tex3D<isaac_float> noiseTexture,
             const isaac_int3 localSize,
             const isaac_float3 scale,
@@ -397,28 +398,25 @@ namespace isaac
             for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
                 // isaac_float3 vector = source[coord];
-                // isaac_float weight = applyFunctorChain(vector, nr);
                 // isaac_float value = sampler.sample(noiseTexture, isaac_float3(coord)) * weight;
-                // texture[coord] = value;
+                // licTexture[coord] = value;
 
 #if 1
                 isaac_float3 vector = source[coord];
-                isaac_float weight = applyFunctorChain(vector, nr);
 
                 // Prevent division by 0;
                 isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
                 vector /= vectorLength;
-                isaac_float value = noiseTexture[coord] * weight
-                    + sampler.sample(texture, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
+                isaac_float value = noiseTexture[coord]
+                    + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
                         * isaac_float(0.95);
-                texture[coord] = value;
+                licTexture[coord] = value;
 #endif
 #if 0
                 isaac_float3 fCoord = coord;
                 isaac_float result = 0;
                 const int steps = 30;
                 isaac_float3 vector;
-                isaac_float weight;
                 timeStep = 0;
                 // for(int i = 0; i < timeStep; i++)
                 //{
@@ -441,16 +439,46 @@ namespace isaac
                        && isInUpperBounds(fCoord, isaac_float3(localSize + isaac_int(T_Source::guardSize))))
                     {
                         vector = source[isaac_int3(fCoord)];
-                        weight = applyFunctorChain(vector, nr);
                         isaac_float vectorLength
                             = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
                         vector /= vectorLength;
                     }
-                    result += (sampler.sample(noiseTexture, fCoord) * weight * (steps - timeStep - i));
+                    result += (sampler.sample(noiseTexture, fCoord) * (steps - timeStep - i));
                     fCoord += vector * isaac_float(2.5) / scale;
                 }
-                texture[coord] = result;
+                licTexture[coord] = result;
 #endif
+            }
+        }
+    };
+
+    template<typename T_Source>
+    struct UpdateLICTextureKernel
+    {
+        template<typename T_Acc>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            const int nr,
+            const T_Source source,
+            Tex3D<isaac_float> texture,
+            const Tex3D<isaac_float> licTexture,
+            const isaac_int3 localSize,
+            const isaac_float3 scale) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
+                return;
+            coord.x -= T_Source::guardSize;
+            coord.y -= T_Source::guardSize;
+
+
+            coord.z = -T_Source::guardSize;
+            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            {
+                isaac_float3 vector = source[coord];
+                isaac_float weight = applyFunctorChain(vector, nr);
+                texture[coord] = licTexture[coord] * weight;
             }
         }
     };
