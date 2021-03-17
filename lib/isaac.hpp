@@ -295,71 +295,6 @@ namespace isaac
             }
         };
 
-        struct GenerateLICTextureIterator
-        {
-            template<
-                typename T_Source,
-                typename T_LicArray,
-                typename T_Weight,
-                typename T_IsoTheshold,
-                typename T_Stream__>
-            ISAAC_HOST_INLINE void operator()(
-                const int I,
-                T_Source& source,
-                T_LicArray& licTextures,
-                T_LicArray& licTexturesBackBuffer,
-                const Tex3D<isaac_float>& noiseTexture,
-                const isaac_size3& localSize,
-                const isaac_float3& scale,
-                const T_Weight& weight,
-                const T_IsoTheshold& isoThreshold,
-                T_Stream__& stream,
-                isaac_int timeStep,
-                int offset = 0) const
-            {
-                int index = I + offset;
-                timeStep = timeStep % 50;
-                bool enabled = weight.value[index] != isaac_float(0) || isoThreshold.value[index] != isaac_float(0);
-                if(enabled)
-                {
-                    isaac_size2 gridSize
-                        = {ISAAC_IDX_TYPE((localSize.x + T_Source::guardSize * 2 + 15) / 16),
-                           ISAAC_IDX_TYPE((localSize.y + T_Source::guardSize * 2 + 15) / 16)};
-                    isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-                    {
-                        gridSize.x = ISAAC_IDX_TYPE(localSize.x + T_Source::guardSize * 2);
-                        gridSize.y = ISAAC_IDX_TYPE(localSize.y + T_Source::guardSize * 2);
-                        blockSize.x = ISAAC_IDX_TYPE(1);
-                        blockSize.y = ISAAC_IDX_TYPE(1);
-                    }
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1));
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-                    auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
-                    GenerateLICTextureKernel<T_Source> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
-                        workdiv,
-                        kernel,
-                        index,
-                        source,
-                        licTextures.textures[I],
-                        licTexturesBackBuffer.textures[I],
-                        noiseTexture,
-                        isaac_int3(localSize),
-                        scale,
-                        timeStep));
-                    alpaka::enqueue(stream, instance);
-                    alpaka::wait(stream);
-                }
-            }
-        };
-
         struct UpdateLICTextureIterator
         {
             template<
@@ -373,13 +308,17 @@ namespace isaac
                 const int I,
                 T_Source& source,
                 T_Array& persistentTextureArray,
-                const T_LicArray& licTextures,
+                T_LicArray& licTextures,
+                T_LicArray& licTexturesBackBuffer,
+                const Tex3D<isaac_float>& noiseTexture,
                 const isaac_size3& localSize,
                 const isaac_float3& scale,
                 const T_Weight& weight,
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
                 T_Stream__& stream,
+                isaac_int timeStep,
+                bool updateLIC,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -407,18 +346,38 @@ namespace isaac
                     const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
                     const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
                     auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
-                    UpdateLICTextureKernel<T_Source> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
-                        workdiv,
-                        kernel,
-                        index,
-                        source,
-                        persistentTextureArray.textures[index],
-                        licTextures.textures[I],
-                        isaac_int3(localSize),
-                        scale));
-                    alpaka::enqueue(stream, instance);
-                    alpaka::wait(stream);
+                    if(updateLIC)
+                    {
+                        std::swap(licTextures.textures[I], licTexturesBackBuffer.textures[I]);
+                        GenerateLICTextureKernel<T_Source> kernel;
+                        auto const instance(alpaka::createTaskKernel<T_Acc>(
+                            workdiv,
+                            kernel,
+                            index,
+                            source,
+                            licTextures.textures[I],
+                            licTexturesBackBuffer.textures[I],
+                            noiseTexture,
+                            isaac_int3(localSize),
+                            scale,
+                            timeStep));
+                        alpaka::enqueue(stream, instance);
+                        alpaka::wait(stream);
+                    }
+                    {
+                        UpdateLICTextureKernel<T_Source> kernel;
+                        auto const instance(alpaka::createTaskKernel<T_Acc>(
+                            workdiv,
+                            kernel,
+                            index,
+                            source,
+                            persistentTextureArray.textures[index],
+                            licTextures.textures[I],
+                            isaac_int3(localSize),
+                            scale));
+                        alpaka::enqueue(stream, instance);
+                        alpaka::wait(stream);
+                    }
                 }
             }
         };
@@ -1365,32 +1324,7 @@ namespace isaac
             bool redraw = true)
         {
             bool updatePersistentBuffers = redraw;
-
-            if(redraw)
-            {
-                // ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
-                for(int i = 0; i < fSourceListSize; i++)
-                {
-                    std::swap(licTextures.textures[i], licTexturesBackBuffer.textures[i]);
-                }
-                int offset = vSourceListSize;
-                forEachParams(
-                    fieldSources,
-                    GenerateLICTextureIterator(),
-                    licTextures,
-                    licTexturesBackBuffer,
-                    deviceNoiseTextureAllocator.getTexture(),
-                    localSize,
-                    scale,
-                    sourceWeight,
-                    sourceIsoThreshold,
-                    stream,
-                    timeStep,
-                    offset);
-
-                // ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
-            }
-            ISAAC_WAIT_VISUALIZATION
+            bool updateLIC = redraw;
 
             myself = this;
 
@@ -1799,12 +1733,16 @@ namespace isaac
                     UpdateLICTextureIterator(),
                     persistentTextureArray,
                     licTextures,
+                    licTexturesBackBuffer,
+                    deviceNoiseTextureAllocator.getTexture(),
                     localSize,
                     scale,
                     sourceWeight,
                     sourceIsoThreshold,
                     pointer,
                     stream,
+                    timeStep,
+                    updateLIC,
                     offset);
 
                 offset = volumeFieldSourceListSize;
