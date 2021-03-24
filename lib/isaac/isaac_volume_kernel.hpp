@@ -20,22 +20,15 @@
 
 namespace isaac
 {
-    template<
-        typename T_TransferArray,
-        typename T_SourceWeight,
-        int T_interpolation,
-        ISAAC_IDX_TYPE T_transferSize,
-        int T_offset>
-    struct TestVolumeRenderKernel
+    template<FilterType T_filterType>
+    struct CombinedVolumeRenderKernel
     {
         template<typename T_Acc>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            Tex3D<isaac_float> buffer,
+            Tex3D<isaac_float4> combinedTexture,
             isaac_float stepSize, // ray stepSize length
-            const T_TransferArray transferArray, // mapping to simulation memory
-            const T_SourceWeight sourceWeight, // weights of sources for blending
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -63,7 +56,6 @@ namespace isaac
                 int(SimulationSize.globalSize.x),
                 ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
             isaac_float factor = stepSize / min_size * 2.0f;
-            isaac_float4 colorAdd;
             isaac_int startSteps = glm::ceil(ray.startDepth / stepSize);
             isaac_int endSteps = glm::floor(ray.endDepth / stepSize);
             isaac_float3 stepVec = stepSize * ray.dir / scale;
@@ -72,45 +64,17 @@ namespace isaac
 
             // move startSteps and endSteps to valid positions in the volume
             isaac_float3 pos = startUnscaled + stepVec * isaac_float(startSteps);
-            while((!isInLowerBounds(pos, isaac_float3(0)) || !isInUpperBounds(pos, SimulationSize.localSize))
-                  && startSteps <= endSteps)
-            {
-                startSteps++;
-                pos = startUnscaled + stepVec * isaac_float(startSteps);
-            }
-            pos = startUnscaled + stepVec * isaac_float(endSteps);
-            while((!isInLowerBounds(pos, isaac_float3(0)) || !isInUpperBounds(pos, SimulationSize.localSize))
-                  && startSteps <= endSteps)
-            {
-                endSteps--;
-                pos = startUnscaled + stepVec * isaac_float(endSteps);
-            }
             isaac_float4 color = isaac_float4(0);
             // iterate over the volume
             for(isaac_int i = startSteps; i <= endSteps; i++)
             {
                 pos = startUnscaled + stepVec * isaac_float(i);
-                isaac_float texValue;
-                if(T_interpolation == 0)
-                {
-                    const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
-                    texValue = sampler.sample(buffer, pos);
-                }
-                else
-                {
-                    const Sampler<FilterType::LINEAR, BorderType::CLAMP> sampler;
-                    texValue = sampler.sample(buffer, pos);
-                }
-                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
-                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                isaac_float4 value = transferArray.pointer[T_offset][lookupValue];
-                value.w *= sourceWeight.value[T_offset];
-                value.r *= value.w;
-                value.g *= value.w;
-                value.b *= value.w;
+                isaac_float4 value;
+                const Sampler<T_filterType, BorderType::CLAMP> sampler;
+                value = sampler.sample(combinedTexture, pos);
                 value *= factor;
-                colorAdd = (isaac_float(1) - color.w) * value;
-                color += colorAdd;
+                isaac_float weight = glm::max(isaac_float(1) - color.w, isaac_float(0));
+                color += weight * value;
                 if(color.w > isaac_float(0.99))
                 {
                     break;

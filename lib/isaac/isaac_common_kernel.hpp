@@ -369,6 +369,61 @@ namespace isaac
         }
     };
 
+    template<typename T_Source, ISAAC_IDX_TYPE T_transferSize>
+    struct MergeToCombinedTexture
+    {
+        template<typename T_Acc, typename T_TransferArray, typename T_SourceWeight, typename T_IsoThreshold>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            const int nr,
+            const T_Source source,
+            const isaac_int3 localSize,
+            const T_TransferArray transferArray,
+            const T_SourceWeight sourceWeight,
+            const T_IsoThreshold sourceIsoThreshold,
+            Tex3D<isaac_float4> volumeTexture,
+            Tex3D<isaac_float4> isoTexture) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
+                return;
+            coord.x -= T_Source::guardSize;
+            coord.y -= T_Source::guardSize;
+
+
+            coord.z = -T_Source::guardSize;
+            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            {
+                isaac_float_dim<T_Source::featureDim> value = source[coord];
+                isaac_float texValue = applyFunctorChain(value, nr);
+                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
+                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
+                const isaac_float4 color = transferArray.pointer[nr][lookupValue];
+                if(sourceWeight.value[nr] > 0)
+                {
+                    isaac_float4 volumeColor = color;
+                    volumeColor.a *= sourceWeight.value[nr];
+                    volumeColor.r *= volumeColor.a;
+                    volumeColor.g *= volumeColor.a;
+                    volumeColor.b *= volumeColor.a;
+                    isaac_float weight = glm::max(isaac_float(1) - volumeTexture[coord].a, isaac_float(0));
+                    volumeTexture[coord] += weight * volumeColor;
+                }
+                if(sourceIsoThreshold.value[nr] > 0)
+                {
+                    isaac_float4 isoColor = color;
+                    isoColor.a = glm::clamp(
+                        isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5),
+                        isaac_float(0),
+                        isaac_float(1));
+                    if(isoTexture[coord].a < isoColor.a)
+                        isoTexture[coord] = isoColor;
+                }
+            }
+        }
+    };
+
 
     template<typename T_Source>
     struct GenerateLICTextureKernel
@@ -474,6 +529,62 @@ namespace isaac
                 isaac_float3 vector = source[coord];
                 isaac_float weight = applyFunctorChain(vector, nr);
                 texture[coord] = licTexture[coord] * weight;
+            }
+        }
+    };
+
+    template<typename T_Source, ISAAC_IDX_TYPE T_transferSize>
+    struct MergeLICToCombinedTexture
+    {
+        template<typename T_Acc, typename T_TransferArray, typename T_SourceWeight, typename T_IsoThreshold>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            const int nr,
+            const T_Source source,
+            const isaac_int3 localSize,
+            const T_TransferArray transferArray,
+            const T_SourceWeight sourceWeight,
+            const T_IsoThreshold sourceIsoThreshold,
+            const Tex3D<isaac_float> licTexture,
+            Tex3D<isaac_float4> volumeTexture,
+            Tex3D<isaac_float4> isoTexture) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
+                return;
+            coord.x -= T_Source::guardSize;
+            coord.y -= T_Source::guardSize;
+
+
+            coord.z = -T_Source::guardSize;
+            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            {
+                isaac_float_dim<T_Source::featureDim> value = source[coord];
+                isaac_float texValue = licTexture[coord] * applyFunctorChain(value, nr);
+                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
+                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
+                const isaac_float4 color = transferArray.pointer[nr][lookupValue];
+                if(sourceWeight.value[nr] > 0)
+                {
+                    isaac_float4 volumeColor = color;
+                    volumeColor.a *= sourceWeight.value[nr];
+                    volumeColor.r *= volumeColor.a;
+                    volumeColor.g *= volumeColor.a;
+                    volumeColor.b *= volumeColor.a;
+                    isaac_float weight = glm::max(isaac_float(1) - volumeTexture[coord].a, isaac_float(0));
+                    volumeTexture[coord] += weight * volumeColor;
+                }
+                if(sourceIsoThreshold.value[nr] > 0)
+                {
+                    isaac_float4 isoColor = color;
+                    isoColor.a = glm::clamp(
+                        isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5),
+                        isaac_float(0),
+                        isaac_float(1));
+                    if(isoTexture[coord].a < isoColor.a)
+                        isoTexture[coord] = isoColor;
+                }
             }
         }
     };

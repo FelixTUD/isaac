@@ -21,6 +21,109 @@
 
 namespace isaac
 {
+    template<FilterType T_filterType>
+    struct CombinedIsoRenderKernel
+    {
+        template<typename T_Acc>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            GBuffer gBuffer,
+            Tex3D<isaac_float4> combinedTexture,
+            isaac_float stepSize, // ray stepSize length
+            const isaac_float3 scale, // isaac set scaling
+            const ClippingStruct inputClipping // clipping planes
+        ) const
+        {
+            // get pixel values from thread ids
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_uint2 pixel = isaac_uint2(alpThreadIdx[2], alpThreadIdx[1]);
+            // apply framebuffer offset to pixel
+            // stop if pixel position is out of bounds
+            pixel = pixel + gBuffer.startOffset;
+            if(!isInUpperBounds(pixel, gBuffer.size))
+                return;
+
+            Ray ray = pixelToRay(isaac_float2(pixel), isaac_float2(gBuffer.size));
+
+            if(!clipRay(ray, inputClipping))
+                return;
+
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            if(ray.endDepth <= ray.startDepth)
+                return;
+
+            // Starting the main loop
+            isaac_float min_size = ISAAC_MIN(
+                int(SimulationSize.globalSize.x),
+                ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
+            isaac_int startSteps = glm::ceil(ray.startDepth / stepSize);
+            isaac_int endSteps = glm::floor(ray.endDepth / stepSize);
+            isaac_float3 stepVec = stepSize * ray.dir / scale;
+            // unscale all data for correct memory access
+            isaac_float3 startUnscaled = ray.start / scale;
+
+            // move startSteps and endSteps to valid positions in the volume
+            isaac_float3 pos = startUnscaled + stepVec * isaac_float(startSteps);
+            bool hit = false;
+            isaac_float depth = ray.endDepth;
+            isaac_float4 hitColor = isaac_float4(0);
+            isaac_float3 hitNormal;
+
+            isaac_float oldValue = 0;
+
+            // iterate over the volume
+            for(isaac_int i = startSteps; i <= endSteps && !hit; i++)
+            {
+                pos = startUnscaled + stepVec * isaac_float(i);
+                bool first = ray.isClipped && i == startSteps;
+                isaac_float t = i * stepSize;
+
+                isaac_float value;
+                const Sampler<T_filterType, BorderType::CLAMP> sampler;
+                value = sampler.sample(combinedTexture, pos).a;
+                isaac_float tmpValue = oldValue;
+                oldValue = value;
+                if(value < isaac_float(0.5))
+                    continue;
+
+                if(first)
+                    depth = ray.startDepth;
+                else
+                    depth = t + stepSize * (isaac_float(0.5) - tmpValue) / (value - tmpValue);
+
+                hit = true;
+
+                isaac_float3 newPos = ray.start + ray.dir * depth;
+                isaac_float3 posUnscaled = newPos / scale;
+
+                hitColor = sampler.sample(combinedTexture, posUnscaled);
+                hitColor.a = isaac_float(1);
+                isaac_float3 gradient;
+                gradient.x = sampler.sample(combinedTexture, posUnscaled + isaac_float3(1, 0, 0)).a
+                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(1, 0, 0)).a;
+
+                gradient.y = sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 1, 0)).a
+                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 1, 0)).a;
+
+                gradient.z = sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 0, 1)).a
+                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 0, 1)).a;
+                isaac_float gradientLength = glm::length(gradient);
+                if(first || gradientLength == isaac_float(0))
+                {
+                    gradient = ray.clippingNormal;
+                    gradientLength = isaac_float(1);
+                }
+                hitNormal = -gradient / gradientLength;
+            }
+            if(hit)
+            {
+                gBuffer.color[pixel] = transformColor(hitColor);
+                gBuffer.normal[pixel] = hitNormal;
+                gBuffer.depth[pixel] = depth;
+            }
+        }
+    };
+
     template<isaac_int T_interpolation, isaac_int T_index, int T_nr, typename T_Source, typename T_PersistentArray>
     ISAAC_DEVICE_INLINE isaac_float getCompGradient(
         const T_Source& source,
