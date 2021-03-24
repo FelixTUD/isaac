@@ -397,10 +397,6 @@ namespace isaac
             Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
             for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
-                // isaac_float3 vector = source[coord];
-                // isaac_float value = sampler.sample(noiseTexture, isaac_float3(coord)) * weight;
-                // licTexture[coord] = value;
-
 #if 1
                 isaac_float3 vector = source[coord];
 
@@ -410,9 +406,8 @@ namespace isaac
                 isaac_float value = noiseTexture[coord]
                     + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
                         * isaac_float(0.95);
-                licTexture[coord] = value;
-#endif
-#if 0
+                licTexture[coord] = glm::min(value, isaac_float(1));
+#else
                 isaac_float3 fCoord = coord;
                 isaac_float result = 0;
                 const int steps = 30;

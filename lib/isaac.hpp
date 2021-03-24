@@ -667,8 +667,10 @@ namespace isaac
                         isaac_float value = std::rand() / isaac_float(RAND_MAX);
                         if(value <= 0.9999)
                             value = 0;
+                        else
+                            value = 1;
                         // isaac_float value = 0;
-                        // if((x % 4) * (y % 4) * (z % 4) == 3 * 3 * 3)
+                        // if((x % 16) * (y % 16) == 0)
                         //    value = 1;
                         tmpTex.getTexture()[isaac_int3(x, y, z)] = value;
                         // hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] =
@@ -691,7 +693,7 @@ namespace isaac
                             isaac_float3 coord(x + i / isaac_float(scale.x), y, z);
                             result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
                         }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result;
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(16);
                     }
                 }
             }
@@ -708,7 +710,7 @@ namespace isaac
                             result
                                 += sampler.sample(hostNoiseTextureAllocator.getTexture(), coord) * gauss5[glm::abs(i)];
                         }
-                        tmpTex.getTexture()[isaac_int3(x, y, z)] = result;
+                        tmpTex.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(16);
                     }
                 }
             }
@@ -724,7 +726,7 @@ namespace isaac
                             isaac_float3 coord(x, y, z + i / isaac_float(scale.z));
                             result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
                         }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result;
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(16);
                     }
                 }
             }
