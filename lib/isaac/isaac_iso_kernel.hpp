@@ -28,7 +28,7 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            Tex3D<isaac_float4> combinedTexture,
+            Tex3D<isaac_byte4> combinedTexture,
             isaac_float stepSize, // ray stepSize length
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
@@ -80,7 +80,7 @@ namespace isaac
 
                 isaac_float value;
                 const Sampler<T_filterType, BorderType::CLAMP> sampler;
-                value = sampler.sample(combinedTexture, pos).a;
+                value = sampler.sample(combinedTexture, pos).a / isaac_float(255);
                 isaac_float tmpValue = oldValue;
                 oldValue = value;
                 if(value < isaac_float(0.5))
@@ -96,7 +96,7 @@ namespace isaac
                 isaac_float3 newPos = ray.start + ray.dir * depth;
                 isaac_float3 posUnscaled = newPos / scale;
 
-                hitColor = sampler.sample(combinedTexture, posUnscaled);
+                hitColor = transformColor(sampler.sample(combinedTexture, posUnscaled));
                 hitColor.a = isaac_float(1);
                 isaac_float3 gradient;
                 gradient.x = sampler.sample(combinedTexture, posUnscaled + isaac_float3(1, 0, 0)).a

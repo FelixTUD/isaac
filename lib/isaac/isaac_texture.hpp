@@ -260,6 +260,29 @@ namespace isaac
 
             return trilinear(glm::fract(coord), data8);
         }
+
+        ISAAC_HOST_DEVICE_INLINE isaac_byte4 interpolate(
+            const Texture<isaac_byte4, 3>& texture,
+            isaac_float_dim<3> coord,
+            const isaac_byte4& borderValue = isaac_byte4(0)) const
+        {
+            isaac_float4 data8[2][2][2];
+            for(int x = 0; x < 2; x++)
+            {
+                for(int y = 0; y < 2; y++)
+                {
+                    for(int z = 0; z < 2; z++)
+                    {
+                        data8[x][y][z]
+                            = isaac_float4(
+                                  safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue))
+                            / isaac_float(255);
+                    }
+                }
+            }
+
+            return isaac_byte4(trilinear(glm::fract(coord), data8) * isaac_float(255));
+        }
     };
 
 

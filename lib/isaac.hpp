@@ -256,8 +256,8 @@ namespace isaac
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
                 T_Stream__& stream,
-                Tex3D<isaac_float4>& volumeTexture,
-                Tex3D<isaac_float4>& isoTexture,
+                Tex3D<isaac_byte4>& volumeTexture,
+                Tex3D<isaac_byte4>& isoTexture,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -345,8 +345,8 @@ namespace isaac
                 T_Stream__& stream,
                 isaac_int timeStep,
                 bool updateLIC,
-                Tex3D<isaac_float4>& volumeTexture,
-                Tex3D<isaac_float4>& isoTexture,
+                Tex3D<isaac_byte4>& volumeTexture,
+                Tex3D<isaac_byte4>& isoTexture,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -2639,8 +2639,8 @@ namespace isaac
         Tex3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
         Tex3DAllocator<T_Host, isaac_float> hostNoiseTextureAllocator;
 
-        Tex3DAllocator<DevAcc, isaac_float4> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, isaac_float4> combinedIsoTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4> combinedIsoTextureAllocator;
 
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functor_chain_d;
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functorChainChooseDevice;
