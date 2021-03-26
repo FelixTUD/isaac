@@ -36,8 +36,8 @@ namespace isaac
 
     enum class HashType
     {
-        LINEAR,
-        MORTON_CODE
+        SWEEP,
+        MORTON
     };
 
     /**
@@ -46,7 +46,7 @@ namespace isaac
      * @tparam T_Type Type of the buffer values
      * @tparam T_textureDim Dimension of the Texture
      */
-    template<typename T_Type, int T_textureDim, HashType T_hashType = HashType::LINEAR>
+    template<typename T_Type, int T_textureDim, HashType T_hashType = HashType::SWEEP>
     class Texture
     {
     public:
@@ -92,7 +92,7 @@ namespace isaac
 
         ISAAC_HOST_DEVICE_INLINE isaac_uint hash(const isaac_uint_dim<2>& coord) const
         {
-            if(T_hashType == HashType::MORTON_CODE)
+            if(T_hashType == HashType::MORTON)
                 return (part1By1(coord.y) << 1) + part1By1(coord.x);
             else
                 return coord.x + coord.y * sizeWithGuard.x;
@@ -100,7 +100,7 @@ namespace isaac
 
         ISAAC_HOST_DEVICE_INLINE isaac_uint hash(const isaac_uint_dim<3>& coord) const
         {
-            if(T_hashType == HashType::MORTON_CODE)
+            if(T_hashType == HashType::MORTON)
                 return (part1By2(coord.z) << 2) + (part1By2(coord.y) << 1) + part1By2(coord.x);
             else
                 return coord.x + coord.y * sizeWithGuard.x + coord.z * sizeWithGuard.x * sizeWithGuard.y;
@@ -306,7 +306,7 @@ namespace isaac
      * @tparam T_Type Type of the buffer values
      * @tparam T_textureDim Dimension of the Texture
      */
-    template<typename T_DevAcc, typename T_Type, int T_textureDim, HashType T_hashType = HashType::LINEAR>
+    template<typename T_DevAcc, typename T_Type, int T_textureDim, HashType T_hashType = HashType::SWEEP>
     class TextureAllocator
     {
         using FraDim = alpaka::DimInt<1>;
@@ -321,7 +321,7 @@ namespace isaac
         {
             const isaac_size_dim<T_textureDim> sizeWithGuard = size + ISAAC_IDX_TYPE(2) * guardSize;
 
-            if(T_hashType == HashType::MORTON_CODE)
+            if(T_hashType == HashType::MORTON)
             {
                 ISAAC_IDX_TYPE maxDim = sizeWithGuard[0];
                 std::cout << sizeWithGuard[0] << ", ";
@@ -393,16 +393,16 @@ namespace isaac
     };
 
 
-    template<typename T_Type, HashType T_hashType = HashType::LINEAR>
+    template<typename T_Type, HashType T_hashType = HashType::SWEEP>
     using Tex2D = Texture<T_Type, 2, T_hashType>;
 
-    template<typename T_Type, HashType T_hashType = HashType::LINEAR>
+    template<typename T_Type, HashType T_hashType = HashType::SWEEP>
     using Tex3D = Texture<T_Type, 3, T_hashType>;
 
-    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::LINEAR>
+    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::SWEEP>
     using Tex2DAllocator = TextureAllocator<T_DevAcc, T_Type, 2, T_hashType>;
 
-    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::LINEAR>
+    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::SWEEP>
     using Tex3DAllocator = TextureAllocator<T_DevAcc, T_Type, 3, T_hashType>;
 
 

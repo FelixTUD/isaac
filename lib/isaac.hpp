@@ -2643,8 +2643,8 @@ namespace isaac
 
 
 #ifdef ISAAC_MORTON_CODE
-        Tex3DAllocator<DevAcc, isaac_byte4, HashType::MORTON_CODE> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, isaac_byte4, HashType::MORTON_CODE> combinedIsoTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4, HashType::MORTON> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4, HashType::MORTON> combinedIsoTextureAllocator;
 #else
         Tex3DAllocator<DevAcc, isaac_byte4> combinedVolumeTextureAllocator;
         Tex3DAllocator<DevAcc, isaac_byte4> combinedIsoTextureAllocator;
