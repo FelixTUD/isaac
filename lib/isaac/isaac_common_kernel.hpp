@@ -386,8 +386,8 @@ namespace isaac
             const T_TransferArray transferArray,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
-            Tex3D<isaac_byte4, T_hashType> volumeTexture,
-            Tex3D<isaac_byte4, T_hashType> isoTexture) const
+            Tex3D<isaac_float4, T_hashType> volumeTexture,
+            Tex3D<isaac_float4, T_hashType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
@@ -412,17 +412,14 @@ namespace isaac
                     volumeColor.r *= volumeColor.a;
                     volumeColor.g *= volumeColor.a;
                     volumeColor.b *= volumeColor.a;
-                    const isaac_float4 oldColor = transformColor(volumeTexture[coord]);
-                    isaac_float weight = isaac_float(1) - oldColor.a;
-                    volumeTexture[coord] = transformColor(oldColor + weight * volumeColor);
+                    volumeTexture[coord] += volumeColor;
                 }
                 if(sourceIsoThreshold.value[nr] > 0)
                 {
                     isaac_float4 isoColor = color;
                     isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                    isaac_byte4 isoColorB = transformColor(isoColor);
-                    if(isoTexture[coord].a < isoColorB.a)
-                        isoTexture[coord] = isoColorB;
+                    if(isoTexture[coord].a < isoColor.a)
+                        isoTexture[coord] = isoColor;
                 }
             }
         }
@@ -555,8 +552,8 @@ namespace isaac
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
             const Tex3D<isaac_float> licTexture,
-            Tex3D<isaac_byte4, T_hashType> volumeTexture,
-            Tex3D<isaac_byte4, T_hashType> isoTexture) const
+            Tex3D<isaac_float4, T_hashType> volumeTexture,
+            Tex3D<isaac_float4, T_hashType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
@@ -581,17 +578,14 @@ namespace isaac
                     volumeColor.r *= volumeColor.a;
                     volumeColor.g *= volumeColor.a;
                     volumeColor.b *= volumeColor.a;
-                    const isaac_float4 oldColor = transformColor(volumeTexture[coord]);
-                    isaac_float weight = isaac_float(1) - oldColor.a;
-                    volumeTexture[coord] = transformColor(oldColor + weight * volumeColor);
+                    volumeTexture[coord] += volumeColor;
                 }
                 if(sourceIsoThreshold.value[nr] > 0)
                 {
                     isaac_float4 isoColor = color;
                     isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                    isaac_byte4 isoColorB = transformColor(isoColor);
-                    if(isoTexture[coord].a < isoColorB.a)
-                        isoTexture[coord] = isoColorB;
+                    if(isoTexture[coord].a < isoColor.a)
+                        isoTexture[coord] = isoColor;
                 }
             }
         }

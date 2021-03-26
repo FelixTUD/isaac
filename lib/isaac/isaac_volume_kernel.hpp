@@ -27,7 +27,7 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            Tex3D<isaac_byte4, T_hashType> combinedTexture,
+            Tex3D<isaac_float4, T_hashType> combinedTexture,
             isaac_float stepSize, // ray stepSize length
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
@@ -71,7 +71,7 @@ namespace isaac
                 pos = startUnscaled + stepVec * isaac_float(i);
                 isaac_float4 value;
                 const Sampler<T_filterType, BorderType::CLAMP> sampler;
-                value = transformColor(sampler.sample(combinedTexture, pos));
+                value = sampler.sample(combinedTexture, pos);
                 value *= factor;
                 isaac_float weight = glm::max(isaac_float(1) - color.w, isaac_float(0));
                 color += weight * value;
