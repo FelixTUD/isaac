@@ -1622,6 +1622,7 @@ namespace isaac
             if(json_array_size(js = json_object_get(message, "transfer points")))
             {
                 redraw = true;
+                updatePersistentBuffers = true;
                 json_array_foreach(js, index, value)
                 {
                     transferHost.description[index].clear();
@@ -1659,6 +1660,7 @@ namespace isaac
             if(json_array_size(js = json_object_get(message, "iso threshold")))
             {
                 redraw = true;
+                updatePersistentBuffers = true;
                 json_array_foreach(js, index, value) sourceIsoThreshold.value[index] = json_number_value(value);
                 sendIsoThreshold = true;
             }
@@ -1674,6 +1676,7 @@ namespace isaac
             if(json_array_size(js = json_object_get(message, "weight")))
             {
                 redraw = true;
+                updatePersistentBuffers = true;
                 json_array_foreach(js, index, value) sourceWeight.value[index] = json_number_value(value);
                 sendWeight = true;
             }
