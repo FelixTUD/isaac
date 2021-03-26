@@ -19,6 +19,32 @@
 
 namespace isaac
 {
+    // Morton code seperation of bits by Fabian "ryg" Giesen
+    // https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
+
+    ISAAC_HOST_DEVICE_INLINE uint32_t part1By1(uint32_t x)
+    {
+        x &= 0x0000ffff; // x = ---- ---- ---- ---- fedc ba98 7654 3210
+        x = (x ^ (x << 8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
+        x = (x ^ (x << 4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
+        x = (x ^ (x << 2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
+        x = (x ^ (x << 1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
+        return x;
+    }
+
+    ISAAC_HOST_DEVICE_INLINE uint32_t part1By2(uint32_t x)
+    {
+        x &= 0x000003ff; // x = ---- ---- ---- ---- ---- --98 7654 3210
+        x = (x ^ (x << 16)) & 0xff0000ff; // x = ---- --98 ---- ---- ---- ---- 7654 3210
+        x = (x ^ (x << 8)) & 0x0300f00f; // x = ---- --98 ---- ---- 7654 ---- ---- 3210
+        x = (x ^ (x << 4)) & 0x030c30c3; // x = ---- --98 ---- 76-- --54 ---- 32-- --10
+        x = (x ^ (x << 2)) & 0x09249249; // x = ---- 9--8 --7- -6-- 5--4 --3- -2-- 1--0
+        return x;
+    }
+
+    //--------------------------------------------------------------------------------------------------------------
+
+
     ISAAC_HOST_DEVICE_INLINE isaac_byte4 transformColor(const isaac_float4& floatColor)
     {
         return isaac_byte4(clamp(floatColor, isaac_float(0), isaac_float(1)) * isaac_float(255));

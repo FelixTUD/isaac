@@ -372,7 +372,12 @@ namespace isaac
     template<typename T_Source, ISAAC_IDX_TYPE T_transferSize>
     struct MergeToCombinedTexture
     {
-        template<typename T_Acc, typename T_TransferArray, typename T_SourceWeight, typename T_IsoThreshold>
+        template<
+            typename T_Acc,
+            typename T_TransferArray,
+            typename T_SourceWeight,
+            typename T_IsoThreshold,
+            HashType T_hashType>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
@@ -381,8 +386,8 @@ namespace isaac
             const T_TransferArray transferArray,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
-            Tex3D<isaac_byte4> volumeTexture,
-            Tex3D<isaac_byte4> isoTexture) const
+            Tex3D<isaac_byte4, T_hashType> volumeTexture,
+            Tex3D<isaac_byte4, T_hashType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
@@ -535,7 +540,12 @@ namespace isaac
     template<typename T_Source, ISAAC_IDX_TYPE T_transferSize>
     struct MergeLICToCombinedTexture
     {
-        template<typename T_Acc, typename T_TransferArray, typename T_SourceWeight, typename T_IsoThreshold>
+        template<
+            typename T_Acc,
+            typename T_TransferArray,
+            typename T_SourceWeight,
+            typename T_IsoThreshold,
+            HashType T_hashType>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
@@ -545,8 +555,8 @@ namespace isaac
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
             const Tex3D<isaac_float> licTexture,
-            Tex3D<isaac_byte4> volumeTexture,
-            Tex3D<isaac_byte4> isoTexture) const
+            Tex3D<isaac_byte4, T_hashType> volumeTexture,
+            Tex3D<isaac_byte4, T_hashType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};

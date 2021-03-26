@@ -34,13 +34,19 @@ namespace isaac
         VALUE
     };
 
+    enum class HashType
+    {
+        LINEAR,
+        MORTON_CODE
+    };
+
     /**
      * @brief Software texture implementation
      *
      * @tparam T_Type Type of the buffer values
      * @tparam T_textureDim Dimension of the Texture
      */
-    template<typename T_Type, int T_textureDim>
+    template<typename T_Type, int T_textureDim, HashType T_hashType = HashType::LINEAR>
     class Texture
     {
     public:
@@ -86,12 +92,18 @@ namespace isaac
 
         ISAAC_HOST_DEVICE_INLINE isaac_uint hash(const isaac_uint_dim<2>& coord) const
         {
-            return coord.x + coord.y * sizeWithGuard.x;
+            if(T_hashType == HashType::MORTON_CODE)
+                return (part1By1(coord.y) << 1) + part1By1(coord.x);
+            else
+                return coord.x + coord.y * sizeWithGuard.x;
         }
 
         ISAAC_HOST_DEVICE_INLINE isaac_uint hash(const isaac_uint_dim<3>& coord) const
         {
-            return coord.x + coord.y * sizeWithGuard.x + coord.z * sizeWithGuard.x * sizeWithGuard.y;
+            if(T_hashType == HashType::MORTON_CODE)
+                return (part1By2(coord.z) << 2) + (part1By2(coord.y) << 1) + part1By2(coord.x);
+            else
+                return coord.x + coord.y * sizeWithGuard.x + coord.z * sizeWithGuard.x * sizeWithGuard.y;
         }
 
         ISAAC_HOST_DEVICE_INLINE isaac_size_dim<T_textureDim> getSize() const
@@ -152,9 +164,9 @@ namespace isaac
     class Sampler
     {
     public:
-        template<typename T_Type, int T_textureDim>
+        template<typename T_Type, int T_textureDim, HashType T_hashType>
         ISAAC_HOST_DEVICE_INLINE T_Type sample(
-            const Texture<T_Type, T_textureDim>& texture,
+            const Texture<T_Type, T_textureDim, T_hashType>& texture,
             const isaac_float_dim<T_textureDim>& coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -170,9 +182,9 @@ namespace isaac
             return result;
         }
 
-        template<typename T_Type, int T_textureDim>
+        template<typename T_Type, int T_textureDim, HashType T_hashType>
         ISAAC_HOST_DEVICE_INLINE T_Type safeMemoryAccess(
-            const Texture<T_Type, T_textureDim>& texture,
+            const Texture<T_Type, T_textureDim, T_hashType>& texture,
             const isaac_int_dim<T_textureDim>& coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -206,9 +218,9 @@ namespace isaac
             return texture[offsetCoord - isaac_int(guardSize)];
         }
 
-        template<typename T_Type>
+        template<typename T_Type, HashType T_hashType>
         ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 1>& texture,
+            const Texture<T_Type, 1, T_hashType>& texture,
             isaac_float_dim<1> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -221,9 +233,9 @@ namespace isaac
             return linear(glm::fract(coord), data2);
         }
 
-        template<typename T_Type>
+        template<typename T_Type, HashType T_hashType>
         ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 2>& texture,
+            const Texture<T_Type, 2, T_hashType>& texture,
             isaac_float_dim<2> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -239,9 +251,9 @@ namespace isaac
             return bilinear(glm::fract(coord), data4);
         }
 
-        template<typename T_Type>
+        template<typename T_Type, HashType T_hashType>
         ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 3>& texture,
+            const Texture<T_Type, 3, T_hashType>& texture,
             isaac_float_dim<3> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -261,8 +273,9 @@ namespace isaac
             return trilinear(glm::fract(coord), data8);
         }
 
+        template<HashType T_hashType>
         ISAAC_HOST_DEVICE_INLINE isaac_byte4 interpolate(
-            const Texture<isaac_byte4, 3>& texture,
+            const Texture<isaac_byte4, 3, T_hashType>& texture,
             isaac_float_dim<3> coord,
             const isaac_byte4& borderValue = isaac_byte4(0)) const
         {
@@ -293,7 +306,7 @@ namespace isaac
      * @tparam T_Type Type of the buffer values
      * @tparam T_textureDim Dimension of the Texture
      */
-    template<typename T_DevAcc, typename T_Type, int T_textureDim>
+    template<typename T_DevAcc, typename T_Type, int T_textureDim, HashType T_hashType = HashType::LINEAR>
     class TextureAllocator
     {
         using FraDim = alpaka::DimInt<1>;
@@ -308,15 +321,32 @@ namespace isaac
         {
             const isaac_size_dim<T_textureDim> sizeWithGuard = size + ISAAC_IDX_TYPE(2) * guardSize;
 
-            bufferExtent = sizeWithGuard[0];
-            for(int i = 1; i < T_textureDim; ++i)
+            if(T_hashType == HashType::MORTON_CODE)
             {
-                bufferExtent *= (sizeWithGuard[i]);
+                ISAAC_IDX_TYPE maxDim = sizeWithGuard[0];
+                std::cout << sizeWithGuard[0] << ", ";
+                for(int i = 1; i < T_textureDim; ++i)
+                {
+                    std::cout << sizeWithGuard[i] << ", ";
+                    maxDim = glm::max(maxDim, sizeWithGuard[i]);
+                }
+                bufferExtent = glm::pow(maxDim, ISAAC_IDX_TYPE(T_textureDim));
+                std::cout << std::endl << bufferExtent << std::endl;
+            }
+            else
+            {
+                bufferExtent = sizeWithGuard[0];
+                for(int i = 1; i < T_textureDim; ++i)
+                {
+                    bufferExtent *= (sizeWithGuard[i]);
+                }
             }
 
             buffer = alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, bufferExtent);
 
             texture.init(alpaka::getPtrNative(buffer), size, guardSize);
+
+            std::cout << "Finished texture init!" << std::endl;
         }
 
         template<typename T_Queue, typename T_ViewDst>
@@ -326,7 +356,8 @@ namespace isaac
         }
 
         template<typename T_Queue, typename T_DstDev>
-        void copyToTexture(T_Queue& queue, TextureAllocator<T_DstDev, T_Type, T_textureDim>& textureDst) const
+        void copyToTexture(T_Queue& queue, TextureAllocator<T_DstDev, T_Type, T_textureDim, T_hashType>& textureDst)
+            const
         {
             assert(bufferExtent == textureDst.getBufferExtent());
             alpaka::memcpy(queue, textureDst.getTextureView(), buffer, bufferExtent);
@@ -338,7 +369,7 @@ namespace isaac
             alpaka::memset(queue, buffer, 0, bufferExtent);
         }
 
-        Texture<T_Type, T_textureDim>& getTexture()
+        Texture<T_Type, T_textureDim, T_hashType>& getTexture()
         {
             return texture;
         }
@@ -354,7 +385,7 @@ namespace isaac
         }
 
     private:
-        Texture<T_Type, T_textureDim> texture;
+        Texture<T_Type, T_textureDim, T_hashType> texture;
 
         ISAAC_IDX_TYPE bufferExtent;
 
@@ -362,17 +393,17 @@ namespace isaac
     };
 
 
-    template<typename T_Type>
-    using Tex2D = Texture<T_Type, 2>;
+    template<typename T_Type, HashType T_hashType = HashType::LINEAR>
+    using Tex2D = Texture<T_Type, 2, T_hashType>;
 
-    template<typename T_Type>
-    using Tex3D = Texture<T_Type, 3>;
+    template<typename T_Type, HashType T_hashType = HashType::LINEAR>
+    using Tex3D = Texture<T_Type, 3, T_hashType>;
 
-    template<typename T_DevAcc, typename T_Type>
-    using Tex2DAllocator = TextureAllocator<T_DevAcc, T_Type, 2>;
+    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::LINEAR>
+    using Tex2DAllocator = TextureAllocator<T_DevAcc, T_Type, 2, T_hashType>;
 
-    template<typename T_DevAcc, typename T_Type>
-    using Tex3DAllocator = TextureAllocator<T_DevAcc, T_Type, 3>;
+    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::LINEAR>
+    using Tex3DAllocator = TextureAllocator<T_DevAcc, T_Type, 3, T_hashType>;
 
 
     template<int T_n>

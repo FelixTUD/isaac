@@ -245,7 +245,8 @@ namespace isaac
                 typename T_TransferArray,
                 typename T_Weight,
                 typename T_IsoTheshold,
-                typename T_Stream__>
+                typename T_Stream__,
+                HashType T_hashType>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
@@ -256,8 +257,8 @@ namespace isaac
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
                 T_Stream__& stream,
-                Tex3D<isaac_byte4>& volumeTexture,
-                Tex3D<isaac_byte4>& isoTexture,
+                Tex3D<isaac_byte4, T_hashType>& volumeTexture,
+                Tex3D<isaac_byte4, T_hashType>& isoTexture,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -328,7 +329,8 @@ namespace isaac
                 typename T_LicArray,
                 typename T_Weight,
                 typename T_IsoTheshold,
-                typename T_Stream__>
+                typename T_Stream__,
+                HashType T_hashType>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
@@ -345,8 +347,8 @@ namespace isaac
                 T_Stream__& stream,
                 isaac_int timeStep,
                 bool updateLIC,
-                Tex3D<isaac_byte4>& volumeTexture,
-                Tex3D<isaac_byte4>& isoTexture,
+                Tex3D<isaac_byte4, T_hashType>& volumeTexture,
+                Tex3D<isaac_byte4, T_hashType>& isoTexture,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -2639,8 +2641,15 @@ namespace isaac
         Tex3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
         Tex3DAllocator<T_Host, isaac_float> hostNoiseTextureAllocator;
 
+
+#ifdef ISAAC_MORTON_CODE
+        Tex3DAllocator<DevAcc, isaac_byte4, HashType::MORTON_CODE> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4, HashType::MORTON_CODE> combinedIsoTextureAllocator;
+#else
         Tex3DAllocator<DevAcc, isaac_byte4> combinedVolumeTextureAllocator;
         Tex3DAllocator<DevAcc, isaac_byte4> combinedIsoTextureAllocator;
+#endif
+
 
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functor_chain_d;
         alpaka::Buf<DevAcc, FunctorChainPointerN, FraDim, ISAAC_IDX_TYPE> functorChainChooseDevice;

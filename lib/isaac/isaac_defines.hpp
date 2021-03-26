@@ -18,6 +18,8 @@
 #include <alpaka/alpaka.hpp>
 #include <boost/preprocessor.hpp>
 
+#define ISAAC_MORTON_CODE
+
 #ifndef ISAAC_MAX_DIFFERENCE
 #    define ISAAC_MAX_DIFFERENCE 4
 #endif
