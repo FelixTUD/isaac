@@ -246,7 +246,7 @@ namespace isaac
                 typename T_Weight,
                 typename T_IsoTheshold,
                 typename T_Stream__,
-                HashType T_hashType>
+                IndexType T_indexType>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
@@ -257,8 +257,8 @@ namespace isaac
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
                 T_Stream__& stream,
-                Tex3D<isaac_float4, T_hashType>& volumeTexture,
-                Tex3D<isaac_float4, T_hashType>& isoTexture,
+                Tex3D<isaac_float4, T_indexType>& volumeTexture,
+                Tex3D<isaac_float4, T_indexType>& isoTexture,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -330,7 +330,7 @@ namespace isaac
                 typename T_Weight,
                 typename T_IsoTheshold,
                 typename T_Stream__,
-                HashType T_hashType>
+                IndexType T_indexType>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
@@ -347,8 +347,8 @@ namespace isaac
                 T_Stream__& stream,
                 isaac_int timeStep,
                 bool updateLIC,
-                Tex3D<isaac_float4, T_hashType>& volumeTexture,
-                Tex3D<isaac_float4, T_hashType>& isoTexture,
+                Tex3D<isaac_float4, T_indexType>& volumeTexture,
+                Tex3D<isaac_float4, T_indexType>& isoTexture,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -2646,8 +2646,8 @@ namespace isaac
 
 
 #ifdef ISAAC_MORTON_CODE
-        Tex3DAllocator<DevAcc, isaac_float4, HashType::MORTON> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, isaac_float4, HashType::MORTON> combinedIsoTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedIsoTextureAllocator;
 #else
         Tex3DAllocator<DevAcc, isaac_float4> combinedVolumeTextureAllocator;
         Tex3DAllocator<DevAcc, isaac_float4> combinedIsoTextureAllocator;

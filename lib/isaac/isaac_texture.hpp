@@ -34,7 +34,7 @@ namespace isaac
         VALUE
     };
 
-    enum class HashType
+    enum class IndexType
     {
         SWEEP,
         MORTON
@@ -46,7 +46,7 @@ namespace isaac
      * @tparam T_Type Type of the buffer values
      * @tparam T_textureDim Dimension of the Texture
      */
-    template<typename T_Type, int T_textureDim, HashType T_hashType = HashType::SWEEP>
+    template<typename T_Type, int T_textureDim, IndexType T_indexType = IndexType::SWEEP>
     class Texture
     {
     public:
@@ -92,7 +92,7 @@ namespace isaac
 
         ISAAC_HOST_DEVICE_INLINE isaac_uint hash(const isaac_uint_dim<2>& coord) const
         {
-            if(T_hashType == HashType::MORTON)
+            if(T_indexType == IndexType::MORTON)
                 return (part1By1(coord.y) << 1) + part1By1(coord.x);
             else
                 return coord.x + coord.y * sizeWithGuard.x;
@@ -100,8 +100,8 @@ namespace isaac
 
         ISAAC_HOST_DEVICE_INLINE isaac_uint hash(const isaac_uint_dim<3>& coord) const
         {
-            if(T_hashType == HashType::MORTON)
-                return (part1By2(coord.z) << 2) + (part1By2(coord.y) << 1) + part1By2(coord.x);
+            if(T_indexType == IndexType::MORTON)
+                return (part1By2(coord.z) << 2) | (part1By2(coord.y) << 1) | part1By2(coord.x);
             else
                 return coord.x + coord.y * sizeWithGuard.x + coord.z * sizeWithGuard.x * sizeWithGuard.y;
         }
@@ -164,9 +164,9 @@ namespace isaac
     class Sampler
     {
     public:
-        template<typename T_Type, int T_textureDim, HashType T_hashType>
+        template<typename T_Type, int T_textureDim, IndexType T_indexType>
         ISAAC_HOST_DEVICE_INLINE T_Type sample(
-            const Texture<T_Type, T_textureDim, T_hashType>& texture,
+            const Texture<T_Type, T_textureDim, T_indexType>& texture,
             const isaac_float_dim<T_textureDim>& coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -182,9 +182,9 @@ namespace isaac
             return result;
         }
 
-        template<typename T_Type, int T_textureDim, HashType T_hashType>
+        template<typename T_Type, int T_textureDim, IndexType T_indexType>
         ISAAC_HOST_DEVICE_INLINE T_Type safeMemoryAccess(
-            const Texture<T_Type, T_textureDim, T_hashType>& texture,
+            const Texture<T_Type, T_textureDim, T_indexType>& texture,
             const isaac_int_dim<T_textureDim>& coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -218,9 +218,9 @@ namespace isaac
             return texture[offsetCoord - isaac_int(guardSize)];
         }
 
-        template<typename T_Type, HashType T_hashType>
+        template<typename T_Type, IndexType T_indexType>
         ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 1, T_hashType>& texture,
+            const Texture<T_Type, 1, T_indexType>& texture,
             isaac_float_dim<1> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -233,9 +233,9 @@ namespace isaac
             return linear(glm::fract(coord), data2);
         }
 
-        template<typename T_Type, HashType T_hashType>
+        template<typename T_Type, IndexType T_indexType>
         ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 2, T_hashType>& texture,
+            const Texture<T_Type, 2, T_indexType>& texture,
             isaac_float_dim<2> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
@@ -251,31 +251,57 @@ namespace isaac
             return bilinear(glm::fract(coord), data4);
         }
 
-        template<typename T_Type, HashType T_hashType>
+        template<typename T_Type, IndexType T_indexType>
         ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 3, T_hashType>& texture,
+            const Texture<T_Type, 3, T_indexType>& texture,
             isaac_float_dim<3> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
             T_Type data8[2][2][2];
-            for(int x = 0; x < 2; x++)
+            if(T_border == BorderType::CLAMP)
             {
-                for(int y = 0; y < 2; y++)
+                const ISAAC_IDX_TYPE guardSize = texture.getGuardSize();
+                const isaac_size3 sizeWithGuard = texture.getSizeWithGuard();
+
+                coord = glm::clamp(
+                    coord,
+                    isaac_float3(-guardSize) + std::numeric_limits<isaac_float>::min(),
+                    isaac_float3(sizeWithGuard - guardSize - 1)
+                        - (std::numeric_limits<isaac_float>::epsilon() * isaac_float3(sizeWithGuard - guardSize - 1)));
+
+                for(int x = 0; x < 2; x++)
                 {
-                    for(int z = 0; z < 2; z++)
+                    for(int y = 0; y < 2; y++)
                     {
-                        data8[x][y][z]
-                            = safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue);
+                        for(int z = 0; z < 2; z++)
+                        {
+                            data8[x][y][z] = texture[isaac_int3(coord) + isaac_int3(x, y, z)];
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for(int x = 0; x < 2; x++)
+                {
+                    for(int y = 0; y < 2; y++)
+                    {
+                        for(int z = 0; z < 2; z++)
+                        {
+                            data8[x][y][z]
+                                = safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue);
+                        }
                     }
                 }
             }
 
+
             return trilinear(glm::fract(coord), data8);
         }
 
-        template<HashType T_hashType>
+        template<IndexType T_indexType>
         ISAAC_HOST_DEVICE_INLINE isaac_byte4 interpolate(
-            const Texture<isaac_byte4, 3, T_hashType>& texture,
+            const Texture<isaac_byte4, 3, T_indexType>& texture,
             isaac_float_dim<3> coord,
             const isaac_byte4& borderValue = isaac_byte4(0)) const
         {
@@ -306,7 +332,7 @@ namespace isaac
      * @tparam T_Type Type of the buffer values
      * @tparam T_textureDim Dimension of the Texture
      */
-    template<typename T_DevAcc, typename T_Type, int T_textureDim, HashType T_hashType = HashType::SWEEP>
+    template<typename T_DevAcc, typename T_Type, int T_textureDim, IndexType T_indexType = IndexType::SWEEP>
     class TextureAllocator
     {
         using FraDim = alpaka::DimInt<1>;
@@ -321,7 +347,7 @@ namespace isaac
         {
             const isaac_size_dim<T_textureDim> sizeWithGuard = size + ISAAC_IDX_TYPE(2) * guardSize;
 
-            if(T_hashType == HashType::MORTON)
+            if(T_indexType == IndexType::MORTON)
             {
                 ISAAC_IDX_TYPE maxDim = sizeWithGuard[0];
                 std::cout << sizeWithGuard[0] << ", ";
@@ -356,7 +382,7 @@ namespace isaac
         }
 
         template<typename T_Queue, typename T_DstDev>
-        void copyToTexture(T_Queue& queue, TextureAllocator<T_DstDev, T_Type, T_textureDim, T_hashType>& textureDst)
+        void copyToTexture(T_Queue& queue, TextureAllocator<T_DstDev, T_Type, T_textureDim, T_indexType>& textureDst)
             const
         {
             assert(bufferExtent == textureDst.getBufferExtent());
@@ -369,7 +395,7 @@ namespace isaac
             alpaka::memset(queue, buffer, 0, bufferExtent);
         }
 
-        Texture<T_Type, T_textureDim, T_hashType>& getTexture()
+        Texture<T_Type, T_textureDim, T_indexType>& getTexture()
         {
             return texture;
         }
@@ -385,7 +411,7 @@ namespace isaac
         }
 
     private:
-        Texture<T_Type, T_textureDim, T_hashType> texture;
+        Texture<T_Type, T_textureDim, T_indexType> texture;
 
         ISAAC_IDX_TYPE bufferExtent;
 
@@ -393,17 +419,17 @@ namespace isaac
     };
 
 
-    template<typename T_Type, HashType T_hashType = HashType::SWEEP>
-    using Tex2D = Texture<T_Type, 2, T_hashType>;
+    template<typename T_Type, IndexType T_indexType = IndexType::SWEEP>
+    using Tex2D = Texture<T_Type, 2, T_indexType>;
 
-    template<typename T_Type, HashType T_hashType = HashType::SWEEP>
-    using Tex3D = Texture<T_Type, 3, T_hashType>;
+    template<typename T_Type, IndexType T_indexType = IndexType::SWEEP>
+    using Tex3D = Texture<T_Type, 3, T_indexType>;
 
-    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::SWEEP>
-    using Tex2DAllocator = TextureAllocator<T_DevAcc, T_Type, 2, T_hashType>;
+    template<typename T_DevAcc, typename T_Type, IndexType T_indexType = IndexType::SWEEP>
+    using Tex2DAllocator = TextureAllocator<T_DevAcc, T_Type, 2, T_indexType>;
 
-    template<typename T_DevAcc, typename T_Type, HashType T_hashType = HashType::SWEEP>
-    using Tex3DAllocator = TextureAllocator<T_DevAcc, T_Type, 3, T_hashType>;
+    template<typename T_DevAcc, typename T_Type, IndexType T_indexType = IndexType::SWEEP>
+    using Tex3DAllocator = TextureAllocator<T_DevAcc, T_Type, 3, T_indexType>;
 
 
     template<int T_n>

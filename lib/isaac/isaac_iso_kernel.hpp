@@ -24,11 +24,11 @@ namespace isaac
     template<FilterType T_filterType>
     struct CombinedIsoRenderKernel
     {
-        template<typename T_Acc, HashType T_hashType>
+        template<typename T_Acc, IndexType T_indexType>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            Tex3D<isaac_float4, T_hashType> combinedTexture,
+            Tex3D<isaac_float4, T_indexType> combinedTexture,
             isaac_float stepSize, // ray stepSize length
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes

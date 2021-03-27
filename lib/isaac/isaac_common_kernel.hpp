@@ -377,7 +377,7 @@ namespace isaac
             typename T_TransferArray,
             typename T_SourceWeight,
             typename T_IsoThreshold,
-            HashType T_hashType>
+            IndexType T_indexType>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
@@ -386,8 +386,8 @@ namespace isaac
             const T_TransferArray transferArray,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
-            Tex3D<isaac_float4, T_hashType> volumeTexture,
-            Tex3D<isaac_float4, T_hashType> isoTexture) const
+            Tex3D<isaac_float4, T_indexType> volumeTexture,
+            Tex3D<isaac_float4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
@@ -542,7 +542,7 @@ namespace isaac
             typename T_TransferArray,
             typename T_SourceWeight,
             typename T_IsoThreshold,
-            HashType T_hashType>
+            IndexType T_indexType>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
@@ -552,8 +552,8 @@ namespace isaac
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
             const Tex3D<isaac_float> licTexture,
-            Tex3D<isaac_float4, T_hashType> volumeTexture,
-            Tex3D<isaac_float4, T_hashType> isoTexture) const
+            Tex3D<isaac_float4, T_indexType> volumeTexture,
+            Tex3D<isaac_float4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
