@@ -266,8 +266,9 @@ namespace isaac
                 coord = glm::clamp(
                     coord,
                     isaac_float3(-guardSize) + std::numeric_limits<isaac_float>::min(),
-                    isaac_float3(sizeWithGuard - guardSize - 1)
-                        - (std::numeric_limits<isaac_float>::epsilon() * isaac_float3(sizeWithGuard - guardSize - 1)));
+                    isaac_float3(sizeWithGuard - guardSize - ISAAC_IDX_TYPE(1))
+                        - (std::numeric_limits<isaac_float>::epsilon()
+                           * isaac_float3(sizeWithGuard - guardSize - ISAAC_IDX_TYPE(1))));
 
                 for(int x = 0; x < 2; x++)
                 {
