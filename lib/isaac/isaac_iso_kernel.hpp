@@ -602,7 +602,7 @@ namespace isaac
                     ray,
                     t,
                     pos,
-                    stepSize,
+                    stepSizeUnscaled,
                     SimulationSize.localSize,
                     transferArray,
                     sourceIsoThreshold,

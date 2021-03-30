@@ -495,7 +495,7 @@ namespace isaac
                         vector /= vectorLength;
                     }
                     result += (sampler.sample(noiseTexture, fCoord) * (steps - timeStep - i));
-                    fCoord += vector * isaac_float(2.5) / scale;
+                    fCoord += vector * isaac_float(1.25) / scale;
                 }
                 licTexture[coord] = result;
 #endif
