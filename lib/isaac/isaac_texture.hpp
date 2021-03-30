@@ -301,27 +301,52 @@ namespace isaac
         }
 
         template<IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE isaac_byte4 interpolate(
-            const Texture<isaac_byte4, 3, T_indexType>& texture,
+        ISAAC_HOST_DEVICE_INLINE uint64_t interpolate(
+            const Texture<uint64_t, 3, T_indexType>& texture,
             isaac_float_dim<3> coord,
-            const isaac_byte4& borderValue = isaac_byte4(0)) const
+            const uint64_t& borderValue = uint64_t(0)) const
         {
             isaac_float4 data8[2][2][2];
-            for(int x = 0; x < 2; x++)
+            if(T_border == BorderType::CLAMP)
             {
-                for(int y = 0; y < 2; y++)
+                const ISAAC_IDX_TYPE guardSize = texture.getGuardSize();
+                const isaac_size3 sizeWithGuard = texture.getSizeWithGuard();
+
+                coord = glm::clamp(
+                    coord,
+                    isaac_float3(-guardSize) + std::numeric_limits<isaac_float>::min(),
+                    isaac_float3(sizeWithGuard - guardSize - ISAAC_IDX_TYPE(1))
+                        - (std::numeric_limits<isaac_float>::epsilon()
+                           * isaac_float3(sizeWithGuard - guardSize - ISAAC_IDX_TYPE(1))));
+
+                for(int x = 0; x < 2; x++)
                 {
-                    for(int z = 0; z < 2; z++)
+                    for(int y = 0; y < 2; y++)
                     {
-                        data8[x][y][z]
-                            = isaac_float4(
-                                  safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue))
-                            / isaac_float(255);
+                        for(int z = 0; z < 2; z++)
+                        {
+                            data8[x][y][z] = glm::unpackHalf4x16(texture[isaac_int3(coord) + isaac_int3(x, y, z)]);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for(int x = 0; x < 2; x++)
+                {
+                    for(int y = 0; y < 2; y++)
+                    {
+                        for(int z = 0; z < 2; z++)
+                        {
+                            data8[x][y][z] = glm::unpackHalf4x16(
+                                safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue));
+                        }
                     }
                 }
             }
 
-            return isaac_byte4(trilinear(glm::fract(coord), data8) * isaac_float(255));
+
+            return glm::packHalf4x16(trilinear(glm::fract(coord), data8));
         }
     };
 
