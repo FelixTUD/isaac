@@ -28,7 +28,7 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            Tex3D<uint64_t, T_indexType> combinedTexture,
+            Tex3D<isaac_float4, T_indexType> combinedTexture,
             isaac_float stepSize, // ray stepSize length
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
@@ -79,7 +79,7 @@ namespace isaac
 
                 isaac_float value;
                 const Sampler<T_filterType, BorderType::CLAMP> sampler;
-                value = glm::unpackHalf4x16(sampler.sample(combinedTexture, pos)).a;
+                value = sampler.sample(combinedTexture, pos).a;
                 isaac_float tmpValue = oldValue;
                 oldValue = value;
                 if(value < isaac_float(0.5))
@@ -95,20 +95,17 @@ namespace isaac
                 isaac_float3 newPos = ray.start + ray.dir * depth;
                 isaac_float3 posUnscaled = newPos / scale;
 
-                hitColor = glm::unpackHalf4x16(sampler.sample(combinedTexture, posUnscaled));
+                hitColor = sampler.sample(combinedTexture, posUnscaled);
                 hitColor.a = isaac_float(1);
                 isaac_float3 gradient;
-                gradient.x
-                    = glm::unpackHalf4x16(sampler.sample(combinedTexture, posUnscaled + isaac_float3(1, 0, 0))).a
-                    - glm::unpackHalf4x16(sampler.sample(combinedTexture, posUnscaled - isaac_float3(1, 0, 0))).a;
+                gradient.x = sampler.sample(combinedTexture, posUnscaled + isaac_float3(1, 0, 0)).a
+                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(1, 0, 0)).a;
 
-                gradient.y
-                    = glm::unpackHalf4x16(sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 1, 0))).a
-                    - glm::unpackHalf4x16(sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 1, 0))).a;
+                gradient.y = sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 1, 0)).a
+                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 1, 0)).a;
 
-                gradient.z
-                    = glm::unpackHalf4x16(sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 0, 1))).a
-                    - glm::unpackHalf4x16(sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 0, 1))).a;
+                gradient.z = sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 0, 1)).a
+                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 0, 1)).a;
                 isaac_float gradientLength = glm::length(gradient);
                 if(first || gradientLength == isaac_float(0))
                 {

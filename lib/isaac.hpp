@@ -262,8 +262,8 @@ namespace isaac
                 void* pointer,
                 T_Stream__& stream,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Tex3D<uint64_t, T_indexType>& volumeTexture,
-                Tex3D<uint64_t, T_indexType>& isoTexture,
+                Tex3D<isaac_float4, T_indexType>& volumeTexture,
+                Tex3D<isaac_float4, T_indexType>& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -360,8 +360,8 @@ namespace isaac
                 isaac_int timeStep,
                 bool updateLIC,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Tex3D<uint64_t, T_indexType>& volumeTexture,
-                Tex3D<uint64_t, T_indexType>& isoTexture,
+                Tex3D<isaac_float4, T_indexType>& volumeTexture,
+                Tex3D<isaac_float4, T_indexType>& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -2689,11 +2689,11 @@ namespace isaac
 
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
 #    ifdef ISAAC_MORTON_CODE
-        Tex3DAllocator<DevAcc, uint64_t, IndexType::MORTON> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, uint64_t, IndexType::MORTON> combinedIsoTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedIsoTextureAllocator;
 #    else
-        Tex3DAllocator<DevAcc, uint64_t> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, uint64_t> combinedIsoTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_float4> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_float4> combinedIsoTextureAllocator;
 #    endif
 #endif
 
