@@ -56,14 +56,13 @@ namespace isaac
             isaac_float min_size = ISAAC_MIN(
                 int(SimulationSize.globalSize.x),
                 ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
-            isaac_int startSteps = glm::ceil(ray.startDepth / stepSize);
-            isaac_int endSteps = glm::floor(ray.endDepth / stepSize);
-            isaac_float3 stepVec = stepSize * ray.dir / scale;
+            isaac_float stepSizeUnscaled = stepSize * (glm::length(ray.dir) / glm::length(ray.dir / scale));
+            isaac_int startSteps = glm::ceil(ray.startDepth / stepSizeUnscaled);
+            isaac_int endSteps = glm::floor(ray.endDepth / stepSizeUnscaled);
+            isaac_float3 stepVec = stepSizeUnscaled * ray.dir / scale;
             // unscale all data for correct memory access
             isaac_float3 startUnscaled = ray.start / scale;
 
-            // move startSteps and endSteps to valid positions in the volume
-            isaac_float3 pos = startUnscaled + stepVec * isaac_float(startSteps);
             bool hit = false;
             isaac_float depth = ray.endDepth;
             isaac_float4 hitColor = isaac_float4(0);
@@ -74,9 +73,9 @@ namespace isaac
             // iterate over the volume
             for(isaac_int i = startSteps; i <= endSteps && !hit; i++)
             {
-                pos = startUnscaled + stepVec * isaac_float(i);
+                isaac_float3 pos = startUnscaled + stepVec * isaac_float(i);
                 bool first = ray.isClipped && i == startSteps;
-                isaac_float t = i * stepSize;
+                isaac_float t = i * stepSizeUnscaled;
 
                 isaac_float value;
                 const Sampler<T_filterType, BorderType::CLAMP> sampler;
@@ -89,7 +88,7 @@ namespace isaac
                 if(first)
                     depth = ray.startDepth;
                 else
-                    depth = t + stepSize * (isaac_float(0.5) - tmpValue) / (value - tmpValue);
+                    depth = t + stepSizeUnscaled * (isaac_float(0.5) - tmpValue) / (value - tmpValue);
 
                 hit = true;
 

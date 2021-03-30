@@ -2215,6 +2215,14 @@ namespace isaac
             // wait until render kernel has finished
             alpaka::wait(myself->stream);
 #else
+
+            bool anyIsoSourceActive = false;
+            for(int i = 0; i < volumeFieldSourceListSize; ++i)
+            {
+                if(myself->sourceIsoThreshold.value[i] > 0)
+                    anyIsoSourceActive = true;
+            }
+            if(anyIsoSourceActive)
             {
                 if(myself->interpolation)
                 {
@@ -2326,6 +2334,13 @@ namespace isaac
             // wait until render kernel has finished
             alpaka::wait(myself->stream);
 #else
+            bool anyVolumeSourceActive = false;
+            for(int i = 0; i < volumeFieldSourceListSize; ++i)
+            {
+                if(myself->sourceWeight.value[i] > 0)
+                    anyVolumeSourceActive = true;
+            }
+            if(anyVolumeSourceActive)
             {
                 if(myself->interpolation)
                 {

@@ -55,20 +55,19 @@ namespace isaac
             isaac_float min_size = ISAAC_MIN(
                 int(SimulationSize.globalSize.x),
                 ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
-            isaac_float factor = stepSize / min_size * 2.0f;
-            isaac_int startSteps = glm::ceil(ray.startDepth / stepSize);
-            isaac_int endSteps = glm::floor(ray.endDepth / stepSize);
-            isaac_float3 stepVec = stepSize * ray.dir / scale;
+            isaac_float stepSizeUnscaled = stepSize * (glm::length(ray.dir) / glm::length(ray.dir / scale));
+            isaac_float factor = stepSizeUnscaled / min_size * 2.0f;
+            isaac_int startSteps = glm::ceil(ray.startDepth / stepSizeUnscaled);
+            isaac_int endSteps = glm::floor(ray.endDepth / stepSizeUnscaled);
+            isaac_float3 stepVec = stepSizeUnscaled * ray.dir / scale;
             // unscale all data for correct memory access
             isaac_float3 startUnscaled = ray.start / scale;
 
-            // move startSteps and endSteps to valid positions in the volume
-            isaac_float3 pos = startUnscaled + stepVec * isaac_float(startSteps);
             isaac_float4 color = isaac_float4(0);
             // iterate over the volume
             for(isaac_int i = startSteps; i <= endSteps; i++)
             {
-                pos = startUnscaled + stepVec * isaac_float(i);
+                isaac_float3 pos = startUnscaled + stepVec * isaac_float(i);
                 isaac_float4 value;
                 const Sampler<T_filterType, BorderType::CLAMP> sampler;
                 value = sampler.sample(combinedTexture, pos);

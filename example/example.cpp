@@ -25,7 +25,7 @@ using namespace isaac;
 
 #define VOLUME_X 64
 #define VOLUME_Y 64
-#define VOLUME_Z 128
+#define VOLUME_Z 64
 
 #define PARTICLE_VOLUME_X 64
 #define PARTICLE_VOLUME_Y 64
@@ -241,7 +241,7 @@ int main(int argc, char** argv)
     printf("Using name %s\n", name);
 
     // This defines the size of the generated rendering
-    isaac_size2 framebufferSize = {ISAAC_IDX_TYPE(1920), ISAAC_IDX_TYPE(1080)};
+    isaac_size2 framebufferSize = {ISAAC_IDX_TYPE(800), ISAAC_IDX_TYPE(600)};
 
     // Alpaka specific initialization
     using AccDim = alpaka::DimInt<3>;
@@ -326,7 +326,7 @@ int main(int argc, char** argv)
 
 
 #endif
-    int sX = 1, sY = 1, sZ = 1;
+    int sX = 1, sY = 1, sZ = 3;
     if(filename)
     {
         read_vtk_to_memory(
