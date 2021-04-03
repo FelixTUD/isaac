@@ -760,7 +760,7 @@ namespace isaac
                             isaac_float3 coord(x + i / isaac_float(scale.x), y, z);
                             result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
                         }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(16);
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
                     }
                 }
             }
@@ -777,7 +777,7 @@ namespace isaac
                             result
                                 += sampler.sample(hostNoiseTextureAllocator.getTexture(), coord) * gauss5[glm::abs(i)];
                         }
-                        tmpTex.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(16);
+                        tmpTex.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
                     }
                 }
             }
@@ -793,7 +793,7 @@ namespace isaac
                             isaac_float3 coord(x, y, z + i / isaac_float(scale.z));
                             result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
                         }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(16);
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
                     }
                 }
             }

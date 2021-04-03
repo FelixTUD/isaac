@@ -461,7 +461,7 @@ namespace isaac
                 vector /= vectorLength;
                 isaac_float value = noiseTexture[coord]
                     + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
-                        * isaac_float(0.95);
+                        * isaac_float(0.99);
                 licTexture[coord] = glm::min(value, isaac_float(1));
 #else
                 isaac_float3 fCoord = coord;
@@ -567,10 +567,11 @@ namespace isaac
             for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
                 isaac_float_dim<T_Source::featureDim> value = source[coord];
-                isaac_float texValue = licTexture[coord] * applyFunctorChain(value, nr);
+                isaac_float texValue = applyFunctorChain(value, nr);
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                const isaac_float4 color = transferArray.pointer[nr][lookupValue];
+                isaac_float4 color = transferArray.pointer[nr][lookupValue];
+                color.a *= licTexture[coord];
                 if(sourceWeight.value[nr] > 0)
                 {
                     isaac_float4 volumeColor = color;
