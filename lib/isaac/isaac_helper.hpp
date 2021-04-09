@@ -44,6 +44,19 @@ namespace isaac
 
     //--------------------------------------------------------------------------------------------------------------
 
+    isaac_float halton(isaac_uint index, isaac_uint base)
+    {
+        isaac_float result = 0;
+        isaac_float f = 1;
+
+        while(index > 0)
+        {
+            f /= isaac_float(base);
+            result += f * (index % base);
+            index /= base;
+        }
+        return result;
+    }
 
     ISAAC_HOST_DEVICE_INLINE isaac_byte4 transformColor(const isaac_float4& floatColor)
     {

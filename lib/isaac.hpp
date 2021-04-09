@@ -603,6 +603,96 @@ namespace isaac
             }
         };
 
+        void updateNoiseTexture(isaac_uint seedNumber)
+        {
+            Tex3DAllocator<T_Host, isaac_float> tmpTex(host, localSize);
+            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
+#if 1
+            for(int i = 1; i <= seedNumber; ++i)
+            {
+                isaac_float3 unitPosition;
+                unitPosition.x = halton(i, 3);
+                unitPosition.y = halton(i, 5);
+                unitPosition.z = halton(i, 7);
+                tmpTex.getTexture()[isaac_int3(isaac_float3(localSize) * unitPosition)] = isaac_float(1);
+            }
+#else
+            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
+            {
+                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
+                {
+                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
+                    {
+                        isaac_float value = std::rand() / isaac_float(RAND_MAX);
+                        if(value <= 0.9999)
+                            value = 0;
+                        else
+                            value = 1;
+                        // isaac_float value = 0;
+                        // if((x % 16) * (y % 16) == 0)
+                        //    value = 1;
+                        tmpTex.getTexture()[isaac_int3(x, y, z)] = value;
+                        // hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] =
+                        // sampler.sample(tmpTex.getTexture(), isaac_float3(x, y, z));
+                    }
+                }
+            }
+#endif
+            const isaac_float gauss5[3] = {6, 4, 1};
+
+            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
+            {
+                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
+                {
+                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
+                    {
+                        isaac_float result(0);
+                        for(isaac_int i = -2; i < 3; i++)
+                        {
+                            isaac_float3 coord(x + i / isaac_float(scale.x), y, z);
+                            result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
+                        }
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
+                    }
+                }
+            }
+            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
+            {
+                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
+                {
+                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
+                    {
+                        isaac_float result(0);
+                        for(isaac_int i = -2; i < 3; i++)
+                        {
+                            isaac_float3 coord(x, y + i / isaac_float(scale.y), z);
+                            result
+                                += sampler.sample(hostNoiseTextureAllocator.getTexture(), coord) * gauss5[glm::abs(i)];
+                        }
+                        tmpTex.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
+                    }
+                }
+            }
+            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
+            {
+                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
+                {
+                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
+                    {
+                        isaac_float result(0);
+                        for(isaac_int i = -2; i < 3; i++)
+                        {
+                            isaac_float3 coord(x, y, z + i / isaac_float(scale.z));
+                            result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
+                        }
+                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
+                    }
+                }
+            }
+
+            hostNoiseTextureAllocator.copyToTexture(stream, deviceNoiseTextureAllocator);
+        }
+
 
         IsaacVisualization(
             T_Host host,
@@ -721,82 +811,7 @@ namespace isaac
             distance = -4.5f;
             updateModelview();
 
-            Tex3DAllocator<T_Host, isaac_float> tmpTex(host, localSize);
-            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
-            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
-            {
-                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
-                {
-                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
-                    {
-                        isaac_float value = std::rand() / isaac_float(RAND_MAX);
-                        if(value <= 0.9999)
-                            value = 0;
-                        else
-                            value = 1;
-                        // isaac_float value = 0;
-                        // if((x % 16) * (y % 16) == 0)
-                        //    value = 1;
-                        tmpTex.getTexture()[isaac_int3(x, y, z)] = value;
-                        // hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] =
-                        // sampler.sample(tmpTex.getTexture(), isaac_float3(x, y, z));
-                    }
-                }
-            }
-
-            const isaac_float gauss5[3] = {6, 4, 1};
-
-            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
-            {
-                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
-                {
-                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
-                    {
-                        isaac_float result(0);
-                        for(isaac_int i = -2; i < 3; i++)
-                        {
-                            isaac_float3 coord(x + i / isaac_float(scale.x), y, z);
-                            result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
-                        }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
-                    }
-                }
-            }
-            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
-            {
-                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
-                {
-                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
-                    {
-                        isaac_float result(0);
-                        for(isaac_int i = -2; i < 3; i++)
-                        {
-                            isaac_float3 coord(x, y + i / isaac_float(scale.y), z);
-                            result
-                                += sampler.sample(hostNoiseTextureAllocator.getTexture(), coord) * gauss5[glm::abs(i)];
-                        }
-                        tmpTex.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
-                    }
-                }
-            }
-            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
-            {
-                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
-                {
-                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
-                    {
-                        isaac_float result(0);
-                        for(isaac_int i = -2; i < 3; i++)
-                        {
-                            isaac_float3 coord(x, y, z + i / isaac_float(scale.z));
-                            result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
-                        }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
-                    }
-                }
-            }
-
-            hostNoiseTextureAllocator.copyToTexture(stream, deviceNoiseTextureAllocator);
+            updateNoiseTexture(1000);
 
             // Create functor chain pointer lookup table
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
