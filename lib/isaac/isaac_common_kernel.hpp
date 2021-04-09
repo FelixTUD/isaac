@@ -330,13 +330,13 @@ namespace isaac
     };
 
 
-    template<typename T_Filter>
+    template<typename T_Filter, int T_offset>
     struct CheckNoSourceIterator
     {
         template<typename T_NR, typename T_Source, typename T_Result>
         ISAAC_HOST_DEVICE_INLINE void operator()(const T_NR& nr, const T_Source& source, T_Result& result) const
         {
-            result |= boost::mpl::at_c<T_Filter, T_NR::value>::type::value;
+            result |= boost::mpl::at_c<T_Filter, T_NR::value + T_offset>::type::value;
         }
     };
 
@@ -461,7 +461,7 @@ namespace isaac
                 vector /= vectorLength;
                 isaac_float value = noiseTexture[coord]
                     + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
-                        * isaac_float(0.99);
+                        * isaac_float(0.95);
                 licTexture[coord] = glm::min(value, isaac_float(1));
 #else
                 isaac_float3 fCoord = coord;

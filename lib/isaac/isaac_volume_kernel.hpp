@@ -247,9 +247,12 @@ namespace isaac
                 return;
 
             // set background color
-            bool atLeastOne = true;
-            forEachWithMplParams(sources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
-            forEachWithMplParams(fieldSources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
+            bool atLeastOne = false;
+            forEachWithMplParams(sources, CheckNoSourceIterator<T_Filter, 0>(), atLeastOne);
+            forEachWithMplParams(
+                fieldSources,
+                CheckNoSourceIterator<T_Filter, boost::mpl::size<T_VolumeSourceList>::type::value>(),
+                atLeastOne);
             if(!atLeastOne)
                 return;
 

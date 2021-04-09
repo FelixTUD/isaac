@@ -428,16 +428,14 @@ namespace isaac
                     }
 #endif
                     {
-                        UpdateLICTextureKernel<T_Source> kernel;
+                        UpdatePersistendTextureKernel<T_Source> kernel;
                         auto const instance(alpaka::createTaskKernel<T_Acc>(
                             workdiv,
                             kernel,
                             index,
                             source,
                             persistentTextureArray.textures[index],
-                            licTextures.textures[I],
-                            isaac_int3(localSize),
-                            scale));
+                            isaac_int3(localSize)));
                         alpaka::enqueue(stream, instance);
                         alpaka::wait(stream);
                     }
@@ -2256,6 +2254,7 @@ namespace isaac
                 TransferDeviceStruct<combinedSourceListSize>,
                 IsoThresholdStruct<volumeFieldSourceListSize>,
                 PersistentArrayStruct<volumeFieldSourceListSize>,
+                PersistentArrayStruct<fSourceListSize>,
                 boost::mpl::vector<>,
                 T_transferSize,
                 alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
@@ -2271,6 +2270,7 @@ namespace isaac
                     myself->transferDevice,
                     myself->sourceIsoThreshold,
                     myself->persistentTextureArray,
+                    myself->licTextures,
                     workdiv,
                     myself->interpolation,
                     isaac_scale,

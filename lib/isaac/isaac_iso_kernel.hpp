@@ -283,7 +283,7 @@ namespace isaac
                 return;
 
             bool atLeastOne = true;
-            forEachWithMplParams(sources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
+            forEachWithMplParams(sources, CheckNoSourceIterator<T_Filter, 0>(), atLeastOne);
 
             if(!atLeastOne)
                 return;
@@ -486,6 +486,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_IsoTheshold,
         typename T_PersistentArray,
+        typename T_LicTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         isaac_int T_interpolation>
@@ -501,6 +502,7 @@ namespace isaac
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_IsoTheshold sourceIsoThreshold, // weights of sources for blending
             const T_PersistentArray persistentTextureArray,
+            const T_LicTextureArray licTextureArray,
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -515,9 +517,12 @@ namespace isaac
                 return;
 
             // set background color
-            bool atLeastOne = true;
-            forEachWithMplParams(sources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
-            forEachWithMplParams(fieldSources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
+            bool atLeastOne = false;
+            forEachWithMplParams(sources, CheckNoSourceIterator<T_Filter, 0>(), atLeastOne);
+            forEachWithMplParams(
+                fieldSources,
+                CheckNoSourceIterator<T_Filter, boost::mpl::size<T_VolumeSourceList>::type::value>(),
+                atLeastOne);
             if(!atLeastOne)
                 return;
 
@@ -632,6 +637,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_IsoThreshold,
         typename T_PersistentArray,
+        typename T_LicTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -649,6 +655,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
             const T_PersistentArray& persistentTextureArray,
+            const T_LicTextureArray& licTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -665,6 +672,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
+                    T_LicTextureArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::false_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -680,6 +688,7 @@ namespace isaac
                         transferArray,
                         sourceIsoThreshold,
                         persistentTextureArray,
+                        licTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -693,6 +702,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
+                    T_LicTextureArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::true_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -708,6 +718,7 @@ namespace isaac
                         transferArray,
                         sourceIsoThreshold,
                         persistentTextureArray,
+                        licTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -722,6 +733,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_IsoThreshold,
         typename T_PersistentArray,
+        typename T_LicTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -733,6 +745,7 @@ namespace isaac
         T_TransferArray,
         T_IsoThreshold,
         T_PersistentArray,
+        T_LicTextureArray,
         T_Filter,
         T_transferSize,
         T_WorkDiv,
@@ -750,6 +763,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
             const T_PersistentArray& persistentTextureArray,
+            const T_LicTextureArray& licTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -763,6 +777,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
+                    T_LicTextureArray,
                     T_Filter,
                     T_transferSize,
                     1>
@@ -777,6 +792,7 @@ namespace isaac
                     transferArray,
                     sourceIsoThreshold,
                     persistentTextureArray,
+                    licTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);
@@ -789,6 +805,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
+                    T_LicTextureArray,
                     T_Filter,
                     T_transferSize,
                     0>
@@ -803,6 +820,7 @@ namespace isaac
                     transferArray,
                     sourceIsoThreshold,
                     persistentTextureArray,
+                    licTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);

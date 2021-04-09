@@ -143,8 +143,8 @@ namespace isaac
             if(!isInUpperBounds(pixel, gBuffer.size))
                 return;
 
-            bool atLeastOne = true;
-            forEachWithMplParams(particleSources, CheckNoSourceIterator<T_Filter>(), atLeastOne);
+            bool atLeastOne = false;
+            forEachWithMplParams(particleSources, CheckNoSourceIterator<T_Filter, 0>(), atLeastOne);
 
             if(!atLeastOne)
                 return;
