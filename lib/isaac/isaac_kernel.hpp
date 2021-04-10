@@ -1,0 +1,54 @@
+/* This file is part of ISAAC.
+ *
+ * ISAAC is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * ISAAC is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with ISAAC.  If not, see <www.gnu.org/licenses/>. */
+
+#pragma once
+
+
+#include "isaac/isaac_iso_kernel.hpp"
+#include "isaac/isaac_min_max_kernel.hpp"
+#include "isaac/isaac_particle_kernel.hpp"
+#include "isaac/isaac_ssao_kernel.hpp"
+#include "isaac/isaac_volume_kernel.hpp"
+
+namespace isaac
+{
+    template<typename T_Acc, typename T_Stream, typename T_KernelFnObj, typename... T_Args>
+    inline void executeKernelOnVolume(
+        isaac_size3 volumeSize,
+        T_Stream& stream,
+        const T_KernelFnObj& kernelFnObj,
+        T_Args&&... args)
+    {
+        using Dim = alpaka::DimInt<3>;
+        isaac_size2 gridSize = (volumeSize + ISAAC_IDX_TYPE(15 - 1)) / ISAAC_IDX_TYPE(16);
+        isaac_size2 blockSize(16, 16);
+
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+        if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<Dim, ISAAC_IDX_TYPE>>>::value)
+#endif
+        {
+            gridSize = volumeSize;
+
+            blockSize = isaac_size3(1);
+        }
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> threadElements(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> blocks(blockSize.x, blockSize.y, ISAAC_IDX_TYPE(1));
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> grid(gridSize.x, gridSize.y, ISAAC_IDX_TYPE(1));
+        auto const workdiv = alpaka::WorkDivMembers<Dim, ISAAC_IDX_TYPE>(grid, blocks, threadElements);
+        auto const instance = alpaka::createTaskKernel<T_Acc>(workdiv, kernelFnObj, args...);
+        alpaka::enqueue(stream, instance);
+        alpaka::wait(stream);
+    }
+} // namespace isaac
