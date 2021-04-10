@@ -248,9 +248,9 @@ int main(int argc, char** argv)
     using SimDim = alpaka::DimInt<3>;
     using DatDim = alpaka::DimInt<1>;
 
-    using Acc = alpaka::AccGpuCudaRt<AccDim, ISAAC_IDX_TYPE>;
+    // using Acc = alpaka::AccGpuCudaRt<AccDim, ISAAC_IDX_TYPE>;
 
-    // using Acc = alpaka::AccCpuOmp2Blocks<AccDim, ISAAC_IDX_TYPE>;
+    using Acc = alpaka::AccCpuOmp2Blocks<AccDim, ISAAC_IDX_TYPE>;
 
     using Stream = alpaka::Queue<Acc, alpaka::Blocking>;
 

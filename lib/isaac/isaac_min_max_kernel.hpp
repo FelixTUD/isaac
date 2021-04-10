@@ -32,7 +32,7 @@ namespace isaac
             const Tex3D<isaac_float> texture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
 
             if(!isInUpperBounds(coord, localSize))
                 return;

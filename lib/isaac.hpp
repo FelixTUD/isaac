@@ -59,6 +59,35 @@
 
 namespace isaac
 {
+    template<typename T_Acc, typename T_Stream, typename T_KernelFnObj, typename... T_Args>
+    inline void executeKernelOnVolume(
+        isaac_size3 volumeSize,
+        T_Stream& stream,
+        const T_KernelFnObj& kernelFnObj,
+        T_Args&&... args)
+    {
+        using Dim = alpaka::DimInt<3>;
+        isaac_size3 gridSize = (volumeSize + 15 - 1) / 16;
+        isaac_size3 blockSize(16, 16, 1);
+
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+        if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<Dim, ISAAC_IDX_TYPE>>>::value)
+#endif
+        {
+            gridSize = volumeSize;
+
+            blockSize = isaac_size3(1);
+        }
+        gridSize.z = 1;
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> threads(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> blocks(blockSize.x, blockSize.y, blockSize.z);
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> grid(gridSize.x, gridSize.y, gridSize.z);
+        auto const workdiv = alpaka::WorkDivMembers<Dim, ISAAC_IDX_TYPE>(grid, blocks, threads);
+        auto const instance = alpaka::createTaskKernel<T_Acc>(workdiv, kernelFnObj, args...);
+        alpaka::enqueue(stream, instance);
+        alpaka::wait(stream);
+    }
+
     template<
         typename T_Host,
         typename T_Acc,
@@ -272,31 +301,12 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(enabled)
                 {
-                    isaac_size2 gridSize
-                        = {ISAAC_IDX_TYPE((localSize.x + T_Source::guardSize * 2 + 15) / 16),
-                           ISAAC_IDX_TYPE((localSize.y + T_Source::guardSize * 2 + 15) / 16)};
-                    isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-                    {
-                        gridSize.x = ISAAC_IDX_TYPE(localSize.x + T_Source::guardSize * 2);
-                        gridSize.y = ISAAC_IDX_TYPE(localSize.y + T_Source::guardSize * 2);
-                        blockSize.x = ISAAC_IDX_TYPE(1);
-                        blockSize.y = ISAAC_IDX_TYPE(1);
-                    }
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1));
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-                    auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
                     {
                         MergeToCombinedTexture<T_Source, T_transferSize> kernel;
-                        auto const instance(alpaka::createTaskKernel<T_Acc>(
-                            workdiv,
+                        executeKernelOnVolume<T_Acc>(
+                            localSize + T_Source::guardSize * 2,
+                            stream,
                             kernel,
                             index,
                             source,
@@ -305,24 +315,21 @@ namespace isaac
                             weight,
                             isoThreshold,
                             volumeTexture,
-                            isoTexture));
-                        alpaka::enqueue(stream, instance);
-                        // alpaka::wait(stream);
+                            isoTexture);
                     }
 #endif
 
                     if(!T_Source::persistent)
                     {
                         UpdatePersistendTextureKernel<T_Source> kernel;
-                        auto const instance(alpaka::createTaskKernel<T_Acc>(
-                            workdiv,
+                        executeKernelOnVolume<T_Acc>(
+                            localSize + T_Source::guardSize * 2,
+                            stream,
                             kernel,
                             index,
                             source,
                             persistentTextureArray.textures[index],
-                            isaac_int3(localSize)));
-                        alpaka::enqueue(stream, instance);
-                        alpaka::wait(stream);
+                            isaac_int3(localSize));
                     }
                 }
             }
@@ -370,32 +377,13 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(enabled)
                 {
-                    isaac_size2 gridSize
-                        = {ISAAC_IDX_TYPE((localSize.x + T_Source::guardSize * 2 + 15) / 16),
-                           ISAAC_IDX_TYPE((localSize.y + T_Source::guardSize * 2 + 15) / 16)};
-                    isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-                    {
-                        gridSize.x = ISAAC_IDX_TYPE(localSize.x + T_Source::guardSize * 2);
-                        gridSize.y = ISAAC_IDX_TYPE(localSize.y + T_Source::guardSize * 2);
-                        blockSize.x = ISAAC_IDX_TYPE(1);
-                        blockSize.y = ISAAC_IDX_TYPE(1);
-                    }
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1));
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-                    auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
                     if(updateLIC)
                     {
                         std::swap(licTextures.textures[I], licTexturesBackBuffer.textures[I]);
                         GenerateLICTextureKernel<T_Source> kernel;
-                        auto const instance(alpaka::createTaskKernel<T_Acc>(
-                            workdiv,
+                        executeKernelOnVolume<T_Acc>(
+                            localSize + T_Source::guardSize * 2,
+                            stream,
                             kernel,
                             index,
                             source,
@@ -404,15 +392,14 @@ namespace isaac
                             noiseTexture,
                             isaac_int3(localSize),
                             scale,
-                            timeStep));
-                        alpaka::enqueue(stream, instance);
-                        alpaka::wait(stream);
+                            timeStep);
                     }
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
                     {
                         MergeLICToCombinedTexture<T_Source, T_transferSize> kernel;
-                        auto const instance(alpaka::createTaskKernel<T_Acc>(
-                            workdiv,
+                        executeKernelOnVolume<T_Acc>(
+                            localSize + T_Source::guardSize * 2,
+                            stream,
                             kernel,
                             index,
                             source,
@@ -422,22 +409,19 @@ namespace isaac
                             isoThreshold,
                             licTextures.textures[I],
                             volumeTexture,
-                            isoTexture));
-                        alpaka::enqueue(stream, instance);
-                        alpaka::wait(stream);
+                            isoTexture);
                     }
 #endif
                     {
                         UpdatePersistendTextureKernel<T_Source> kernel;
-                        auto const instance(alpaka::createTaskKernel<T_Acc>(
-                            workdiv,
+                        executeKernelOnVolume<T_Acc>(
+                            localSize + T_Source::guardSize * 2,
+                            stream,
                             kernel,
                             index,
                             source,
                             persistentTextureArray.textures[index],
-                            isaac_int3(localSize)));
-                        alpaka::enqueue(stream, instance);
-                        alpaka::wait(stream);
+                            isaac_int3(localSize));
                     }
                 }
             }
@@ -465,38 +449,20 @@ namespace isaac
                 const int offset = 0) const
             {
                 const int index = I + offset;
-                isaac_size2 gridSize = (localSize + ISAAC_IDX_TYPE(15)) / ISAAC_IDX_TYPE(16);
-                isaac_size2 blockSize(16);
-
                 MinMax localMinMaxHostArray[localSize.x * localSize.y];
 
                 if(localSize.x != 0 && localSize.y != 0)
                 {
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-                    {
-                        gridSize = localSize;
-                        blockSize = isaac_size2(1);
-                    }
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1));
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-                    auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
                     MinMaxKernel<T_Source> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
-                        workdiv,
+                    executeKernelOnVolume<T_Acc>(
+                        localSize,
+                        stream,
                         kernel,
                         source,
                         index,
                         alpaka::getPtrNative(localMinMax),
                         localSize,
-                        persistentTextureArray.textures[index]));
-                    alpaka::enqueue(stream, instance);
-                    alpaka::wait(stream);
+                        persistentTextureArray.textures[index]);
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
                         localMinMaxHostArray,
                         host,
@@ -640,6 +606,22 @@ namespace isaac
                 }
             }
 #endif
+            isaac_size2 gridSize = (localSize + ISAAC_IDX_TYPE(15)) / ISAAC_IDX_TYPE(16);
+            isaac_size2 blockSize(16);
+#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
+            if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
+#endif
+            {
+                gridSize = localSize;
+                blockSize = isaac_size2(1);
+            }
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1));
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
+            auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
             const isaac_float gauss5[3] = {6, 4, 1};
 
             for(isaac_int z = 0; z < isaac_int(localSize.z); z++)

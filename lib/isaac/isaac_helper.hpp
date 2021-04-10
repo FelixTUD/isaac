@@ -44,7 +44,7 @@ namespace isaac
 
     //--------------------------------------------------------------------------------------------------------------
 
-    isaac_float halton(isaac_uint index, isaac_uint base)
+    ISAAC_HOST_DEVICE_INLINE isaac_float halton(isaac_uint index, isaac_uint base)
     {
         isaac_float result = 0;
         isaac_float f = 1;

@@ -353,7 +353,7 @@ namespace isaac
             const isaac_int3 localSize) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
@@ -390,7 +390,7 @@ namespace isaac
             Tex3D<isaac_float4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
@@ -442,7 +442,7 @@ namespace isaac
             isaac_int timeStep) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
@@ -504,37 +504,6 @@ namespace isaac
         }
     };
 
-    template<typename T_Source>
-    struct UpdateLICTextureKernel
-    {
-        template<typename T_Acc>
-        ISAAC_DEVICE void operator()(
-            T_Acc const& acc,
-            const int nr,
-            const T_Source source,
-            Tex3D<isaac_float> texture,
-            const Tex3D<isaac_float> licTexture,
-            const isaac_int3 localSize,
-            const isaac_float3 scale) const
-        {
-            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
-            if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
-                return;
-            coord.x -= T_Source::guardSize;
-            coord.y -= T_Source::guardSize;
-
-
-            coord.z = -T_Source::guardSize;
-            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
-            {
-                isaac_float3 vector = source[coord];
-                isaac_float weight = applyFunctorChain(vector, nr);
-                texture[coord] = licTexture[coord] * weight;
-            }
-        }
-    };
-
     template<typename T_Source, ISAAC_IDX_TYPE T_transferSize>
     struct MergeLICToCombinedTexture
     {
@@ -557,7 +526,7 @@ namespace isaac
             Tex3D<isaac_float4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2]), 0};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
