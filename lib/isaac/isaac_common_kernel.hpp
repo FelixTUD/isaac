@@ -341,6 +341,88 @@ namespace isaac
     };
 
 
+    struct HaltonSeedingKernel
+    {
+        template<typename T_Acc>
+        ISAAC_DEVICE void operator()(T_Acc const& acc, Tex3D<isaac_float> texture, isaac_uint count) const
+        {
+            for(isaac_uint i = 1; i <= count; ++i)
+            {
+                isaac_float3 unitPosition;
+                unitPosition.x = halton(i, 3);
+                unitPosition.y = halton(i, 5);
+                unitPosition.z = halton(i, 7);
+                texture[isaac_int3(isaac_float3(texture.getSize()) * unitPosition)] = isaac_float(1);
+            }
+        }
+    };
+
+    struct GaussBlur5Kernel
+    {
+        template<typename T_Acc>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            Tex3D<isaac_float> srcTex,
+            Tex3D<isaac_float> dstTex,
+            isaac_float3 scale,
+            isaac_float3 mask) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            if(!isInUpperBounds(coord, srcTex.getSize()))
+                return;
+
+            const isaac_float gauss5[3] = {6, 4, 1};
+            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
+            for(; coord.z < dstTex.getSize().z; coord.z++)
+            {
+                isaac_float result(0);
+                for(isaac_int i = -2; i < 3; i++)
+                {
+                    isaac_float3 sampleCoord(
+                        coord.x + mask.x * i / isaac_float(scale.x),
+                        coord.y + mask.y * i / isaac_float(scale.y),
+                        coord.z + mask.z * i / isaac_float(scale.z));
+                    result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
+                }
+                dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(6);
+            }
+        }
+    };
+
+    struct GaussBlur7Kernel
+    {
+        template<typename T_Acc>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            Tex3D<isaac_float> srcTex,
+            Tex3D<isaac_float> dstTex,
+            isaac_float3 scale,
+            isaac_float3 mask) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            if(!isInUpperBounds(coord, dstTex.getSize()))
+                return;
+
+            const isaac_float gauss5[4] = {64, 40.5, 10, 1};
+            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
+            for(; coord.z < srcTex.getSize().z; coord.z++)
+            {
+                isaac_float result(0);
+                for(isaac_int i = -3; i < 4; i++)
+                {
+                    isaac_float3 sampleCoord(
+                        coord.x + mask.x * i / isaac_float(scale.x),
+                        coord.y + mask.y * i / isaac_float(scale.y),
+                        coord.z + mask.z * i / isaac_float(scale.z));
+                    result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
+                }
+                dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(64);
+            }
+        }
+    };
+
     template<typename T_Source>
     struct UpdatePersistendTextureKernel
     {

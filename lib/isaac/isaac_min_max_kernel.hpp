@@ -72,7 +72,7 @@ namespace isaac
             const isaac_size3 localSize) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_uint3 coord = {isaac_uint(alpThreadIdx[1]), isaac_uint(alpThreadIdx[2]), 0};
+            isaac_uint3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
             if(!isInUpperBounds(coord, localSize))
                 return;
             isaac_float min = std::numeric_limits<isaac_float>::max();

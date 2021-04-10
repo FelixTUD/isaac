@@ -26,12 +26,8 @@
 #include "isaac/isaac_compositors.hpp"
 #include "isaac/isaac_controllers.hpp"
 #include "isaac/isaac_helper.hpp"
+#include "isaac/isaac_kernel.hpp"
 #include "isaac/isaac_version.hpp"
-#include "isaac_iso_kernel.hpp"
-#include "isaac_min_max_kernel.hpp"
-#include "isaac_particle_kernel.hpp"
-#include "isaac_ssao_kernel.hpp"
-#include "isaac_volume_kernel.hpp"
 
 #include <iostream>
 #include <memory>
@@ -59,35 +55,6 @@
 
 namespace isaac
 {
-    template<typename T_Acc, typename T_Stream, typename T_KernelFnObj, typename... T_Args>
-    inline void executeKernelOnVolume(
-        isaac_size3 volumeSize,
-        T_Stream& stream,
-        const T_KernelFnObj& kernelFnObj,
-        T_Args&&... args)
-    {
-        using Dim = alpaka::DimInt<3>;
-        isaac_size3 gridSize = (volumeSize + ISAAC_IDX_TYPE(15 - 1)) / ISAAC_IDX_TYPE(16);
-        isaac_size3 blockSize(16, 16, 1);
-
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-        if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<Dim, ISAAC_IDX_TYPE>>>::value)
-#endif
-        {
-            gridSize = volumeSize;
-
-            blockSize = isaac_size3(1);
-        }
-        gridSize.z = 1;
-        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> threads(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
-        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> blocks(blockSize.x, blockSize.y, blockSize.z);
-        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> grid(gridSize.x, gridSize.y, gridSize.z);
-        auto const workdiv = alpaka::WorkDivMembers<Dim, ISAAC_IDX_TYPE>(grid, blocks, threads);
-        auto const instance = alpaka::createTaskKernel<T_Acc>(workdiv, kernelFnObj, args...);
-        alpaka::enqueue(stream, instance);
-        alpaka::wait(stream);
-    }
-
     template<
         typename T_Host,
         typename T_Acc,
@@ -510,38 +477,19 @@ namespace isaac
                 const T_Host__& host) const
             {
                 // iterate over all cells and the particle lists
-
-                isaac_size2 gridSize = (localSize + ISAAC_IDX_TYPE(15)) / ISAAC_IDX_TYPE(16);
-                isaac_size2 blockSize(16);
-
                 MinMax localMinMaxHostArray[localSize.x * localSize.y];
 
                 if(localSize.x != 0 && localSize.y != 0)
                 {
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-                    if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-                    {
-                        gridSize = localSize;
-                        blockSize = isaac_size2(1);
-                    }
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1),
-                        ISAAC_IDX_TYPE(1));
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-                    const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-                    auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
                     MinMaxParticleKernel<T_ParticleSource> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
-                        workdiv,
+                    executeKernelOnVolume<T_Acc>(
+                        localSize,
+                        stream,
                         kernel,
                         particleSource,
                         I + T_offset,
                         alpaka::getPtrNative(localMinMax),
-                        localSize));
-                    alpaka::enqueue(stream, instance);
-                    alpaka::wait(stream);
+                        localSize);
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
                         localMinMaxHostArray,
                         host,
@@ -571,19 +519,24 @@ namespace isaac
 
         void updateNoiseTexture(isaac_uint seedNumber)
         {
-            Tex3DAllocator<T_Host, isaac_float> tmpTex(host, localSize);
+            Tex3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize);
             tmpTex.clearColor(stream);
             alpaka::wait(stream);
-            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
 #if 1
-            for(isaac_uint i = 1; i <= seedNumber; ++i)
-            {
-                isaac_float3 unitPosition;
-                unitPosition.x = halton(i, 3);
-                unitPosition.y = halton(i, 5);
-                unitPosition.z = halton(i, 7);
-                tmpTex.getTexture()[isaac_int3(isaac_float3(localSize) * unitPosition)] = isaac_float(1);
-            }
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threadElements(
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1));
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1),
+                ISAAC_IDX_TYPE(1));
+            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
+            const auto workdiv = alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threadElements);
+            HaltonSeedingKernel haltonKernel;
+            auto haltonKernelInstance
+                = alpaka::createTaskKernel<T_Acc>(workdiv, haltonKernel, tmpTex.getTexture(), seedNumber);
+            alpaka::enqueue(stream, haltonKernelInstance);
 #else
             for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
             {
@@ -606,76 +559,31 @@ namespace isaac
                 }
             }
 #endif
-            isaac_size2 gridSize = (localSize + ISAAC_IDX_TYPE(15)) / ISAAC_IDX_TYPE(16);
-            isaac_size2 blockSize(16);
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-            {
-                gridSize = localSize;
-                blockSize = isaac_size2(1);
-            }
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                ISAAC_IDX_TYPE(1),
-                ISAAC_IDX_TYPE(1),
-                ISAAC_IDX_TYPE(1));
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-            auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
-            const isaac_float gauss5[3] = {6, 4, 1};
-
-            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
-            {
-                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
-                {
-                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
-                    {
-                        isaac_float result(0);
-                        for(isaac_int i = -2; i < 3; i++)
-                        {
-                            isaac_float3 coord(x + i / isaac_float(scale.x), y, z);
-                            result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
-                        }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
-                    }
-                }
-            }
-            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
-            {
-                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
-                {
-                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
-                    {
-                        isaac_float result(0);
-                        for(isaac_int i = -2; i < 3; i++)
-                        {
-                            isaac_float3 coord(x, y + i / isaac_float(scale.y), z);
-                            result
-                                += sampler.sample(hostNoiseTextureAllocator.getTexture(), coord) * gauss5[glm::abs(i)];
-                        }
-                        tmpTex.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
-                    }
-                }
-            }
-            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
-            {
-                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
-                {
-                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
-                    {
-                        isaac_float result(0);
-                        for(isaac_int i = -2; i < 3; i++)
-                        {
-                            isaac_float3 coord(x, y, z + i / isaac_float(scale.z));
-                            result += sampler.sample(tmpTex.getTexture(), coord) * gauss5[glm::abs(i)];
-                        }
-                        hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] = result / isaac_float(6);
-                    }
-                }
-            }
-
-            hostNoiseTextureAllocator.copyToTexture(stream, deviceNoiseTextureAllocator);
-            alpaka::wait(stream);
+            GaussBlur5Kernel gaussKernel;
+            executeKernelOnVolume<T_Acc>(
+                localSize,
+                stream,
+                gaussKernel,
+                tmpTex.getTexture(),
+                deviceNoiseTextureAllocator.getTexture(),
+                scale,
+                isaac_float3(1, 0, 0));
+            executeKernelOnVolume<T_Acc>(
+                localSize,
+                stream,
+                gaussKernel,
+                deviceNoiseTextureAllocator.getTexture(),
+                tmpTex.getTexture(),
+                scale,
+                isaac_float3(0, 1, 0));
+            executeKernelOnVolume<T_Acc>(
+                localSize,
+                stream,
+                gaussKernel,
+                tmpTex.getTexture(),
+                deviceNoiseTextureAllocator.getTexture(),
+                scale,
+                isaac_float3(0, 0, 1));
         }
 
 
@@ -749,7 +657,6 @@ namespace isaac
             , framebufferAO(acc, framebufferSize)
             , framebufferNormal(acc, framebufferSize)
             , framebufferDepth(acc, framebufferSize)
-            , hostNoiseTextureAllocator(host, localSize)
             , deviceNoiseTextureAllocator(acc, localSize)
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
             , combinedVolumeTextureAllocator(acc, localSize)
@@ -2705,7 +2612,6 @@ namespace isaac
         Tex2DAllocator<DevAcc, isaac_float3> framebufferNormal;
 
         Tex3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
-        Tex3DAllocator<T_Host, isaac_float> hostNoiseTextureAllocator;
 
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
 #    ifdef ISAAC_MORTON_CODE
