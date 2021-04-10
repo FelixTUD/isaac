@@ -495,7 +495,7 @@ function onClientMessage(response) {
 			sources = response["sources"];
 			document.getElementById("interpolation_checkbox").checked = response["interpolation"];
 			document.getElementById("step").value = response["step"];
-			document.getElementById("seed_points").value = response["seed points"];
+			document.getElementById("seed_points").value = parseInt(response["seed points"]);
 			
 			aoSetValues(response);
 
@@ -539,7 +539,7 @@ function onClientMessage(response) {
 			if (response.hasOwnProperty("step"))
 				document.getElementById("step").value = response["step"];
 			if (response.hasOwnProperty("seed points"))
-				document.getElementById("seed_points").value = response["seed points"];
+				document.getElementById("seed_points").value = parseInt(response["seed points"]);
 
 			aoSetValues(response);
 

@@ -610,7 +610,7 @@ namespace isaac
             alpaka::wait(stream);
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
 #if 1
-            for(int i = 1; i <= seedNumber; ++i)
+            for(isaac_uint i = 1; i <= seedNumber; ++i)
             {
                 isaac_float3 unitPosition;
                 unitPosition.x = halton(i, 3);
@@ -2570,13 +2570,13 @@ namespace isaac
                 if(myself->sendStep)
                 {
                     json_object_set_new(myself->jsonRoot, "step", json_real(myself->step));
-                    json_object_set_new(myself->jsonInitRoot, "step", json_boolean(myself->step));
+                    json_object_set_new(myself->jsonInitRoot, "step", json_real(myself->step));
                     myself->sendInitJson = true;
                 }
                 if(myself->sendSeedPoints)
                 {
-                    json_object_set_new(myself->jsonRoot, "seed points", json_real(myself->seedPoints));
-                    json_object_set_new(myself->jsonInitRoot, "seed points", json_boolean(myself->seedPoints));
+                    json_object_set_new(myself->jsonRoot, "seed points", json_integer(myself->seedPoints));
+                    json_object_set_new(myself->jsonInitRoot, "seed points", json_integer(myself->seedPoints));
                     myself->sendInitJson = true;
                 }
                 if(myself->sendIsoThreshold)
