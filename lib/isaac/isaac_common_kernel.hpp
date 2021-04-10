@@ -459,7 +459,7 @@ namespace isaac
                 // Prevent division by 0;
                 isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
                 vector /= vectorLength;
-                vector *= glm::min(applyFunctorChain(vector, nr), isaac_float(1));
+                // vector *= glm::min(applyFunctorChain(vector, nr), isaac_float(1));
                 isaac_float value = noiseTexture[coord]
                     + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
                         * isaac_float(0.95);
