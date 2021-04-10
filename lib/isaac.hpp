@@ -606,6 +606,8 @@ namespace isaac
         void updateNoiseTexture(isaac_uint seedNumber)
         {
             Tex3DAllocator<T_Host, isaac_float> tmpTex(host, localSize);
+            tmpTex.clearColor(stream);
+            alpaka::wait(stream);
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
 #if 1
             for(int i = 1; i <= seedNumber; ++i)
@@ -691,6 +693,7 @@ namespace isaac
             }
 
             hostNoiseTextureAllocator.copyToTexture(stream, deviceNoiseTextureAllocator);
+            alpaka::wait(stream);
         }
 
 
@@ -737,6 +740,7 @@ namespace isaac
             , bufferTime(0)
             , interpolation(false)
             , step(isaac_float(ISAAC_DEFAULT_STEP))
+            , seedPoints(1000)
             , framebufferProd(ISAAC_IDX_TYPE(framebufferSize.x) * ISAAC_IDX_TYPE(framebufferSize.y))
             , volumeSources(volumeSources)
             , fieldSources(fieldSources)
@@ -811,7 +815,7 @@ namespace isaac
             distance = -4.5f;
             updateModelview();
 
-            updateNoiseTexture(1000);
+            updateNoiseTexture(seedPoints);
 
             // Create functor chain pointer lookup table
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
@@ -987,6 +991,7 @@ namespace isaac
 
                 json_object_set_new(jsonRoot, "interpolation", json_boolean(interpolation));
                 json_object_set_new(jsonRoot, "step", json_real(step));
+                json_object_set_new(jsonRoot, "seed points", json_integer(seedPoints));
 
                 json_object_set_new(jsonRoot, "dimension", json_integer(3));
                 json_object_set_new(jsonRoot, "width", json_integer(globalSizeScaled.x));
@@ -1417,6 +1422,7 @@ namespace isaac
             sendTransfer = false;
             sendInterpolation = false;
             sendStep = false;
+            sendSeedPoints = false;
             sendIsoThreshold = false;
             sendFunctions = false;
             sendWeight = false;
@@ -1472,6 +1478,10 @@ namespace isaac
                         if(strcmp(target, "step") == 0)
                         {
                             sendStep = true;
+                        }
+                        if(strcmp(target, "seed points") == 0)
+                        {
+                            sendSeedPoints = true;
                         }
                         if(strcmp(target, "iso mask") == 0)
                         {
@@ -1687,6 +1697,13 @@ namespace isaac
                     step = isaac_float(0.01);
                 }
                 sendStep = true;
+            }
+            if(js = json_object_get(message, "seed points"))
+            {
+                redraw = true;
+                seedPoints = glm::max(isaac_int(json_integer_value(js)), isaac_int(0));
+                updateNoiseTexture(seedPoints);
+                sendSeedPoints = true;
             }
             if(json_array_size(js = json_object_get(message, "iso threshold")))
             {
@@ -2556,6 +2573,12 @@ namespace isaac
                     json_object_set_new(myself->jsonInitRoot, "step", json_boolean(myself->step));
                     myself->sendInitJson = true;
                 }
+                if(myself->sendSeedPoints)
+                {
+                    json_object_set_new(myself->jsonRoot, "seed points", json_real(myself->seedPoints));
+                    json_object_set_new(myself->jsonInitRoot, "seed points", json_boolean(myself->seedPoints));
+                    myself->sendInitJson = true;
+                }
                 if(myself->sendIsoThreshold)
                 {
                     json_object_set_new(myself->jsonRoot, "iso threshold", matrix = json_array());
@@ -2741,6 +2764,7 @@ namespace isaac
         bool sendTransfer;
         bool sendInterpolation;
         bool sendStep;
+        bool sendSeedPoints;
         bool sendIsoThreshold;
         bool sendFunctions;
         bool sendWeight;
@@ -2755,6 +2779,7 @@ namespace isaac
         bool interpolation;
         bool icetBoundingBox;
         isaac_float step;
+        isaac_int seedPoints;
         IsaacCommunicator* communicator = nullptr;
         json_t* jsonRoot = nullptr;
         json_t* jsonInitRoot = nullptr;

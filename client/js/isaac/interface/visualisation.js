@@ -495,6 +495,7 @@ function onClientMessage(response) {
 			sources = response["sources"];
 			document.getElementById("interpolation_checkbox").checked = response["interpolation"];
 			document.getElementById("step").value = response["step"];
+			document.getElementById("seed_points").value = response["seed points"];
 			
 			aoSetValues(response);
 
@@ -536,7 +537,9 @@ function onClientMessage(response) {
 			if (response.hasOwnProperty("interpolation"))
 				document.getElementById("interpolation_checkbox").checked = response["interpolation"];
 			if (response.hasOwnProperty("step"))
-				document.getElementById("step").checked = response["step"];
+				document.getElementById("step").value = response["step"];
+			if (response.hasOwnProperty("seed points"))
+				document.getElementById("seed_points").value = response["seed points"];
 
 			aoSetValues(response);
 
@@ -1048,6 +1051,12 @@ function step_button_click() {
 	sendFeedback("step", status);
 };
 
+ function seed_points_button_click() {
+	var count = parseInt(document.getElementById("seed_points").value);
+	sendFeedback("seed points", count);
+};
+
+
 document.getElementById("zoom_in").onclick = function () {
 	zoom(+0.1);
 }
@@ -1204,3 +1213,4 @@ function aoUpdate() {
 	};
 	sendFeedback("ao", ao_object);
 }
+
