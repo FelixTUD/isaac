@@ -559,7 +559,7 @@ namespace isaac
                 }
             }
 #endif
-            GaussBlur5Kernel gaussKernel;
+            GaussBlur7Kernel gaussKernel;
             executeKernelOnVolume<T_Acc>(
                 localSize,
                 stream,

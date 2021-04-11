@@ -374,19 +374,17 @@ namespace isaac
 
             const isaac_float gauss5[3] = {6, 4, 1};
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
-            // for(; coord.z < dstTex.getSize().z; coord.z++)
+
+            isaac_float result(0);
+            for(isaac_int i = -2; i < 3; i++)
             {
-                isaac_float result(0);
-                for(isaac_int i = -2; i < 3; i++)
-                {
-                    isaac_float3 sampleCoord(
-                        coord.x + mask.x * i / isaac_float(scale.x),
-                        coord.y + mask.y * i / isaac_float(scale.y),
-                        coord.z + mask.z * i / isaac_float(scale.z));
-                    result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
-                }
-                dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(6);
+                isaac_float3 sampleCoord(
+                    coord.x + mask.x * i / isaac_float(scale.x),
+                    coord.y + mask.y * i / isaac_float(scale.y),
+                    coord.z + mask.z * i / isaac_float(scale.z));
+                result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
             }
+            dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(6);
         }
     };
 
@@ -407,19 +405,16 @@ namespace isaac
 
             const isaac_float gauss5[4] = {64, 40.5, 10, 1};
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
-            // for(; coord.z < srcTex.getSize().z; coord.z++)
+            isaac_float result(0);
+            for(isaac_int i = -3; i < 4; i++)
             {
-                isaac_float result(0);
-                for(isaac_int i = -3; i < 4; i++)
-                {
-                    isaac_float3 sampleCoord(
-                        coord.x + mask.x * i / isaac_float(scale.x),
-                        coord.y + mask.y * i / isaac_float(scale.y),
-                        coord.z + mask.z * i / isaac_float(scale.z));
-                    result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
-                }
-                dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(64);
+                isaac_float3 sampleCoord(
+                    coord.x + mask.x * i / isaac_float(scale.x),
+                    coord.y + mask.y * i / isaac_float(scale.y),
+                    coord.z + mask.z * i / isaac_float(scale.z));
+                result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
             }
+            dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(64);
         }
     };
 
@@ -438,16 +433,9 @@ namespace isaac
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
-            coord.x -= T_Source::guardSize;
-            coord.y -= T_Source::guardSize;
-
-
-            coord.z -= T_Source::guardSize;
-            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
-            {
-                isaac_float_dim<T_Source::featureDim> value = source[coord];
-                texture[coord] = applyFunctorChain(value, nr);
-            }
+            coord -= T_Source::guardSize;
+            isaac_float_dim<T_Source::featureDim> value = source[coord];
+            texture[coord] = applyFunctorChain(value, nr);
         }
     };
 
@@ -475,34 +463,27 @@ namespace isaac
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
-            coord.x -= T_Source::guardSize;
-            coord.y -= T_Source::guardSize;
-
-
-            coord.z -= T_Source::guardSize;
-            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            coord -= T_Source::guardSize;
+            isaac_float_dim<T_Source::featureDim> value = source[coord];
+            isaac_float texValue = applyFunctorChain(value, nr);
+            ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
+            lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
+            const isaac_float4 color = transferArray.pointer[nr][lookupValue];
+            if(sourceWeight.value[nr] > 0)
             {
-                isaac_float_dim<T_Source::featureDim> value = source[coord];
-                isaac_float texValue = applyFunctorChain(value, nr);
-                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
-                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                const isaac_float4 color = transferArray.pointer[nr][lookupValue];
-                if(sourceWeight.value[nr] > 0)
-                {
-                    isaac_float4 volumeColor = color;
-                    volumeColor.a *= sourceWeight.value[nr];
-                    volumeColor.r *= volumeColor.a;
-                    volumeColor.g *= volumeColor.a;
-                    volumeColor.b *= volumeColor.a;
-                    volumeTexture[coord] += volumeColor;
-                }
-                if(sourceIsoThreshold.value[nr] > 0)
-                {
-                    isaac_float4 isoColor = color;
-                    isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                    if(isoTexture[coord].a < isoColor.a)
-                        isoTexture[coord] = isoColor;
-                }
+                isaac_float4 volumeColor = color;
+                volumeColor.a *= sourceWeight.value[nr];
+                volumeColor.r *= volumeColor.a;
+                volumeColor.g *= volumeColor.a;
+                volumeColor.b *= volumeColor.a;
+                volumeTexture[coord] += volumeColor;
+            }
+            if(sourceIsoThreshold.value[nr] > 0)
+            {
+                isaac_float4 isoColor = color;
+                isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
+                if(isoTexture[coord].a < isoColor.a)
+                    isoTexture[coord] = isoColor;
             }
         }
     };
@@ -527,62 +508,54 @@ namespace isaac
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
-            coord.x -= T_Source::guardSize;
-            coord.y -= T_Source::guardSize;
-
-
-            coord.z -= T_Source::guardSize;
+            coord -= T_Source::guardSize;
             Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
-            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
-            {
 #if 1
-                isaac_float3 vector = source[coord];
+            isaac_float3 vector = source[coord];
 
-                // Prevent division by 0;
-                isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
-                vector /= vectorLength;
-                // vector *= glm::min(applyFunctorChain(vector, nr), isaac_float(1));
-                isaac_float value = noiseTexture[coord]
-                    + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
-                        * isaac_float(0.95);
-                licTexture[coord] = glm::min(value, isaac_float(1));
+            // Prevent division by 0;
+            isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
+            vector /= vectorLength;
+            // vector *= glm::min(applyFunctorChain(vector, nr), isaac_float(1));
+            isaac_float value = noiseTexture[coord]
+                + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
+                    * isaac_float(0.95);
+            licTexture[coord] = glm::min(value, isaac_float(1));
 #else
-                isaac_float3 fCoord = coord;
-                isaac_float result = 0;
-                const int steps = 30;
-                isaac_float3 vector;
-                timeStep = 0;
-                // for(int i = 0; i < timeStep; i++)
-                //{
-                //    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
-                //       && isInUpperBounds(fCoord, isaac_float3(localSize + isaac_int(T_Source::guardSize))))
-                //    {
-                //        vector = -source[isaac_int3(fCoord)];
-                //        weight = applyFunctorChain(vector, nr);
-                //        isaac_float vectorLength
-                //            = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
-                //        vector /= vectorLength;
-                //    }
-                //    result += (sampler.sample(noiseTexture, fCoord) * weight * (steps - timeStep + i));
-                //    fCoord += vector * isaac_float(2.5) / scale;
-                //}
-                fCoord = coord;
-                for(int i = 0; i < steps - timeStep; i++)
+            isaac_float3 fCoord = coord;
+            isaac_float result = 0;
+            const int steps = 30;
+            isaac_float3 vector;
+            timeStep = 0;
+            // for(int i = 0; i < timeStep; i++)
+            //{
+            //    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
+            //       && isInUpperBounds(fCoord, isaac_float3(localSize + isaac_int(T_Source::guardSize))))
+            //    {
+            //        vector = -source[isaac_int3(fCoord)];
+            //        weight = applyFunctorChain(vector, nr);
+            //        isaac_float vectorLength
+            //            = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
+            //        vector /= vectorLength;
+            //    }
+            //    result += (sampler.sample(noiseTexture, fCoord) * weight * (steps - timeStep + i));
+            //    fCoord += vector * isaac_float(2.5) / scale;
+            //}
+            fCoord = coord;
+            for(int i = 0; i < steps - timeStep; i++)
+            {
+                if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
+                   && isInUpperBounds(fCoord, isaac_float3(localSize + isaac_int(T_Source::guardSize))))
                 {
-                    if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
-                       && isInUpperBounds(fCoord, isaac_float3(localSize + isaac_int(T_Source::guardSize))))
-                    {
-                        vector = source[isaac_int3(fCoord)];
-                        isaac_float vectorLength
-                            = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
-                        vector /= vectorLength;
-                    }
-                    result += (sampler.sample(noiseTexture, fCoord) * (steps - timeStep - i));
-                    fCoord += vector * isaac_float(1.25) / scale;
+                    vector = source[isaac_int3(fCoord)];
+                    isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
+                    vector /= vectorLength;
                 }
-                licTexture[coord] = result;
-#endif
+                result += (sampler.sample(noiseTexture, fCoord) * (steps - timeStep - i));
+                fCoord += vector * isaac_float(1.25) / scale;
             }
+            licTexture[coord] = result;
+#endif
         }
     };
 
@@ -611,35 +584,28 @@ namespace isaac
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
-            coord.x -= T_Source::guardSize;
-            coord.y -= T_Source::guardSize;
-
-
-            coord.z -= T_Source::guardSize;
-            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            coord -= T_Source::guardSize;
+            isaac_float_dim<T_Source::featureDim> value = source[coord];
+            isaac_float texValue = applyFunctorChain(value, nr);
+            ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
+            lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
+            isaac_float4 color = transferArray.pointer[nr][lookupValue];
+            color.a *= licTexture[coord];
+            if(sourceWeight.value[nr] > 0)
             {
-                isaac_float_dim<T_Source::featureDim> value = source[coord];
-                isaac_float texValue = applyFunctorChain(value, nr);
-                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
-                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                isaac_float4 color = transferArray.pointer[nr][lookupValue];
-                color.a *= licTexture[coord];
-                if(sourceWeight.value[nr] > 0)
-                {
-                    isaac_float4 volumeColor = color;
-                    volumeColor.a *= sourceWeight.value[nr];
-                    volumeColor.r *= volumeColor.a;
-                    volumeColor.g *= volumeColor.a;
-                    volumeColor.b *= volumeColor.a;
-                    volumeTexture[coord] += volumeColor;
-                }
-                if(sourceIsoThreshold.value[nr] > 0)
-                {
-                    isaac_float4 isoColor = color;
-                    isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                    if(isoTexture[coord].a < isoColor.a)
-                        isoTexture[coord] = isoColor;
-                }
+                isaac_float4 volumeColor = color;
+                volumeColor.a *= sourceWeight.value[nr];
+                volumeColor.r *= volumeColor.a;
+                volumeColor.g *= volumeColor.a;
+                volumeColor.b *= volumeColor.a;
+                volumeTexture[coord] += volumeColor;
+            }
+            if(sourceIsoThreshold.value[nr] > 0)
+            {
+                isaac_float4 isoColor = color;
+                isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
+                if(isoTexture[coord].a < isoColor.a)
+                    isoTexture[coord] = isoColor;
             }
         }
     };
