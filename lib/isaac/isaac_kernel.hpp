@@ -32,20 +32,20 @@ namespace isaac
         T_Args&&... args)
     {
         using Dim = alpaka::DimInt<3>;
-        isaac_size2 gridSize = (volumeSize + ISAAC_IDX_TYPE(15 - 1)) / ISAAC_IDX_TYPE(16);
-        isaac_size2 blockSize(16, 16);
+        isaac_size3 blockSize(256, 4, 1);
+        isaac_size3 gridSize = (volumeSize + blockSize - ISAAC_IDX_TYPE(1)) / blockSize;
 
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
         if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<Dim, ISAAC_IDX_TYPE>>>::value)
 #endif
         {
-            gridSize = volumeSize;
-
             blockSize = isaac_size3(1);
+            gridSize = volumeSize;
         }
         const alpaka::Vec<Dim, ISAAC_IDX_TYPE> threadElements(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
-        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> blocks(blockSize.x, blockSize.y, ISAAC_IDX_TYPE(1));
-        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> grid(gridSize.x, gridSize.y, ISAAC_IDX_TYPE(1));
+        // Coordinates need to be swapped for alpaka
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> blocks(blockSize.z, blockSize.y, blockSize.x);
+        const alpaka::Vec<Dim, ISAAC_IDX_TYPE> grid(gridSize.z, gridSize.y, gridSize.x);
         auto const workdiv = alpaka::WorkDivMembers<Dim, ISAAC_IDX_TYPE>(grid, blocks, threadElements);
         auto const instance = alpaka::createTaskKernel<T_Acc>(workdiv, kernelFnObj, args...);
         alpaka::enqueue(stream, instance);

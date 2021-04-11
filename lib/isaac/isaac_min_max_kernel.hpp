@@ -32,7 +32,7 @@ namespace isaac
             const Tex3D<isaac_float> texture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
 
             if(!isInUpperBounds(coord, localSize))
                 return;
@@ -72,12 +72,12 @@ namespace isaac
             const isaac_size3 localSize) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_uint3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_uint3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize))
                 return;
             isaac_float min = std::numeric_limits<isaac_float>::max();
             isaac_float max = -std::numeric_limits<isaac_float>::max();
-            for(; coord.z < localSize.z; coord.z++)
+            // for(; coord.z < localSize.z; coord.z++)
             {
                 auto particleIterator = particleSource.getIterator(coord);
                 for(int i = 0; i < particleIterator.size; i++)

@@ -368,13 +368,13 @@ namespace isaac
             isaac_float3 mask) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, srcTex.getSize()))
                 return;
 
             const isaac_float gauss5[3] = {6, 4, 1};
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
-            for(; coord.z < dstTex.getSize().z; coord.z++)
+            // for(; coord.z < dstTex.getSize().z; coord.z++)
             {
                 isaac_float result(0);
                 for(isaac_int i = -2; i < 3; i++)
@@ -401,13 +401,13 @@ namespace isaac
             isaac_float3 mask) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, dstTex.getSize()))
                 return;
 
             const isaac_float gauss5[4] = {64, 40.5, 10, 1};
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
-            for(; coord.z < srcTex.getSize().z; coord.z++)
+            // for(; coord.z < srcTex.getSize().z; coord.z++)
             {
                 isaac_float result(0);
                 for(isaac_int i = -3; i < 4; i++)
@@ -435,15 +435,15 @@ namespace isaac
             const isaac_int3 localSize) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
             coord.y -= T_Source::guardSize;
 
 
-            coord.z = -T_Source::guardSize;
-            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            coord.z -= T_Source::guardSize;
+            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
                 isaac_float_dim<T_Source::featureDim> value = source[coord];
                 texture[coord] = applyFunctorChain(value, nr);
@@ -472,15 +472,15 @@ namespace isaac
             Tex3D<isaac_float4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
             coord.y -= T_Source::guardSize;
 
 
-            coord.z = -T_Source::guardSize;
-            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            coord.z -= T_Source::guardSize;
+            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
                 isaac_float_dim<T_Source::featureDim> value = source[coord];
                 isaac_float texValue = applyFunctorChain(value, nr);
@@ -524,16 +524,16 @@ namespace isaac
             isaac_int timeStep) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
             coord.y -= T_Source::guardSize;
 
 
-            coord.z = -T_Source::guardSize;
+            coord.z -= T_Source::guardSize;
             Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
-            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
 #if 1
                 isaac_float3 vector = source[coord];
@@ -608,15 +608,15 @@ namespace isaac
             Tex3D<isaac_float4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
-            isaac_int3 coord = {isaac_int(alpThreadIdx[0]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[2])};
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord.x -= T_Source::guardSize;
             coord.y -= T_Source::guardSize;
 
 
-            coord.z = -T_Source::guardSize;
-            for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
+            coord.z -= T_Source::guardSize;
+            // for(; coord.z < localSize.z + T_Source::guardSize; coord.z++)
             {
                 isaac_float_dim<T_Source::featureDim> value = source[coord];
                 isaac_float texValue = applyFunctorChain(value, nr);
