@@ -23,9 +23,9 @@
 
 using namespace isaac;
 
-#define VOLUME_X 64
-#define VOLUME_Y 64
-#define VOLUME_Z 64
+#define VOLUME_X 128
+#define VOLUME_Y 128
+#define VOLUME_Z 128
 
 #define PARTICLE_VOLUME_X 64
 #define PARTICLE_VOLUME_Y 64

@@ -224,10 +224,14 @@ namespace isaac
             isaac_float_dim<1> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
+            coord -= isaac_float(0.5);
             T_Type data2[2];
             for(int x = 0; x < 2; x++)
             {
-                data2[x] = safeMemoryAccess(texture, isaac_float_dim<1>(coord) + isaac_float_dim<1>(x), borderValue);
+                data2[x] = safeMemoryAccess(
+                    texture,
+                    isaac_int_dim<1>(glm::floor(coord)) + isaac_int_dim<1>(x),
+                    borderValue);
             }
 
             return linear(glm::fract(coord), data2);
@@ -239,12 +243,14 @@ namespace isaac
             isaac_float_dim<2> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
+            coord -= isaac_float(0.5);
             T_Type data4[2][2];
-            for(int x = 0; x < 2; x++)
+            for(int y = 0; y < 2; y++)
             {
-                for(int y = 0; y < 2; y++)
+                for(int x = 0; x < 2; x++)
                 {
-                    data4[x][y] = safeMemoryAccess(texture, isaac_int2(coord) + isaac_int2(x, y), borderValue);
+                    data4[x][y]
+                        = safeMemoryAccess(texture, isaac_int2(glm::floor(coord)) + isaac_int2(x, y), borderValue);
                 }
             }
 
@@ -257,6 +263,7 @@ namespace isaac
             isaac_float_dim<3> coord,
             const T_Type& borderValue = T_Type(0)) const
         {
+            coord -= isaac_float(0.5);
             T_Type data8[2][2][2];
             if(T_border == BorderType::CLAMP)
             {
@@ -270,27 +277,29 @@ namespace isaac
                         - (std::numeric_limits<isaac_float>::epsilon()
                            * isaac_float3(sizeWithGuard - guardSize - ISAAC_IDX_TYPE(1))));
 
-                for(int x = 0; x < 2; x++)
+                for(int z = 0; z < 2; z++)
                 {
                     for(int y = 0; y < 2; y++)
                     {
-                        for(int z = 0; z < 2; z++)
+                        for(int x = 0; x < 2; x++)
                         {
-                            data8[x][y][z] = texture[isaac_int3(coord) + isaac_int3(x, y, z)];
+                            data8[x][y][z] = texture[isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z)];
                         }
                     }
                 }
             }
             else
             {
-                for(int x = 0; x < 2; x++)
+                for(int z = 0; z < 2; z++)
                 {
                     for(int y = 0; y < 2; y++)
                     {
-                        for(int z = 0; z < 2; z++)
+                        for(int x = 0; x < 2; x++)
                         {
-                            data8[x][y][z]
-                                = safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue);
+                            data8[x][y][z] = safeMemoryAccess(
+                                texture,
+                                isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z),
+                                borderValue);
                         }
                     }
                 }
@@ -306,12 +315,13 @@ namespace isaac
             isaac_float_dim<3> coord,
             const isaac_byte4& borderValue = isaac_byte4(0)) const
         {
+            coord -= isaac_float(0.5);
             isaac_float4 data8[2][2][2];
-            for(int x = 0; x < 2; x++)
+            for(int z = 0; z < 2; z++)
             {
                 for(int y = 0; y < 2; y++)
                 {
-                    for(int z = 0; z < 2; z++)
+                    for(int x = 0; x < 2; x++)
                     {
                         data8[x][y][z]
                             = isaac_float4(

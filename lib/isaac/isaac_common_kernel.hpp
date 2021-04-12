@@ -509,19 +509,28 @@ namespace isaac
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord -= T_Source::guardSize;
-            Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
 #if 1
+            Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
+
             isaac_float3 vector = source[coord];
 
             // Prevent division by 0;
             isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
             vector /= vectorLength;
-            // vector *= glm::min(applyFunctorChain(vector, nr), isaac_float(1));
-            isaac_float value = noiseTexture[coord]
-                + sampler.sample(licTextureBackBuffer, isaac_float3(coord) + vector * isaac_float(2.5) / scale)
-                    * isaac_float(0.95);
-            licTexture[coord] = glm::min(value, isaac_float(1));
+
+            isaac_float3 offset = vector * isaac_float(3) / scale;
+            // Center coord to voxel and add the vector offset
+            isaac_float3 offsetCoord = isaac_float3(coord) + isaac_float(0.5) + offset;
+            // Get the interpolated sample with the offset coordinates from the previous frame
+            isaac_float historyValue = sampler.sample(licTextureBackBuffer, offsetCoord);
+            // Sample the noise value
+            isaac_float noiseValue = noiseTexture[coord];
+
+            // Blend everything together with a falloff weight
+            licTexture[coord] = noiseValue + historyValue * isaac_float(0.95) * (1 - noiseValue);
+            // licTexture[coord] = glm::min(value, isaac_float(1));
 #else
+            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
             isaac_float3 fCoord = coord;
             isaac_float result = 0;
             const int steps = 30;
@@ -541,7 +550,7 @@ namespace isaac
             //    result += (sampler.sample(noiseTexture, fCoord) * weight * (steps - timeStep + i));
             //    fCoord += vector * isaac_float(2.5) / scale;
             //}
-            fCoord = coord;
+            fCoord = isaac_float3(coord) + isaac_float(0.5);
             for(int i = 0; i < steps - timeStep; i++)
             {
                 if(isInLowerBounds(fCoord, isaac_float3(-T_Source::guardSize))
@@ -552,9 +561,9 @@ namespace isaac
                     vector /= vectorLength;
                 }
                 result += (sampler.sample(noiseTexture, fCoord) * (steps - timeStep - i));
-                fCoord += vector * isaac_float(1.25) / scale;
+                fCoord += vector * isaac_float(2.5) / scale;
             }
-            licTexture[coord] = result;
+            licTexture[coord] = result / isaac_float(30);
 #endif
         }
     };
