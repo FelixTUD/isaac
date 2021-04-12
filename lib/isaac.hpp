@@ -401,7 +401,6 @@ namespace isaac
                 typename T_Array,
                 typename T_Minmax,
                 typename T_LocalMinmax,
-                typename T_LocalSize,
                 typename T_Stream__,
                 typename T_Host__>
             ISAAC_HOST_INLINE void operator()(
@@ -410,7 +409,7 @@ namespace isaac
                 T_Array& persistentTextureArray,
                 T_Minmax& minMax,
                 T_LocalMinmax& localMinMax,
-                T_LocalSize& localSize,
+                const isaac_size3& localSize,
                 T_Stream__& stream,
                 const T_Host__& host,
                 const int offset = 0) const
@@ -420,9 +419,10 @@ namespace isaac
 
                 if(localSize.x != 0 && localSize.y != 0)
                 {
+                    isaac_size3 volumeSize = isaac_size3(localSize.x, localSize.y, 1);
                     MinMaxKernel<T_Source> kernel;
                     executeKernelOnVolume<T_Acc>(
-                        localSize,
+                        volumeSize,
                         stream,
                         kernel,
                         source,
@@ -430,6 +430,7 @@ namespace isaac
                         alpaka::getPtrNative(localMinMax),
                         localSize,
                         persistentTextureArray.textures[index]);
+
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
                         localMinMaxHostArray,
                         host,
@@ -464,7 +465,6 @@ namespace isaac
                 typename T_ParticleSource,
                 typename T_Minmax,
                 typename T_LocalMinmax,
-                typename T_LocalSize,
                 typename T_Stream__,
                 typename T_Host__>
             ISAAC_HOST_INLINE void operator()(
@@ -472,7 +472,7 @@ namespace isaac
                 const T_ParticleSource& particleSource,
                 T_Minmax& minMax,
                 T_LocalMinmax& localMinMax,
-                T_LocalSize& localSize,
+                const isaac_size3& localSize,
                 T_Stream__& stream,
                 const T_Host__& host) const
             {
@@ -481,15 +481,17 @@ namespace isaac
 
                 if(localSize.x != 0 && localSize.y != 0)
                 {
+                    isaac_size3 volumeSize = isaac_size3(localSize.x, localSize.y, 1);
                     MinMaxParticleKernel<T_ParticleSource> kernel;
                     executeKernelOnVolume<T_Acc>(
-                        localSize,
+                        volumeSize,
                         stream,
                         kernel,
                         particleSource,
                         I + T_offset,
                         alpaka::getPtrNative(localMinMax),
                         localSize);
+
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
                         localMinMaxHostArray,
                         host,

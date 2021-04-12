@@ -38,20 +38,22 @@ namespace isaac
                 return;
             isaac_float min = std::numeric_limits<isaac_float>::max();
             isaac_float max = -std::numeric_limits<isaac_float>::max();
-
-            isaac_float value;
-            if(T_Source::persistent)
+            for(; coord.z < localSize.z; coord.z++)
             {
-                isaac_float_dim<T_Source::featureDim> data = source[coord];
-                value = applyFunctorChain(data, nr);
+                isaac_float value;
+                if(T_Source::persistent)
+                {
+                    isaac_float_dim<T_Source::featureDim> data = source[coord];
+                    value = applyFunctorChain(data, nr);
+                }
+                else
+                {
+                    value = texture[coord];
+                };
+
+                min = glm::min(min, value);
+                max = glm::max(max, value);
             }
-            else
-            {
-                value = texture[coord];
-            };
-
-            min = glm::min(min, value);
-            max = glm::max(max, value);
             result[coord.x + coord.y * localSize.x].min = min;
             result[coord.x + coord.y * localSize.x].max = max;
         }
@@ -75,16 +77,19 @@ namespace isaac
                 return;
             isaac_float min = std::numeric_limits<isaac_float>::max();
             isaac_float max = -std::numeric_limits<isaac_float>::max();
-            auto particleIterator = particleSource.getIterator(coord);
-            for(int i = 0; i < particleIterator.size; i++)
+            for(; coord.z < localSize.z; coord.z++)
             {
-                isaac_float_dim<T_ParticleSource::featureDim> data;
+                auto particleIterator = particleSource.getIterator(coord);
+                for(int i = 0; i < particleIterator.size; i++)
+                {
+                    isaac_float_dim<T_ParticleSource::featureDim> data;
 
-                data = particleIterator.getAttribute();
+                    data = particleIterator.getAttribute();
 
-                isaac_float value = applyFunctorChain(data, nr);
-                min = glm::min(min, value);
-                max = glm::max(max, value);
+                    isaac_float value = applyFunctorChain(data, nr);
+                    min = glm::min(min, value);
+                    max = glm::max(max, value);
+                }
             }
             result[coord.x + coord.y * localSize.x].min = min;
             result[coord.x + coord.y * localSize.x].max = max;
