@@ -165,8 +165,11 @@ namespace isaac
             {
                 if(!T_Source::persistent)
                 {
-                    allocatorVector.push_back(
-                        Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                    allocatorVector.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(
+                        acc,
+                        localSize,
+                        T_Source::guardSize,
+                        FilterType::LINEAR));
                     persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
                 }
             }
@@ -193,12 +196,23 @@ namespace isaac
                 const T_DevAcc& acc,
                 const int offset = 0) const
             {
-                allocatorVector.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                allocatorVector.push_back(
+                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize, FilterType::LINEAR));
                 persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
 
-                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(
+                    acc,
+                    localSize,
+                    T_Source::guardSize,
+                    FilterType::LINEAR,
+                    BorderType::VALUE));
                 licTextures.textures[I] = licAllocators.back().getTexture();
-                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(
+                    acc,
+                    localSize,
+                    T_Source::guardSize,
+                    FilterType::LINEAR,
+                    BorderType::VALUE));
                 licTexturesBackBuffer.textures[I] = licAllocators.back().getTexture();
             }
         };
@@ -521,7 +535,7 @@ namespace isaac
 
         void updateNoiseTexture(isaac_uint seedNumber)
         {
-            Tex3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize);
+            Tex3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize, 0, FilterType::LINEAR, BorderType::REPEAT);
             tmpTex.clearColor(stream);
             alpaka::wait(stream);
 #if 1
@@ -659,10 +673,10 @@ namespace isaac
             , framebufferAO(acc, framebufferSize)
             , framebufferNormal(acc, framebufferSize)
             , framebufferDepth(acc, framebufferSize)
-            , deviceNoiseTextureAllocator(acc, localSize)
+            , deviceNoiseTextureAllocator(acc, localSize, 0, FilterType::LINEAR, BorderType::REPEAT)
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-            , combinedVolumeTextureAllocator(acc, localSize)
-            , combinedIsoTextureAllocator(acc, localSize)
+            , combinedVolumeTextureAllocator(acc, localSize, 0, FilterType::LINEAR, BorderType::CLAMP)
+            , combinedIsoTextureAllocator(acc, localSize, 0, FilterType::LINEAR, BorderType::CLAMP)
 #endif
         {
 #if ISAAC_VALGRIND_TWEAKS == 1

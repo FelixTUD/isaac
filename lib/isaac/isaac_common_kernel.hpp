@@ -373,7 +373,7 @@ namespace isaac
                 return;
 
             const isaac_float gauss5[3] = {6, 4, 1};
-            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
+            // Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
 
             isaac_float result(0);
             for(isaac_int i = -2; i < 3; i++)
@@ -382,7 +382,7 @@ namespace isaac
                     coord.x + mask.x * i / isaac_float(scale.x),
                     coord.y + mask.y * i / isaac_float(scale.y),
                     coord.z + mask.z * i / isaac_float(scale.z));
-                result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
+                result += srcTex.sample(sampleCoord) * gauss5[glm::abs(i)];
             }
             dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(6);
         }
@@ -404,7 +404,7 @@ namespace isaac
                 return;
 
             const isaac_float gauss5[4] = {64, 40.5, 10, 1};
-            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
+            // Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
             isaac_float result(0);
             for(isaac_int i = -3; i < 4; i++)
             {
@@ -412,7 +412,7 @@ namespace isaac
                     coord.x + mask.x * i / isaac_float(scale.x),
                     coord.y + mask.y * i / isaac_float(scale.y),
                     coord.z + mask.z * i / isaac_float(scale.z));
-                result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
+                result += srcTex.sample(sampleCoord) * gauss5[glm::abs(i)];
             }
             dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(64);
         }
@@ -510,7 +510,7 @@ namespace isaac
                 return;
             coord -= T_Source::guardSize;
 #if 1
-            Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
+            // Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
 
             isaac_float3 vector = source[coord];
 
@@ -522,7 +522,7 @@ namespace isaac
             // Center coord to voxel and add the vector offset
             isaac_float3 offsetCoord = isaac_float3(coord) + isaac_float(0.5) + offset;
             // Get the interpolated sample with the offset coordinates from the previous frame
-            isaac_float historyValue = sampler.sample(licTextureBackBuffer, offsetCoord);
+            isaac_float historyValue = licTextureBackBuffer.sample(offsetCoord);
             // Sample the noise value
             isaac_float noiseValue = noiseTexture[coord];
 
@@ -530,7 +530,7 @@ namespace isaac
             licTexture[coord] = noiseValue + historyValue * isaac_float(0.95) * (1 - noiseValue);
             // licTexture[coord] = glm::min(value, isaac_float(1));
 #else
-            Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
+            // Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
             isaac_float3 fCoord = coord;
             isaac_float result = 0;
             const int steps = 30;
@@ -560,7 +560,7 @@ namespace isaac
                     isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
                     vector /= vectorLength;
                 }
-                result += (sampler.sample(noiseTexture, fCoord) * (steps - timeStep - i));
+                result += (noiseTexture.sample(fCoord) * (steps - timeStep - i));
                 fCoord += vector * isaac_float(2.5) / scale;
             }
             licTexture[coord] = result / isaac_float(30);

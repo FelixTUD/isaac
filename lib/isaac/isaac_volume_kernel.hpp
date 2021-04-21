@@ -69,8 +69,8 @@ namespace isaac
             {
                 isaac_float3 pos = startUnscaled + stepVec * isaac_float(i);
                 isaac_float4 value;
-                const Sampler<T_filterType, BorderType::CLAMP> sampler;
-                value = sampler.sample(combinedTexture, pos);
+                // const Sampler<T_filterType, BorderType::CLAMP> sampler;
+                value = combinedTexture.sample(pos);
                 value *= factor;
                 isaac_float weight = glm::max(isaac_float(1) - color.w, isaac_float(0));
                 color += weight * value;
@@ -147,13 +147,13 @@ namespace isaac
             Tex3D<isaac_float> texture = persistentArray.textures[T_nr];
             if(T_interpolation == 0)
             {
-                const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
-                result = sampler.sample(texture, pos);
+                // const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
+                result = texture.sample(pos);
             }
             else
             {
-                const Sampler<FilterType::LINEAR, BorderType::CLAMP> sampler;
-                result = sampler.sample(texture, pos);
+                // const Sampler<FilterType::LINEAR, BorderType::CLAMP> sampler;
+                result = texture.sample(pos);
             }
         }
         return result;

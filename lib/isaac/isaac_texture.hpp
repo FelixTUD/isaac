@@ -59,15 +59,35 @@ namespace isaac
          * @param size Size of the texture in T_TextureDim dimensions
          * @param guardSize Size of the memory access guard, default = 0
          */
-        ISAAC_HOST_DEVICE_INLINE void init(
+        Texture(
             T_Type* bufferPtr,
             const isaac_size_dim<T_textureDim>& size,
-            ISAAC_IDX_TYPE guardSize = 0)
+            ISAAC_IDX_TYPE guardSize = 0,
+            FilterType filter = FilterType::NEAREST,
+            BorderType border = BorderType::CLAMP)
+            : bufferPtr(bufferPtr)
+            , size(size)
+            , sizeWithGuard(size + ISAAC_IDX_TYPE(2) * guardSize)
+            , guardSize(guardSize)
+            , filter(filter)
+            , border(border)
         {
-            this->bufferPtr = bufferPtr;
-            this->size = size;
-            this->sizeWithGuard = size + ISAAC_IDX_TYPE(2) * guardSize;
-            this->guardSize = guardSize;
+        }
+
+
+        ISAAC_HOST_DEVICE_INLINE T_Type
+        sample(const isaac_float_dim<T_textureDim>& coord, const T_Type& borderValue = T_Type(0)) const
+        {
+            T_Type result;
+            if(filter == FilterType::LINEAR)
+            {
+                result = interpolate(coord, borderValue);
+            }
+            else
+            {
+                result = safeMemoryAccess(isaac_int_dim<T_textureDim>(coord), borderValue);
+            }
+            return result;
         }
 
         ISAAC_HOST_DEVICE_INLINE T_Type operator[](const isaac_int_dim<T_textureDim>& coord) const
@@ -119,80 +139,11 @@ namespace isaac
             return guardSize;
         }
 
-        // TODO: this
-        /* Not yet working because of partial template specialization
-        template<typename T_Acc, typename T_AccDim, typename T_Stream, typename T_Kernel, typename... T_Args>
-        ISAAC_HOST_INLINE void kernelOnEachElement(T_Stream& stream, T_Kernel& kernel, T_Args&&... args)
+        ISAAC_HOST_DEVICE_INLINE T_Type
+        safeMemoryAccess(const isaac_int_dim<T_textureDim>& coord, const T_Type& borderValue = T_Type(0)) const
         {
-            isaac_size2 gridSize
-                = {ISAAC_IDX_TYPE((sizeWithGuard.x + 15) / 16), ISAAC_IDX_TYPE((sizeWithGuard.y + 15) / 16)};
-            isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-            {
-                gridSize.x = ISAAC_IDX_TYPE(sizeWithGuard.x);
-                gridSize.y = ISAAC_IDX_TYPE(sizeWithGuard.y);
-                blockSize.x = ISAAC_IDX_TYPE(1);
-                blockSize.y = ISAAC_IDX_TYPE(1);
-            }
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                ISAAC_IDX_TYPE(1),
-                ISAAC_IDX_TYPE(1),
-                ISAAC_IDX_TYPE(1));
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-            auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
-
-
-            auto const instance(alpaka::createTaskKernel<T_Acc>(workdiv, kernel, this, args));
-            alpaka::enqueue(stream, instance);
-            alpaka::wait(stream);
-        }
-        */
-
-
-    private:
-        T_Type* bufferPtr = nullptr;
-        isaac_size_dim<T_textureDim> size;
-        isaac_size_dim<T_textureDim> sizeWithGuard;
-        ISAAC_IDX_TYPE guardSize;
-    };
-
-
-    template<FilterType T_filter, BorderType T_border>
-    class Sampler
-    {
-    public:
-        template<typename T_Type, int T_textureDim, IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE T_Type sample(
-            const Texture<T_Type, T_textureDim, T_indexType>& texture,
-            const isaac_float_dim<T_textureDim>& coord,
-            const T_Type& borderValue = T_Type(0)) const
-        {
-            T_Type result;
-            if(T_filter == FilterType::LINEAR)
-            {
-                result = interpolate(texture, coord, borderValue);
-            }
-            else
-            {
-                result = safeMemoryAccess(texture, isaac_int_dim<T_textureDim>(coord), borderValue);
-            }
-            return result;
-        }
-
-        template<typename T_Type, int T_textureDim, IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE T_Type safeMemoryAccess(
-            const Texture<T_Type, T_textureDim, T_indexType>& texture,
-            const isaac_int_dim<T_textureDim>& coord,
-            const T_Type& borderValue = T_Type(0)) const
-        {
-            const isaac_size_dim<T_textureDim> sizeWithGuard = texture.getSizeWithGuard();
-            const ISAAC_IDX_TYPE guardSize = texture.getGuardSize();
-
             isaac_int_dim<T_textureDim> offsetCoord;
-            if(T_border == BorderType::REPEAT)
+            if(border == BorderType::REPEAT)
             {
                 // Modulo modification to also account for negative values
                 for(int i = 0; i < T_textureDim; ++i)
@@ -201,7 +152,7 @@ namespace isaac
                         % sizeWithGuard[i];
                 }
             }
-            else if(T_border == BorderType::VALUE)
+            else if(border == BorderType::VALUE)
             {
                 offsetCoord = coord + isaac_int(guardSize);
                 if(!isInLowerBounds(offsetCoord, isaac_int_dim<T_textureDim>(0))
@@ -215,33 +166,24 @@ namespace isaac
                     isaac_int_dim<T_textureDim>(0),
                     isaac_int_dim<T_textureDim>(sizeWithGuard) - 1);
             }
-            return texture[offsetCoord - isaac_int(guardSize)];
+            return (*this)[offsetCoord - isaac_int(guardSize)];
         }
 
-        template<typename T_Type, IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 1, T_indexType>& texture,
-            isaac_float_dim<1> coord,
-            const T_Type& borderValue = T_Type(0)) const
+        ISAAC_HOST_DEVICE_INLINE T_Type
+        interpolate(isaac_float_dim<1> coord, const T_Type& borderValue = T_Type(0)) const
         {
             coord -= isaac_float(0.5);
             T_Type data2[2];
             for(int x = 0; x < 2; x++)
             {
-                data2[x] = safeMemoryAccess(
-                    texture,
-                    isaac_int_dim<1>(glm::floor(coord)) + isaac_int_dim<1>(x),
-                    borderValue);
+                data2[x] = safeMemoryAccess(isaac_int_dim<1>(glm::floor(coord)) + isaac_int_dim<1>(x), borderValue);
             }
 
             return linear(glm::fract(coord), data2);
         }
 
-        template<typename T_Type, IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 2, T_indexType>& texture,
-            isaac_float_dim<2> coord,
-            const T_Type& borderValue = T_Type(0)) const
+        ISAAC_HOST_DEVICE_INLINE T_Type
+        interpolate(isaac_float_dim<2> coord, const T_Type& borderValue = T_Type(0)) const
         {
             coord -= isaac_float(0.5);
             T_Type data4[2][2];
@@ -249,27 +191,20 @@ namespace isaac
             {
                 for(int x = 0; x < 2; x++)
                 {
-                    data4[x][y]
-                        = safeMemoryAccess(texture, isaac_int2(glm::floor(coord)) + isaac_int2(x, y), borderValue);
+                    data4[x][y] = safeMemoryAccess(isaac_int2(glm::floor(coord)) + isaac_int2(x, y), borderValue);
                 }
             }
 
             return bilinear(glm::fract(coord), data4);
         }
 
-        template<typename T_Type, IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE T_Type interpolate(
-            const Texture<T_Type, 3, T_indexType>& texture,
-            isaac_float_dim<3> coord,
-            const T_Type& borderValue = T_Type(0)) const
+        ISAAC_HOST_DEVICE_INLINE T_Type
+        interpolate(isaac_float_dim<3> coord, const T_Type& borderValue = T_Type(0)) const
         {
             coord -= isaac_float(0.5);
             T_Type data8[2][2][2];
-            if(T_border == BorderType::CLAMP)
+            if(border == BorderType::CLAMP)
             {
-                const ISAAC_IDX_TYPE guardSize = texture.getGuardSize();
-                const isaac_size3 sizeWithGuard = texture.getSizeWithGuard();
-
                 coord = glm::clamp(
                     coord,
                     isaac_float3(-guardSize) + std::numeric_limits<isaac_float>::min(),
@@ -283,7 +218,7 @@ namespace isaac
                     {
                         for(int x = 0; x < 2; x++)
                         {
-                            data8[x][y][z] = texture[isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z)];
+                            data8[x][y][z] = (*this)[isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z)];
                         }
                     }
                 }
@@ -296,10 +231,8 @@ namespace isaac
                     {
                         for(int x = 0; x < 2; x++)
                         {
-                            data8[x][y][z] = safeMemoryAccess(
-                                texture,
-                                isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z),
-                                borderValue);
+                            data8[x][y][z]
+                                = safeMemoryAccess(isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z), borderValue);
                         }
                     }
                 }
@@ -309,30 +242,14 @@ namespace isaac
             return trilinear(glm::fract(coord), data8);
         }
 
-        template<IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE isaac_byte4 interpolate(
-            const Texture<isaac_byte4, 3, T_indexType>& texture,
-            isaac_float_dim<3> coord,
-            const isaac_byte4& borderValue = isaac_byte4(0)) const
-        {
-            coord -= isaac_float(0.5);
-            isaac_float4 data8[2][2][2];
-            for(int z = 0; z < 2; z++)
-            {
-                for(int y = 0; y < 2; y++)
-                {
-                    for(int x = 0; x < 2; x++)
-                    {
-                        data8[x][y][z]
-                            = isaac_float4(
-                                  safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue))
-                            / isaac_float(255);
-                    }
-                }
-            }
 
-            return isaac_byte4(trilinear(glm::fract(coord), data8) * isaac_float(255));
-        }
+    private:
+        T_Type* bufferPtr;
+        isaac_size_dim<T_textureDim> size;
+        isaac_size_dim<T_textureDim> sizeWithGuard;
+        ISAAC_IDX_TYPE guardSize;
+        FilterType filter = FilterType::NEAREST;
+        BorderType border = BorderType::VALUE;
     };
 
 
@@ -352,7 +269,9 @@ namespace isaac
         TextureAllocator(
             const T_DevAcc& devAcc,
             const isaac_size_dim<T_textureDim>& size,
-            ISAAC_IDX_TYPE guardSize = 0)
+            ISAAC_IDX_TYPE guardSize = 0,
+            FilterType filter = FilterType::NEAREST,
+            BorderType border = BorderType::CLAMP)
             : bufferExtent(0)
             , buffer(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, bufferExtent))
         {
@@ -381,7 +300,12 @@ namespace isaac
 
             buffer = alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, bufferExtent);
 
-            texture.init(alpaka::getPtrNative(buffer), size, guardSize);
+            texture = Texture<T_Type, T_textureDim, T_indexType>(
+                alpaka::getPtrNative(buffer),
+                size,
+                guardSize,
+                filter,
+                border);
 
             std::cout << "Finished texture init!" << std::endl;
         }

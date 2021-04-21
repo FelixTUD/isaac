@@ -161,14 +161,14 @@ namespace isaac
             // closer to the camera
             isaac_float occlusion = 0.0f;
             isaac_float refDepth = gBuffer.depth[pixel];
-            const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
+            // const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
             for(int i = -3; i <= 3; ++i)
             {
                 for(int j = -3; j <= 3; ++j)
                 {
                     // get the neighbour depth value
                     isaac_float depthSample
-                        = sampler.safeMemoryAccess(gBuffer.depth, isaac_int2(pixel) + isaac_int2(i, j) * radius);
+                        = gBuffer.depth.safeMemoryAccess(isaac_int2(pixel) + isaac_int2(i, j) * radius);
 
                     if(depthSample < refDepth)
                     {

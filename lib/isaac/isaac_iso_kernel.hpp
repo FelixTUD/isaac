@@ -78,8 +78,8 @@ namespace isaac
                 isaac_float t = i * stepSizeUnscaled;
 
                 isaac_float value;
-                const Sampler<T_filterType, BorderType::CLAMP> sampler;
-                value = sampler.sample(combinedTexture, pos).a;
+                // const Sampler<T_filterType, BorderType::CLAMP> sampler;
+                value = combinedTexture.sample(pos).a;
                 isaac_float tmpValue = oldValue;
                 oldValue = value;
                 if(value < isaac_float(0.5))
@@ -95,17 +95,17 @@ namespace isaac
                 isaac_float3 newPos = ray.start + ray.dir * depth;
                 isaac_float3 posUnscaled = newPos / scale;
 
-                hitColor = sampler.sample(combinedTexture, posUnscaled);
+                hitColor = combinedTexture.sample(posUnscaled);
                 hitColor.a = isaac_float(1);
                 isaac_float3 gradient;
-                gradient.x = sampler.sample(combinedTexture, posUnscaled + isaac_float3(1, 0, 0)).a
-                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(1, 0, 0)).a;
+                gradient.x = combinedTexture.sample(posUnscaled + isaac_float3(1, 0, 0)).a
+                    - combinedTexture.sample(posUnscaled - isaac_float3(1, 0, 0)).a;
 
-                gradient.y = sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 1, 0)).a
-                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 1, 0)).a;
+                gradient.y = combinedTexture.sample(posUnscaled + isaac_float3(0, 1, 0)).a
+                    - combinedTexture.sample(posUnscaled - isaac_float3(0, 1, 0)).a;
 
-                gradient.z = sampler.sample(combinedTexture, posUnscaled + isaac_float3(0, 0, 1)).a
-                    - sampler.sample(combinedTexture, posUnscaled - isaac_float3(0, 0, 1)).a;
+                gradient.z = combinedTexture.sample(posUnscaled + isaac_float3(0, 0, 1)).a
+                    - combinedTexture.sample(posUnscaled - isaac_float3(0, 0, 1)).a;
                 isaac_float gradientLength = glm::length(gradient);
                 if(first || gradientLength == isaac_float(0))
                 {
