@@ -476,14 +476,15 @@ namespace isaac
                 volumeColor.r *= volumeColor.a;
                 volumeColor.g *= volumeColor.a;
                 volumeColor.b *= volumeColor.a;
-                volumeTexture[coord] += volumeColor;
+                // volumeColor = isaac_float4(1);
+                volumeTexture.set(coord, volumeColor);
             }
             if(sourceIsoThreshold.value[nr] > 0)
             {
                 isaac_float4 isoColor = color;
                 isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                if(isoTexture[coord].a < isoColor.a)
-                    isoTexture[coord] = isoColor;
+                // if(isoTexture.get(isoColor).a < isoColor.a)
+                isoTexture.set(coord, isoColor);
             }
         }
     };
@@ -607,14 +608,14 @@ namespace isaac
                 volumeColor.r *= volumeColor.a;
                 volumeColor.g *= volumeColor.a;
                 volumeColor.b *= volumeColor.a;
-                volumeTexture[coord] += volumeColor;
+                volumeTexture.set(coord, volumeTexture.get(coord) + volumeColor);
             }
             if(sourceIsoThreshold.value[nr] > 0)
             {
                 isaac_float4 isoColor = color;
                 isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                if(isoTexture[coord].a < isoColor.a)
-                    isoTexture[coord] = isoColor;
+                if(isoTexture.get(coord).a < isoColor.a)
+                    isoTexture.set(coord, isoColor);
             }
         }
     };

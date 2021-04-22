@@ -167,8 +167,7 @@ namespace isaac
                 for(int j = -3; j <= 3; ++j)
                 {
                     // get the neighbour depth value
-                    isaac_float depthSample
-                        = gBuffer.depth.safeMemoryAccess(isaac_int2(pixel) + isaac_int2(i, j) * radius);
+                    isaac_float depthSample = gBuffer.depth.sample(isaac_int2(pixel) + isaac_int2(i, j) * radius);
 
                     if(depthSample < refDepth)
                     {

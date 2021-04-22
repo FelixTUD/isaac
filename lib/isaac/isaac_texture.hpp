@@ -40,6 +40,7 @@ namespace isaac
         MORTON
     };
 
+
     /**
      * @brief Software texture implementation
      *
@@ -251,7 +252,109 @@ namespace isaac
         FilterType filter = FilterType::NEAREST;
         BorderType border = BorderType::VALUE;
     };
+#ifdef ALPAKA_ACC_GPU_CUDA_ONLY_MODE
+    template<>
+    class Texture<isaac_float4, 3, IndexType::SWEEP>
+    {
+    public:
+        Texture() = default;
 
+        /**
+         * @brief Initialize texture
+         *
+         * @param bufferPtr Valid pointer to free memory
+         * @param size Size of the texture in T_TextureDim dimensions
+         * @param guardSize Size of the memory access guard, default = 0
+         */
+        Texture(
+            isaac_float4* bufferPtr,
+            const isaac_size_dim<3>& size,
+            ISAAC_IDX_TYPE guardSize = 0,
+            FilterType filter = FilterType::NEAREST,
+            BorderType border = BorderType::CLAMP)
+            : bufferPtr(bufferPtr)
+            , size(size)
+            , sizeWithGuard(size + ISAAC_IDX_TYPE(2) * guardSize)
+            , guardSize(guardSize)
+            , filter(filter)
+            , border(border)
+        {
+            const cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+            cudaMalloc3DArray(
+                &cudaArray,
+                &channelDesc,
+                make_cudaExtent(sizeWithGuard.x, sizeWithGuard.y, sizeWithGuard.z),
+                cudaArraySurfaceLoadStore);
+
+
+            cudaResourceDesc rescDesc;
+            memset(&rescDesc, 0, sizeof(rescDesc));
+            rescDesc.resType = cudaResourceTypeArray;
+            rescDesc.res.array.array = cudaArray;
+
+            cudaTextureDesc texDesc;
+            memset(&texDesc, 0, sizeof(texDesc));
+            for(int i = 0; i < 3; i++)
+                texDesc.addressMode[i] = cudaAddressModeClamp;
+            texDesc.filterMode = cudaFilterModeLinear;
+            texDesc.readMode = cudaReadModeElementType;
+            for(int i = 0; i < 3; i++)
+                texDesc.borderColor[i] = 0;
+            texDesc.normalizedCoords = 0;
+
+            cudaError_t error = cudaCreateTextureObject(&textureObj, &rescDesc, &texDesc, NULL);
+            cudaCreateSurfaceObject(&surfaceObj, &rescDesc);
+            if(error == cudaSuccess)
+                printf("INFO: texture creation succesfull!\n");
+            else
+                printf("ERROR: cant't create texture!\n");
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float4
+        sample(const isaac_float_dim<3>& coord, const isaac_float4& borderValue = isaac_float4(0)) const
+        {
+            float4 result = tex3D<float4>(textureObj, coord.x, coord.y, coord.z);
+            return isaac_float4(result.x, result.y, result.z, result.w);
+        }
+
+        ISAAC_DEVICE_INLINE void set(const isaac_int_dim<3>& coord, const isaac_float4& value)
+        {
+            float4 cudaValue = {value.r, value.g, value.b, value.a};
+            surf3Dwrite(cudaValue, surfaceObj, coord.x, coord.y, coord.z);
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float4 get(const isaac_int_dim<3>& coord)
+        {
+            float4 value = surf3Dread<float4>(surfaceObj, coord.x, coord.y, coord.z);
+            return isaac_float4(value.x, value.y, value.z, value.w);
+        }
+
+        ISAAC_HOST_DEVICE_INLINE isaac_size_dim<3> getSize() const
+        {
+            return size;
+        }
+        ISAAC_HOST_DEVICE_INLINE isaac_size_dim<3> getSizeWithGuard() const
+        {
+            return sizeWithGuard;
+        }
+        ISAAC_HOST_DEVICE_INLINE ISAAC_IDX_TYPE getGuardSize() const
+        {
+            return guardSize;
+        }
+
+    private:
+        isaac_float4* bufferPtr;
+        isaac_size_dim<3> size;
+        isaac_size_dim<3> sizeWithGuard;
+        ISAAC_IDX_TYPE guardSize;
+        FilterType filter = FilterType::NEAREST;
+        BorderType border = BorderType::VALUE;
+        cudaArray_t cudaArray;
+        cudaTextureObject_t textureObj;
+        cudaSurfaceObject_t surfaceObj;
+    };
+
+#endif
 
     /**
      * @brief Allocator class for textures
@@ -307,7 +410,7 @@ namespace isaac
                 filter,
                 border);
 
-            std::cout << "Finished texture init!" << std::endl;
+            // std::cout << "Finished texture init!" << std::endl;
         }
 
         template<typename T_Queue, typename T_ViewDst>
