@@ -341,10 +341,32 @@ namespace isaac
     };
 
 
+    struct ClearCombinedTextureKernel
+    {
+        template<
+            typename T_Acc,
+            typename T_Type,
+            FilterType T_filterType,
+            BorderType T_borderType,
+            IndexType T_indexType>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            Texture3D<T_Type, T_filterType, T_borderType, T_indexType> texture1,
+            Texture3D<T_Type, T_filterType, T_borderType, T_indexType> texture2) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
+            if(!isInUpperBounds(coord, texture1.getSizeWithGuard()))
+                return;
+            coord -= texture1.getGuardSize();
+            texture1.set(coord, T_Type(0));
+            texture2.set(coord, T_Type(0));
+        }
+    };
     struct HaltonSeedingKernel
     {
-        template<typename T_Acc>
-        ISAAC_DEVICE void operator()(T_Acc const& acc, Texture3D<isaac_float> texture, isaac_uint count) const
+        template<typename T_Acc, typename T_Texture>
+        ISAAC_DEVICE void operator()(T_Acc const& acc, T_Texture texture, isaac_uint count) const
         {
             for(isaac_uint i = 1; i <= count; ++i)
             {
@@ -359,11 +381,11 @@ namespace isaac
 
     struct GaussBlur5Kernel
     {
-        template<typename T_Acc>
+        template<typename T_Acc, typename T_Texture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
-            Texture3D<isaac_float> srcTex,
-            Texture3D<isaac_float> dstTex,
+            T_Texture srcTex,
+            T_Texture dstTex,
             isaac_float3 scale,
             isaac_float3 mask) const
         {
@@ -390,11 +412,11 @@ namespace isaac
 
     struct GaussBlur7Kernel
     {
-        template<typename T_Acc>
+        template<typename T_Acc, typename T_Texture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
-            Texture3D<isaac_float> srcTex,
-            Texture3D<isaac_float> dstTex,
+            T_Texture srcTex,
+            T_Texture dstTex,
             isaac_float3 scale,
             isaac_float3 mask) const
         {
@@ -421,12 +443,12 @@ namespace isaac
     template<typename T_Source>
     struct UpdatePersistendTextureKernel
     {
-        template<typename T_Acc>
+        template<typename T_Acc, typename T_Texture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
             const T_Source source,
-            Texture3D<isaac_float> texture,
+            T_Texture texture,
             const isaac_int3 localSize) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
@@ -447,7 +469,7 @@ namespace isaac
             typename T_TransferArray,
             typename T_SourceWeight,
             typename T_IsoThreshold,
-            IndexType T_indexType>
+            typename T_CombTexture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
@@ -456,8 +478,8 @@ namespace isaac
             const T_TransferArray transferArray,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
-            Texture3D<isaac_float4, T_indexType> volumeTexture,
-            Texture3D<isaac_float4, T_indexType> isoTexture) const
+            T_CombTexture volumeTexture,
+            T_CombTexture isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
@@ -476,15 +498,14 @@ namespace isaac
                 volumeColor.r *= volumeColor.a;
                 volumeColor.g *= volumeColor.a;
                 volumeColor.b *= volumeColor.a;
-                // volumeColor = isaac_float4(1);
-                volumeTexture.set(coord, volumeColor);
+                volumeTexture.set(coord, volumeTexture.get(coord) + volumeColor);
             }
             if(sourceIsoThreshold.value[nr] > 0)
             {
                 isaac_float4 isoColor = color;
                 isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                // if(isoTexture.get(isoColor).a < isoColor.a)
-                isoTexture.set(coord, isoColor);
+                if(isoTexture.get(coord).a < isoColor.a)
+                    isoTexture.set(coord, isoColor);
             }
         }
     };
@@ -493,14 +514,14 @@ namespace isaac
     template<typename T_Source>
     struct GenerateLICTextureKernel
     {
-        template<typename T_Acc>
+        template<typename T_Acc, typename T_LicTexture, typename T_NoiseTexture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
             const T_Source source,
-            Texture3D<isaac_float> licTexture,
-            Texture3D<isaac_float> licTextureBackBuffer,
-            const Texture3D<isaac_float> noiseTexture,
+            T_LicTexture licTexture,
+            T_LicTexture licTextureBackBuffer,
+            const T_NoiseTexture noiseTexture,
             const isaac_int3 localSize,
             const isaac_float3 scale,
             isaac_int timeStep) const
@@ -577,7 +598,8 @@ namespace isaac
             typename T_TransferArray,
             typename T_SourceWeight,
             typename T_IsoThreshold,
-            IndexType T_indexType>
+            typename T_LicTexture,
+            typename T_CombTexture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
@@ -586,9 +608,9 @@ namespace isaac
             const T_TransferArray transferArray,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
-            const Texture3D<isaac_float> licTexture,
-            Texture3D<isaac_float4, T_indexType> volumeTexture,
-            Texture3D<isaac_float4, T_indexType> isoTexture) const
+            const T_LicTexture licTexture,
+            T_CombTexture volumeTexture,
+            T_CombTexture isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};

@@ -165,12 +165,11 @@ namespace isaac
             {
                 if(!T_Source::persistent)
                 {
-                    allocatorVector.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
-                        acc,
-                        localSize,
-                        T_Source::guardSize,
-                        FilterType::LINEAR));
-                    persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
+                    allocatorVector.push_back(
+                        Texture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                    // TODO: have second linear filtered texture Array
+                    persistentTextureArray.textures[I + offset]
+                        = Texture3DCreator<FilterType::LINEAR>::create(allocatorVector.back());
                 }
             }
         };
@@ -196,27 +195,23 @@ namespace isaac
                 const T_DevAcc& acc,
                 const int offset = 0) const
             {
-                allocatorVector.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
-                    acc,
-                    localSize,
-                    T_Source::guardSize,
-                    FilterType::LINEAR));
-                persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
+                allocatorVector.push_back(
+                    Texture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                // TODO: have second linear filtered texture Array
+                persistentTextureArray.textures[I + offset]
+                    = Texture3DCreator<FilterType::LINEAR>::create(allocatorVector.back());
 
-                licAllocators.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
-                    acc,
-                    localSize,
-                    T_Source::guardSize,
-                    FilterType::LINEAR,
-                    BorderType::VALUE));
-                licTextures.textures[I] = licAllocators.back().getTexture();
-                licAllocators.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
-                    acc,
-                    localSize,
-                    T_Source::guardSize,
-                    FilterType::LINEAR,
-                    BorderType::VALUE));
-                licTexturesBackBuffer.textures[I] = licAllocators.back().getTexture();
+                licAllocators.push_back(
+                    Texture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+
+                licTextures.textures[I]
+                    = Texture3DCreator<FilterType::LINEAR, BorderType::VALUE>::create(licAllocators.back());
+
+                licAllocators.push_back(
+                    Texture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+
+                licTexturesBackBuffer.textures[I]
+                    = Texture3DCreator<FilterType::LINEAR, BorderType::VALUE>::create(licAllocators.back());
             }
         };
 
@@ -261,7 +256,7 @@ namespace isaac
                 typename T_Stream__
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
                 ,
-                IndexType T_indexType
+                typename T_Texture
 #endif
                 >
             ISAAC_HOST_INLINE void operator()(
@@ -275,8 +270,8 @@ namespace isaac
                 void* pointer,
                 T_Stream__& stream,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Texture3D<isaac_float4, T_indexType>& volumeTexture,
-                Texture3D<isaac_float4, T_indexType>& isoTexture,
+                T_Texture& volumeTexture,
+                T_Texture& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -326,12 +321,13 @@ namespace isaac
                 typename T_Array,
                 typename T_TransferArray,
                 typename T_LicArray,
+                typename T_NoiseTexture,
                 typename T_Weight,
                 typename T_IsoTheshold,
                 typename T_Stream__
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
                 ,
-                IndexType T_indexType
+                typename T_Texture
 #endif
                 >
             ISAAC_HOST_INLINE void operator()(
@@ -340,7 +336,7 @@ namespace isaac
                 T_Array& persistentTextureArray,
                 T_LicArray& licTextures,
                 T_LicArray& licTexturesBackBuffer,
-                const Texture3D<isaac_float>& noiseTexture,
+                const T_NoiseTexture& noiseTexture,
                 const isaac_size3& localSize,
                 const T_TransferArray& transferArray,
                 const isaac_float3& scale,
@@ -351,8 +347,8 @@ namespace isaac
                 isaac_int timeStep,
                 bool updateLIC,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Texture3D<isaac_float4, T_indexType>& volumeTexture,
-                Texture3D<isaac_float4, T_indexType>& isoTexture,
+                T_Texture& volumeTexture,
+                T_Texture& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -538,8 +534,9 @@ namespace isaac
 
         void updateNoiseTexture(isaac_uint seedNumber)
         {
-            Texture3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize, 0, FilterType::LINEAR, BorderType::REPEAT);
-            tmpTex.clearColor(stream);
+            Texture3DAllocator<DevAcc, isaac_float> tmpTexAlloc(acc, localSize, 0);
+            tmpTexAlloc.clearColor(stream);
+            auto tex = Texture3DCreator<FilterType::LINEAR, BorderType::REPEAT>::create(tmpTexAlloc);
             alpaka::wait(stream);
 #if 1
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threadElements(
@@ -553,8 +550,7 @@ namespace isaac
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
             const auto workdiv = alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threadElements);
             HaltonSeedingKernel haltonKernel;
-            auto haltonKernelInstance
-                = alpaka::createTaskKernel<T_Acc>(workdiv, haltonKernel, tmpTex.getTexture(), seedNumber);
+            auto haltonKernelInstance = alpaka::createTaskKernel<T_Acc>(workdiv, haltonKernel, tex, seedNumber);
             alpaka::enqueue(stream, haltonKernelInstance);
 #else
             for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
@@ -583,24 +579,24 @@ namespace isaac
                 localSize,
                 stream,
                 gaussKernel,
-                tmpTex.getTexture(),
-                deviceNoiseTextureAllocator.getTexture(),
+                tex,
+                noiseTexture,
                 scale,
                 isaac_float3(1, 0, 0));
             executeKernelOnVolume<T_Acc>(
                 localSize,
                 stream,
                 gaussKernel,
-                deviceNoiseTextureAllocator.getTexture(),
-                tmpTex.getTexture(),
+                noiseTexture,
+                tex,
                 scale,
                 isaac_float3(0, 1, 0));
             executeKernelOnVolume<T_Acc>(
                 localSize,
                 stream,
                 gaussKernel,
-                tmpTex.getTexture(),
-                deviceNoiseTextureAllocator.getTexture(),
+                tex,
+                noiseTexture,
                 scale,
                 isaac_float3(0, 0, 1));
         }
@@ -676,11 +672,18 @@ namespace isaac
             , framebufferAO(acc, framebufferSize)
             , framebufferNormal(acc, framebufferSize)
             , framebufferDepth(acc, framebufferSize)
-            , deviceNoiseTextureAllocator(acc, localSize, 0, FilterType::LINEAR, BorderType::REPEAT)
+            , deviceNoiseTextureAllocator(acc, localSize, 0)
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-            , combinedVolumeTextureAllocator(acc, localSize, 0, FilterType::LINEAR, BorderType::CLAMP)
-            , combinedIsoTextureAllocator(acc, localSize, 0, FilterType::LINEAR, BorderType::CLAMP)
+            , combinedVolumeTextureAllocator(acc, localSize, 0)
+            , combinedVolumeTextureLinear(Texture3DCreator<FilterType::LINEAR>::create(combinedVolumeTextureAllocator))
+            , combinedVolumeTextureNearest(
+                  Texture3DCreator<FilterType::NEAREST>::create(combinedVolumeTextureAllocator))
+            , combinedIsoTextureAllocator(acc, localSize, 0)
+            , combinedIsoTextureLinear(Texture3DCreator<FilterType::LINEAR>::create(combinedIsoTextureAllocator))
+            , combinedIsoTextureNearest(Texture3DCreator<FilterType::NEAREST>::create(combinedIsoTextureAllocator))
 #endif
+            , noiseTexture(
+                  Texture3DCreator<FilterType::LINEAR, BorderType::REPEAT>::create(deviceNoiseTextureAllocator))
         {
 #if ISAAC_VALGRIND_TWEAKS == 1
             // Jansson has some optimizations for 2 and 4 byte aligned
@@ -1726,11 +1729,21 @@ namespace isaac
 
             if(updatePersistentBuffers)
             {
+                ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#    ifdef ISAAC_USE_CUDA_TEXTURES
+                ClearCombinedTextureKernel clearKernel;
+                executeKernelOnVolume<T_Acc>(
+                    combinedVolumeTextureNearest.getSizeWithGuard(),
+                    stream,
+                    clearKernel,
+                    combinedVolumeTextureNearest,
+                    combinedIsoTextureNearest);
+#    else
                 combinedVolumeTextureAllocator.clearColor(stream);
                 combinedIsoTextureAllocator.clearColor(stream);
+#    endif
 #endif
-                ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
                 forEachParams(
                     volumeSources,
                     UpdatePersistentTextureIterator(),
@@ -1743,8 +1756,8 @@ namespace isaac
                     stream
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
                     ,
-                    combinedVolumeTextureAllocator.getTexture(),
-                    combinedIsoTextureAllocator.getTexture()
+                    combinedVolumeTextureNearest,
+                    combinedIsoTextureNearest
 #endif
                 );
 
@@ -1755,7 +1768,7 @@ namespace isaac
                     persistentTextureArray,
                     licTextures,
                     licTexturesBackBuffer,
-                    deviceNoiseTextureAllocator.getTexture(),
+                    noiseTexture,
                     localSize,
                     transferDevice,
                     scale,
@@ -1766,8 +1779,8 @@ namespace isaac
                     timeStep,
                     updateLIC,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                    combinedVolumeTextureAllocator.getTexture(),
-                    combinedIsoTextureAllocator.getTexture(),
+                    combinedVolumeTextureNearest,
+                    combinedIsoTextureNearest,
 #endif
                     offset);
 
@@ -2160,12 +2173,12 @@ namespace isaac
             {
                 if(myself->interpolation)
                 {
-                    CombinedIsoRenderKernel<FilterType::LINEAR> kernel;
+                    CombinedIsoRenderKernel kernel;
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
                         gBuffer,
-                        myself->combinedIsoTextureAllocator.getTexture(),
+                        myself->combinedIsoTextureLinear,
                         myself->step,
                         isaac_scale,
                         myself->clipping));
@@ -2173,12 +2186,12 @@ namespace isaac
                 }
                 else
                 {
-                    CombinedIsoRenderKernel<FilterType::NEAREST> kernel;
+                    CombinedIsoRenderKernel kernel;
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
                         gBuffer,
-                        myself->combinedIsoTextureAllocator.getTexture(),
+                        myself->combinedIsoTextureNearest,
                         myself->step,
                         isaac_scale,
                         myself->clipping));
@@ -2279,12 +2292,12 @@ namespace isaac
             {
                 if(myself->interpolation)
                 {
-                    CombinedVolumeRenderKernel<FilterType::LINEAR> kernel;
+                    CombinedVolumeRenderKernel kernel;
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
                         gBuffer,
-                        myself->combinedVolumeTextureAllocator.getTexture(),
+                        myself->combinedVolumeTextureLinear,
                         myself->step,
                         isaac_scale,
                         myself->clipping));
@@ -2292,12 +2305,12 @@ namespace isaac
                 }
                 else
                 {
-                    CombinedVolumeRenderKernel<FilterType::NEAREST> kernel;
+                    CombinedVolumeRenderKernel kernel;
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
                         gBuffer,
-                        myself->combinedVolumeTextureAllocator.getTexture(),
+                        myself->combinedVolumeTextureNearest,
                         myself->step,
                         isaac_scale,
                         myself->clipping));
@@ -2632,6 +2645,8 @@ namespace isaac
 
         Texture3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
 
+        Texture3D<isaac_float, FilterType::LINEAR, BorderType::REPEAT> noiseTexture;
+
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
 #    ifdef ISAAC_MORTON_CODE
         Texture3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedVolumeTextureAllocator;
@@ -2639,6 +2654,10 @@ namespace isaac
 #    else
         Texture3DAllocator<DevAcc, isaac_float4> combinedVolumeTextureAllocator;
         Texture3DAllocator<DevAcc, isaac_float4> combinedIsoTextureAllocator;
+        Texture3D<isaac_float4, FilterType::LINEAR> combinedVolumeTextureLinear;
+        Texture3D<isaac_float4, FilterType::NEAREST> combinedVolumeTextureNearest;
+        Texture3D<isaac_float4, FilterType::LINEAR> combinedIsoTextureLinear;
+        Texture3D<isaac_float4, FilterType::NEAREST> combinedIsoTextureNearest;
 #    endif
 #endif
 
@@ -2708,8 +2727,8 @@ namespace isaac
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
         std::vector<Texture3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
         std::vector<Texture3DAllocator<DevAcc, isaac_float>> licTextureAllocators;
-        PersistentArrayStruct<fSourceListSize> licTextures;
-        PersistentArrayStruct<fSourceListSize> licTexturesBackBuffer;
+        LicArrayStruct<fSourceListSize> licTextures;
+        LicArrayStruct<fSourceListSize> licTexturesBackBuffer;
 
         TransferDeviceStruct<combinedSourceListSize> transferDevice;
         TransferHostStruct<combinedSourceListSize> transferHost;

@@ -22,14 +22,14 @@ namespace isaac
     template<typename T_Source>
     struct MinMaxKernel
     {
-        template<typename T_Acc>
+        template<typename T_Acc, typename T_Texture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             T_Source source,
             const int nr,
             MinMax* const result,
             const isaac_size3 localSize,
-            const Texture3D<isaac_float> texture) const
+            const T_Texture texture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};

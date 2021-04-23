@@ -85,7 +85,42 @@ namespace isaac
     using isaac_dmat3 = isaac_mat_dim<3, isaac_double>;
     using isaac_dmat2 = isaac_mat_dim<2, isaac_double>;
 
+#ifdef ALPAKA_ACC_GPU_CUDA_ONLY_MODE
+    template<typename T>
+    struct CudaType
+    {
+        using type = T;
+    };
 
+    template<>
+    struct CudaType<isaac_float>
+    {
+        using type = float;
+    };
+
+    template<>
+    struct CudaType<isaac_float4>
+    {
+        using type = float4;
+    };
+
+
+    template<typename T_Type>
+    ISAAC_HOST_DEVICE_INLINE T_Type convertCudaType(T_Type v)
+    {
+        return v;
+    }
+
+    ISAAC_HOST_DEVICE_INLINE float4 convertCudaType(isaac_float4 v)
+    {
+        return {v.x, v.y, v.z, v.w};
+    }
+
+    ISAAC_HOST_DEVICE_INLINE isaac_float4 convertCudaType(float4 v)
+    {
+        return {v.x, v.y, v.z, v.w};
+    }
+#endif
     /**
      * @brief Container for all simulation sizes
      *
