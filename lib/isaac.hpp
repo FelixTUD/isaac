@@ -165,7 +165,7 @@ namespace isaac
             {
                 if(!T_Source::persistent)
                 {
-                    allocatorVector.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(
+                    allocatorVector.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
                         acc,
                         localSize,
                         T_Source::guardSize,
@@ -196,18 +196,21 @@ namespace isaac
                 const T_DevAcc& acc,
                 const int offset = 0) const
             {
-                allocatorVector.push_back(
-                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize, FilterType::LINEAR));
+                allocatorVector.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
+                    acc,
+                    localSize,
+                    T_Source::guardSize,
+                    FilterType::LINEAR));
                 persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
 
-                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(
+                licAllocators.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
                     acc,
                     localSize,
                     T_Source::guardSize,
                     FilterType::LINEAR,
                     BorderType::VALUE));
                 licTextures.textures[I] = licAllocators.back().getTexture();
-                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(
+                licAllocators.push_back(Texture3DAllocator<T_DevAcc, isaac_float>(
                     acc,
                     localSize,
                     T_Source::guardSize,
@@ -272,8 +275,8 @@ namespace isaac
                 void* pointer,
                 T_Stream__& stream,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Tex3D<isaac_float4, T_indexType>& volumeTexture,
-                Tex3D<isaac_float4, T_indexType>& isoTexture,
+                Texture3D<isaac_float4, T_indexType>& volumeTexture,
+                Texture3D<isaac_float4, T_indexType>& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -337,7 +340,7 @@ namespace isaac
                 T_Array& persistentTextureArray,
                 T_LicArray& licTextures,
                 T_LicArray& licTexturesBackBuffer,
-                const Tex3D<isaac_float>& noiseTexture,
+                const Texture3D<isaac_float>& noiseTexture,
                 const isaac_size3& localSize,
                 const T_TransferArray& transferArray,
                 const isaac_float3& scale,
@@ -348,8 +351,8 @@ namespace isaac
                 isaac_int timeStep,
                 bool updateLIC,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Tex3D<isaac_float4, T_indexType>& volumeTexture,
-                Tex3D<isaac_float4, T_indexType>& isoTexture,
+                Texture3D<isaac_float4, T_indexType>& volumeTexture,
+                Texture3D<isaac_float4, T_indexType>& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -535,7 +538,7 @@ namespace isaac
 
         void updateNoiseTexture(isaac_uint seedNumber)
         {
-            Tex3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize, 0, FilterType::LINEAR, BorderType::REPEAT);
+            Texture3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize, 0, FilterType::LINEAR, BorderType::REPEAT);
             tmpTex.clearColor(stream);
             alpaka::wait(stream);
 #if 1
@@ -2616,26 +2619,26 @@ namespace isaac
         alpaka::Vec<FraDim, ISAAC_IDX_TYPE> framebufferProd;
 
         // framebuffer pixel values
-        Tex2DAllocator<DevAcc, isaac_byte4> framebuffer;
+        Texture2DAllocator<DevAcc, isaac_byte4> framebuffer;
 
         // ambient occlusion factor values
-        Tex2DAllocator<DevAcc, isaac_float> framebufferAO;
+        Texture2DAllocator<DevAcc, isaac_float> framebufferAO;
 
         // pixel depth information
-        Tex2DAllocator<DevAcc, isaac_float> framebufferDepth;
+        Texture2DAllocator<DevAcc, isaac_float> framebufferDepth;
 
         // pixel normal information
-        Tex2DAllocator<DevAcc, isaac_float3> framebufferNormal;
+        Texture2DAllocator<DevAcc, isaac_float3> framebufferNormal;
 
-        Tex3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
+        Texture3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
 
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
 #    ifdef ISAAC_MORTON_CODE
-        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedIsoTextureAllocator;
+        Texture3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedVolumeTextureAllocator;
+        Texture3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedIsoTextureAllocator;
 #    else
-        Tex3DAllocator<DevAcc, isaac_float4> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, isaac_float4> combinedIsoTextureAllocator;
+        Texture3DAllocator<DevAcc, isaac_float4> combinedVolumeTextureAllocator;
+        Texture3DAllocator<DevAcc, isaac_float4> combinedIsoTextureAllocator;
 #    endif
 #endif
 
@@ -2703,8 +2706,8 @@ namespace isaac
 
         std::vector<alpaka::Buf<DevAcc, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferDeviceBuf;
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
-        std::vector<Tex3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
-        std::vector<Tex3DAllocator<DevAcc, isaac_float>> licTextureAllocators;
+        std::vector<Texture3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
+        std::vector<Texture3DAllocator<DevAcc, isaac_float>> licTextureAllocators;
         PersistentArrayStruct<fSourceListSize> licTextures;
         PersistentArrayStruct<fSourceListSize> licTexturesBackBuffer;
 

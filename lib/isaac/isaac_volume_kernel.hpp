@@ -27,7 +27,7 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            Tex3D<isaac_float4, T_indexType> combinedTexture,
+            Texture3D<isaac_float4, T_indexType> combinedTexture,
             isaac_float stepSize, // ray stepSize length
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
@@ -47,7 +47,7 @@ namespace isaac
             if(!clipRay(ray, inputClipping))
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth.get(pixel));
             if(ray.endDepth <= ray.startDepth)
                 return;
 
@@ -80,9 +80,9 @@ namespace isaac
                 }
             }
             // Blend solid color and new volume color
-            isaac_float4 solidColor = transformColor(gBuffer.color[pixel]);
+            isaac_float4 solidColor = transformColor(gBuffer.color.get(pixel));
             color = color + (1 - color.w) * solidColor;
-            gBuffer.color[pixel] = transformColor(color);
+            gBuffer.color.set(pixel, transformColor(color));
         }
     };
 
@@ -144,7 +144,7 @@ namespace isaac
         }
         else
         {
-            Tex3D<isaac_float> texture = persistentArray.textures[T_nr];
+            Texture3D<isaac_float> texture = persistentArray.textures[T_nr];
             if(T_interpolation == 0)
             {
                 // const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
@@ -261,7 +261,7 @@ namespace isaac
             if(!clipRay(ray, inputClipping))
                 return;
 
-            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth[pixel]);
+            ray.endDepth = glm::min(ray.endDepth, gBuffer.depth.get(pixel));
             if(ray.endDepth <= ray.startDepth)
                 return;
 
@@ -345,9 +345,9 @@ namespace isaac
 #endif
 
             // Blend solid color and new volume color
-            isaac_float4 solidColor = transformColor(gBuffer.color[pixel]);
+            isaac_float4 solidColor = transformColor(gBuffer.color.get(pixel));
             color = color + (1 - color.w) * solidColor;
-            gBuffer.color[pixel] = transformColor(color);
+            gBuffer.color.set(pixel, transformColor(color));
         }
     };
 

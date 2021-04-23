@@ -29,7 +29,7 @@ namespace isaac
             const int nr,
             MinMax* const result,
             const isaac_size3 localSize,
-            const Tex3D<isaac_float> texture) const
+            const Texture3D<isaac_float> texture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
@@ -48,7 +48,7 @@ namespace isaac
                 }
                 else
                 {
-                    value = texture[coord];
+                    value = texture.get(coord);
                 };
 
                 min = glm::min(min, value);

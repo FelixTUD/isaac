@@ -91,21 +91,6 @@ namespace isaac
             return result;
         }
 
-        ISAAC_HOST_DEVICE_INLINE T_Type operator[](const isaac_int_dim<T_textureDim>& coord) const
-        {
-            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
-            assert(isInUpperBounds(offsetCoord, sizeWithGuard));
-            return bufferPtr[hash(offsetCoord)];
-        }
-
-
-        ISAAC_HOST_DEVICE_INLINE T_Type& operator[](const isaac_int_dim<T_textureDim>& coord)
-        {
-            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
-            assert(isInUpperBounds(offsetCoord, sizeWithGuard));
-            return bufferPtr[hash(offsetCoord)];
-        }
-
         ISAAC_DEVICE_INLINE void set(const isaac_int_dim<T_textureDim>& coord, const T_Type& value)
         {
             isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
@@ -113,7 +98,7 @@ namespace isaac
             bufferPtr[hash(offsetCoord)] = value;
         }
 
-        ISAAC_DEVICE_INLINE T_Type get(const isaac_int_dim<T_textureDim>& coord)
+        ISAAC_DEVICE_INLINE T_Type get(const isaac_int_dim<T_textureDim>& coord) const
         {
             isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
             assert(isInUpperBounds(offsetCoord, sizeWithGuard));
@@ -181,7 +166,7 @@ namespace isaac
                     isaac_int_dim<T_textureDim>(0),
                     isaac_int_dim<T_textureDim>(sizeWithGuard) - 1);
             }
-            return (*this)[offsetCoord - isaac_int(guardSize)];
+            return get(offsetCoord - isaac_int(guardSize));
         }
 
         ISAAC_HOST_DEVICE_INLINE T_Type
@@ -268,6 +253,107 @@ namespace isaac
     };
 #ifdef ALPAKA_ACC_GPU_CUDA_ONLY_MODE
     template<>
+    class Texture<isaac_float, 3, IndexType::SWEEP>
+    {
+    public:
+        Texture() = default;
+
+        /**
+         * @brief Initialize texture
+         *
+         * @param bufferPtr Valid pointer to free memory
+         * @param size Size of the texture in T_TextureDim dimensions
+         * @param guardSize Size of the memory access guard, default = 0
+         */
+        Texture(
+            isaac_float* bufferPtr,
+            const isaac_size_dim<3>& size,
+            ISAAC_IDX_TYPE guardSize = 0,
+            FilterType filter = FilterType::NEAREST,
+            BorderType border = BorderType::CLAMP)
+            : bufferPtr(bufferPtr)
+            , size(size)
+            , sizeWithGuard(size + ISAAC_IDX_TYPE(2) * guardSize)
+            , guardSize(guardSize)
+            , filter(filter)
+            , border(border)
+        {
+            const cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
+            cudaMalloc3DArray(
+                &cudaArray,
+                &channelDesc,
+                make_cudaExtent(sizeWithGuard.x, sizeWithGuard.y, sizeWithGuard.z),
+                cudaArraySurfaceLoadStore);
+
+
+            cudaResourceDesc rescDesc;
+            memset(&rescDesc, 0, sizeof(rescDesc));
+            rescDesc.resType = cudaResourceTypeArray;
+            rescDesc.res.array.array = cudaArray;
+
+            cudaTextureDesc texDesc;
+            memset(&texDesc, 0, sizeof(texDesc));
+            for(int i = 0; i < 3; i++)
+                texDesc.addressMode[i] = cudaAddressModeClamp;
+            texDesc.filterMode = cudaFilterModeLinear;
+            texDesc.readMode = cudaReadModeElementType;
+            for(int i = 0; i < 3; i++)
+                texDesc.borderColor[i] = 0;
+            texDesc.normalizedCoords = 0;
+
+            ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(cudaCreateTextureObject(&textureObj, &rescDesc, &texDesc, NULL));
+            ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(cudaCreateSurfaceObject(&surfaceObj, &rescDesc));
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float
+        sample(const isaac_float_dim<3>& coord, const isaac_float& borderValue = isaac_float(0)) const
+        {
+            isaac_float_dim<3> offsetCoord = coord + isaac_float(guardSize);
+            float result = tex3D<float>(textureObj, offsetCoord.x, offsetCoord.y, offsetCoord.z);
+            return result;
+        }
+
+        ISAAC_DEVICE_INLINE void set(const isaac_int_dim<3>& coord, const isaac_float& value)
+        {
+            isaac_uint_dim<3> offsetCoord = coord + isaac_int(guardSize);
+            // for some reason cuda requires the x coordinate to be byte addressed
+            surf3Dwrite(value, surfaceObj, offsetCoord.x * sizeof(float), offsetCoord.y, offsetCoord.z);
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float get(const isaac_int_dim<3>& coord) const
+        {
+            isaac_uint_dim<3> offsetCoord = coord + isaac_int(guardSize);
+            // for some reason cuda requires the x coordinate to be byte addressed
+            float value = surf3Dread<float>(surfaceObj, offsetCoord.x * sizeof(float), offsetCoord.y, offsetCoord.z);
+            return value;
+        }
+
+        ISAAC_HOST_DEVICE_INLINE isaac_size_dim<3> getSize() const
+        {
+            return size;
+        }
+        ISAAC_HOST_DEVICE_INLINE isaac_size_dim<3> getSizeWithGuard() const
+        {
+            return sizeWithGuard;
+        }
+        ISAAC_HOST_DEVICE_INLINE ISAAC_IDX_TYPE getGuardSize() const
+        {
+            return guardSize;
+        }
+
+    private:
+        isaac_float* bufferPtr;
+        isaac_size_dim<3> size;
+        isaac_size_dim<3> sizeWithGuard;
+        ISAAC_IDX_TYPE guardSize;
+        FilterType filter = FilterType::NEAREST;
+        BorderType border = BorderType::VALUE;
+        cudaArray_t cudaArray;
+        cudaTextureObject_t textureObj;
+        cudaSurfaceObject_t surfaceObj;
+    };
+
+    template<>
     class Texture<isaac_float4, 3, IndexType::SWEEP>
     {
     public:
@@ -336,7 +422,7 @@ namespace isaac
             surf3Dwrite(cudaValue, surfaceObj, offsetCoord.x * sizeof(float4), offsetCoord.y, offsetCoord.z);
         }
 
-        ISAAC_DEVICE_INLINE isaac_float4 get(const isaac_int_dim<3>& coord)
+        ISAAC_DEVICE_INLINE isaac_float4 get(const isaac_int_dim<3>& coord) const
         {
             isaac_uint_dim<3> offsetCoord = coord + isaac_int(guardSize);
             // for some reason cuda requires the x coordinate to be byte addressed
@@ -474,32 +560,32 @@ namespace isaac
 
 
     template<typename T_Type, IndexType T_indexType = IndexType::SWEEP>
-    using Tex2D = Texture<T_Type, 2, T_indexType>;
+    using Texture2D = Texture<T_Type, 2, T_indexType>;
 
     template<typename T_Type, IndexType T_indexType = IndexType::SWEEP>
-    using Tex3D = Texture<T_Type, 3, T_indexType>;
+    using Texture3D = Texture<T_Type, 3, T_indexType>;
 
     template<typename T_DevAcc, typename T_Type, IndexType T_indexType = IndexType::SWEEP>
-    using Tex2DAllocator = TextureAllocator<T_DevAcc, T_Type, 2, T_indexType>;
+    using Texture2DAllocator = TextureAllocator<T_DevAcc, T_Type, 2, T_indexType>;
 
     template<typename T_DevAcc, typename T_Type, IndexType T_indexType = IndexType::SWEEP>
-    using Tex3DAllocator = TextureAllocator<T_DevAcc, T_Type, 3, T_indexType>;
+    using Texture3DAllocator = TextureAllocator<T_DevAcc, T_Type, 3, T_indexType>;
 
 
     template<int T_n>
     struct PersistentArrayStruct
     {
-        Tex3D<isaac_float> textures[ZeroCheck<T_n>::value];
+        Texture3D<isaac_float> textures[ZeroCheck<T_n>::value];
     };
 
     struct GBuffer
     {
         isaac_size2 size;
         isaac_uint2 startOffset;
-        Tex2D<isaac_byte4> color;
-        Tex2D<isaac_float> depth;
-        Tex2D<isaac_float3> normal;
-        Tex2D<isaac_float> aoStrength;
+        Texture2D<isaac_byte4> color;
+        Texture2D<isaac_float> depth;
+        Texture2D<isaac_float3> normal;
+        Texture2D<isaac_float> aoStrength;
     };
 
 } // namespace isaac

@@ -32,7 +32,7 @@ namespace isaac
         T_Args&&... args)
     {
         using Dim = alpaka::DimInt<3>;
-        isaac_size3 blockSize(glm::min(volumeSize.x, ISAAC_IDX_TYPE(1024)), 1, 1);
+        isaac_size3 blockSize(16, 8, 8);
         isaac_size3 gridSize = (volumeSize + blockSize - ISAAC_IDX_TYPE(1)) / blockSize;
 
 #if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
