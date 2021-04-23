@@ -106,6 +106,20 @@ namespace isaac
             return bufferPtr[hash(offsetCoord)];
         }
 
+        ISAAC_DEVICE_INLINE void set(const isaac_int_dim<T_textureDim>& coord, const T_Type& value)
+        {
+            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
+            assert(isInUpperBounds(offsetCoord, sizeWithGuard));
+            bufferPtr[hash(offsetCoord)] = value;
+        }
+
+        ISAAC_DEVICE_INLINE T_Type get(const isaac_int_dim<T_textureDim>& coord)
+        {
+            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
+            assert(isInUpperBounds(offsetCoord, sizeWithGuard));
+            return bufferPtr[hash(offsetCoord)];
+        }
+
         ISAAC_HOST_DEVICE_INLINE isaac_uint hash(const isaac_uint_dim<1>& coord) const
         {
             return coord.x;
@@ -302,30 +316,32 @@ namespace isaac
                 texDesc.borderColor[i] = 0;
             texDesc.normalizedCoords = 0;
 
-            cudaError_t error = cudaCreateTextureObject(&textureObj, &rescDesc, &texDesc, NULL);
-            cudaCreateSurfaceObject(&surfaceObj, &rescDesc);
-            if(error == cudaSuccess)
-                printf("INFO: texture creation succesfull!\n");
-            else
-                printf("ERROR: cant't create texture!\n");
+            ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(cudaCreateTextureObject(&textureObj, &rescDesc, &texDesc, NULL));
+            ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(cudaCreateSurfaceObject(&surfaceObj, &rescDesc));
         }
 
         ISAAC_DEVICE_INLINE isaac_float4
         sample(const isaac_float_dim<3>& coord, const isaac_float4& borderValue = isaac_float4(0)) const
         {
-            float4 result = tex3D<float4>(textureObj, coord.x, coord.y, coord.z);
+            isaac_float_dim<3> offsetCoord = coord + isaac_float(guardSize);
+            float4 result = tex3D<float4>(textureObj, offsetCoord.x, offsetCoord.y, offsetCoord.z);
             return isaac_float4(result.x, result.y, result.z, result.w);
         }
 
         ISAAC_DEVICE_INLINE void set(const isaac_int_dim<3>& coord, const isaac_float4& value)
         {
+            isaac_uint_dim<3> offsetCoord = coord + isaac_int(guardSize);
             float4 cudaValue = {value.r, value.g, value.b, value.a};
-            surf3Dwrite(cudaValue, surfaceObj, coord.x, coord.y, coord.z);
+            // for some reason cuda requires the x coordinate to be byte addressed
+            surf3Dwrite(cudaValue, surfaceObj, offsetCoord.x * sizeof(float4), offsetCoord.y, offsetCoord.z);
         }
 
         ISAAC_DEVICE_INLINE isaac_float4 get(const isaac_int_dim<3>& coord)
         {
-            float4 value = surf3Dread<float4>(surfaceObj, coord.x, coord.y, coord.z);
+            isaac_uint_dim<3> offsetCoord = coord + isaac_int(guardSize);
+            // for some reason cuda requires the x coordinate to be byte addressed
+            float4 value
+                = surf3Dread<float4>(surfaceObj, offsetCoord.x * sizeof(float4), offsetCoord.y, offsetCoord.z);
             return isaac_float4(value.x, value.y, value.z, value.w);
         }
 
