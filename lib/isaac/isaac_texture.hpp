@@ -446,7 +446,7 @@ namespace isaac
     template<int T_n>
     struct PersistentArrayStruct
     {
-        Tex3D<isaac_float> textures[T_n];
+        Tex3D<isaac_float> textures[ZeroCheck<T_n>::value];
     };
 
     struct GBuffer
