@@ -182,6 +182,26 @@ namespace isaac
             return result;
         }
 
+        template<int T_n, typename T_CompType, int T_textureDim, IndexType T_indexType>
+        ISAAC_HOST_DEVICE_INLINE isaac_vec_dim<T_n, isaac_float> sampleNormalized(
+            const Texture<isaac_vec_dim<T_n, T_CompType>, T_textureDim, T_indexType>& texture,
+            const isaac_float_dim<T_textureDim>& coord,
+            const isaac_vec_dim<T_n, T_CompType>& borderValue = isaac_vec_dim<T_n, T_CompType>(0)) const
+        {
+            isaac_vec_dim<T_n, isaac_float> result;
+            if(T_filter == FilterType::LINEAR)
+            {
+                result = interpolateNormalized(texture, coord, borderValue);
+            }
+            else
+            {
+                result = isaac_vec_dim<T_n, isaac_float>(
+                             safeMemoryAccess(texture, isaac_int_dim<T_textureDim>(coord), borderValue))
+                    / isaac_float(std::numeric_limits<T_CompType>::max());
+            }
+            return result;
+        }
+
         template<typename T_Type, int T_textureDim, IndexType T_indexType>
         ISAAC_HOST_DEVICE_INLINE T_Type safeMemoryAccess(
             const Texture<T_Type, T_textureDim, T_indexType>& texture,
@@ -309,29 +329,31 @@ namespace isaac
             return trilinear(glm::fract(coord), data8);
         }
 
-        template<IndexType T_indexType>
-        ISAAC_HOST_DEVICE_INLINE isaac_byte4 interpolate(
-            const Texture<isaac_byte4, 3, T_indexType>& texture,
+        template<int T_n, typename T_CompType, IndexType T_indexType>
+        ISAAC_HOST_DEVICE_INLINE isaac_vec_dim<T_n, isaac_float> interpolateNormalized(
+            const Texture<isaac_vec_dim<T_n, T_CompType>, 3, T_indexType>& texture,
             isaac_float_dim<3> coord,
-            const isaac_byte4& borderValue = isaac_byte4(0)) const
+            const isaac_vec_dim<T_n, T_CompType>& borderValue = isaac_vec_dim<T_n, T_CompType>(0)) const
         {
             coord -= isaac_float(0.5);
-            isaac_float4 data8[2][2][2];
+            isaac_vec_dim<T_n, isaac_float> data8[2][2][2];
             for(int z = 0; z < 2; z++)
             {
                 for(int y = 0; y < 2; y++)
                 {
                     for(int x = 0; x < 2; x++)
                     {
-                        data8[x][y][z]
-                            = isaac_float4(
-                                  safeMemoryAccess(texture, isaac_int3(coord) + isaac_int3(x, y, z), borderValue))
-                            / isaac_float(255);
+                        data8[x][y][z] = isaac_vec_dim<T_n, isaac_float>(safeMemoryAccess(
+                                             texture,
+                                             isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z),
+                                             borderValue))
+                            / isaac_float(std::numeric_limits<T_CompType>::max());
                     }
                 }
             }
 
-            return isaac_byte4(trilinear(glm::fract(coord), data8) * isaac_float(255));
+
+            return trilinear(glm::fract(coord), data8);
         }
     };
 
@@ -447,6 +469,49 @@ namespace isaac
     struct PersistentArrayStruct
     {
         Tex3D<isaac_float> textures[ZeroCheck<T_n>::value];
+    };
+
+    struct CombinedTexture
+    {
+#ifdef ISAAC_MORTON_CODE
+        Tex3D<isaac_byte4, IndexType::MORTON> color;
+        Tex3D<isaac_float, IndexType::MORTON> alpha;
+#else
+        Tex3D<isaac_byte4> color;
+        Tex3D<isaac_float> alpha;
+#endif
+    };
+
+    template<typename T_DevAcc>
+    struct CombinedTextureAllocator
+    {
+#ifdef ISAAC_MORTON_CODE
+        Tex3DAllocator<T_DevAcc, isaac_byte4, IndexType::MORTON> color;
+        Tex3DAllocator<T_DevAcc, isaac_float, IndexType::MORTON> alpha;
+#else
+        Tex3DAllocator<T_DevAcc, isaac_byte4> color;
+        Tex3DAllocator<T_DevAcc, isaac_float> alpha;
+#endif
+        CombinedTextureAllocator(const T_DevAcc& devAcc, const isaac_size3& size, ISAAC_IDX_TYPE guardSize = 0)
+            : color(devAcc, size, guardSize)
+            , alpha(devAcc, size, guardSize)
+        {
+        }
+
+        CombinedTexture getTexture()
+        {
+            CombinedTexture texture;
+            texture.color = color.getTexture();
+            texture.alpha = alpha.getTexture();
+            return texture;
+        }
+
+        template<typename T_Queue>
+        void clearColor(T_Queue& queue)
+        {
+            color.clearColor(queue);
+            alpha.clearColor(queue);
+        }
     };
 
     struct GBuffer

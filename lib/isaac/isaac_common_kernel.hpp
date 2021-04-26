@@ -439,7 +439,7 @@ namespace isaac
         }
     };
 
-    template<typename T_Source, ISAAC_IDX_TYPE T_transferSize>
+    template<typename T_Source, int T_sourceCount, ISAAC_IDX_TYPE T_transferSize>
     struct MergeToCombinedTexture
     {
         template<
@@ -456,8 +456,8 @@ namespace isaac
             const T_TransferArray transferArray,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
-            Tex3D<isaac_float4, T_indexType> volumeTexture,
-            Tex3D<isaac_float4, T_indexType> isoTexture) const
+            Tex3D<isaac_byte4, T_indexType> volumeTexture,
+            Tex3D<isaac_byte4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
@@ -476,14 +476,15 @@ namespace isaac
                 volumeColor.r *= volumeColor.a;
                 volumeColor.g *= volumeColor.a;
                 volumeColor.b *= volumeColor.a;
-                volumeTexture[coord] += volumeColor;
+                volumeTexture[coord] += transformColor(volumeColor / isaac_float(T_sourceCount));
             }
             if(sourceIsoThreshold.value[nr] > 0)
             {
                 isaac_float4 isoColor = color;
                 isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                if(isoTexture[coord].a < isoColor.a)
-                    isoTexture[coord] = isoColor;
+                isaac_byte4 isoColorByte = transformColor(isoColor);
+                if(isoTexture[coord].a < isoColorByte.a)
+                    isoTexture[coord] = isoColorByte;
             }
         }
     };
@@ -568,7 +569,7 @@ namespace isaac
         }
     };
 
-    template<typename T_Source, ISAAC_IDX_TYPE T_transferSize>
+    template<typename T_Source, int T_sourceCount, ISAAC_IDX_TYPE T_transferSize>
     struct MergeLICToCombinedTexture
     {
         template<
@@ -586,8 +587,8 @@ namespace isaac
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
             const Tex3D<isaac_float> licTexture,
-            Tex3D<isaac_float4, T_indexType> volumeTexture,
-            Tex3D<isaac_float4, T_indexType> isoTexture) const
+            Tex3D<isaac_byte4, T_indexType> volumeTexture,
+            Tex3D<isaac_byte4, T_indexType> isoTexture) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
             isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
@@ -607,14 +608,15 @@ namespace isaac
                 volumeColor.r *= volumeColor.a;
                 volumeColor.g *= volumeColor.a;
                 volumeColor.b *= volumeColor.a;
-                volumeTexture[coord] += volumeColor;
+                volumeTexture[coord] += transformColor(volumeColor / isaac_float(T_sourceCount));
             }
             if(sourceIsoThreshold.value[nr] > 0)
             {
                 isaac_float4 isoColor = color;
                 isoColor.a = isoColor.a / sourceIsoThreshold.value[nr] * isaac_float(0.5);
-                if(isoTexture[coord].a < isoColor.a)
-                    isoTexture[coord] = isoColor;
+                isaac_byte4 isoColorByte = transformColor(isoColor);
+                if(isoTexture[coord].a < isoColorByte.a)
+                    isoTexture[coord] = isoColorByte;
             }
         }
     };

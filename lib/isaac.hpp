@@ -258,8 +258,8 @@ namespace isaac
                 void* pointer,
                 T_Stream__& stream,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Tex3D<isaac_float4, T_indexType>& volumeTexture,
-                Tex3D<isaac_float4, T_indexType>& isoTexture,
+                Tex3D<isaac_byte4, T_indexType>& volumeTexture,
+                Tex3D<isaac_byte4, T_indexType>& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -270,7 +270,7 @@ namespace isaac
                 {
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
                     {
-                        MergeToCombinedTexture<T_Source, T_transferSize> kernel;
+                        MergeToCombinedTexture<T_Source, volumeFieldSourceListSize, T_transferSize> kernel;
                         executeKernelOnVolume<T_Acc>(
                             localSize + T_Source::guardSize * 2,
                             stream,
@@ -334,8 +334,8 @@ namespace isaac
                 isaac_int timeStep,
                 bool updateLIC,
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-                Tex3D<isaac_float4, T_indexType>& volumeTexture,
-                Tex3D<isaac_float4, T_indexType>& isoTexture,
+                Tex3D<isaac_byte4, T_indexType>& volumeTexture,
+                Tex3D<isaac_byte4, T_indexType>& isoTexture,
 #endif
                 int offset = 0) const
             {
@@ -363,7 +363,7 @@ namespace isaac
                     }
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
                     {
-                        MergeLICToCombinedTexture<T_Source, T_transferSize> kernel;
+                        MergeLICToCombinedTexture<T_Source, volumeFieldSourceListSize, T_transferSize> kernel;
                         executeKernelOnVolume<T_Acc>(
                             localSize + T_Source::guardSize * 2,
                             stream,
@@ -2262,7 +2262,7 @@ namespace isaac
             {
                 if(myself->interpolation)
                 {
-                    CombinedVolumeRenderKernel<FilterType::LINEAR> kernel;
+                    CombinedVolumeRenderKernel<FilterType::LINEAR, volumeFieldSourceListSize> kernel;
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
@@ -2275,7 +2275,7 @@ namespace isaac
                 }
                 else
                 {
-                    CombinedVolumeRenderKernel<FilterType::NEAREST> kernel;
+                    CombinedVolumeRenderKernel<FilterType::NEAREST, volumeFieldSourceListSize> kernel;
                     auto const instance(alpaka::createTaskKernel<T_Acc>(
                         workdiv,
                         kernel,
@@ -2617,11 +2617,11 @@ namespace isaac
 
 #ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
 #    ifdef ISAAC_MORTON_CODE
-        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, isaac_float4, IndexType::MORTON> combinedIsoTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4, IndexType::MORTON> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4, IndexType::MORTON> combinedIsoTextureAllocator;
 #    else
-        Tex3DAllocator<DevAcc, isaac_float4> combinedVolumeTextureAllocator;
-        Tex3DAllocator<DevAcc, isaac_float4> combinedIsoTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4> combinedVolumeTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_byte4> combinedIsoTextureAllocator;
 #    endif
 #endif
 
