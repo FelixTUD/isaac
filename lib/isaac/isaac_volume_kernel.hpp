@@ -69,8 +69,8 @@ namespace isaac
             {
                 isaac_float3 pos = startUnscaled + stepVec * isaac_float(i);
                 isaac_float4 value;
-                const Sampler<T_filterType, BorderType::CLAMP> sampler;
-                value = sampler.sampleNormalized(combinedTexture, pos) * isaac_float(T_sourceCount);
+                const Sampler<T_filterType, BorderType::CLAMP, true> sampler;
+                value = sampler.sample(combinedTexture, pos) * isaac_float(T_sourceCount);
                 value *= factor;
                 isaac_float weight = glm::max(isaac_float(1) - color.w, isaac_float(0));
                 color += weight * value;

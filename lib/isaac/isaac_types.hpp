@@ -35,6 +35,8 @@ namespace isaac
 #    define ISAAC_IDX_TYPE size_t
 #endif
 
+    // template<int T_n, typename T_Type>
+    // using isaac_vec_dim = std::conditional_t<T_n == 1, T_Type, glm::vec<T_n, T_Type, glm::defaultp>>;
 
     template<int T_n, typename T_Type>
     using isaac_vec_dim = glm::vec<T_n, T_Type, glm::defaultp>;
@@ -85,6 +87,27 @@ namespace isaac
     using isaac_dmat3 = isaac_mat_dim<3, isaac_double>;
     using isaac_dmat2 = isaac_mat_dim<2, isaac_double>;
 
+    template<typename T_Type>
+    struct TypeDim
+    {
+        static const int value = 1;
+    };
+    template<int T_n, typename T_CompType>
+    struct TypeDim<isaac_vec_dim<T_n, T_CompType>>
+    {
+        static const int value = T_n;
+    };
+
+    template<typename T_Type>
+    struct CompType
+    {
+        using type = T_Type;
+    };
+    template<int T_n, typename T_CompType>
+    struct CompType<isaac_vec_dim<T_n, T_CompType>>
+    {
+        using type = T_CompType;
+    };
 
     /**
      * @brief Container for all simulation sizes
