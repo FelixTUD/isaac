@@ -242,7 +242,7 @@ namespace isaac
                 typename T_Weight,
                 typename T_IsoTheshold,
                 typename T_Stream__
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                 ,
                 IndexType T_indexType
 #endif
@@ -257,7 +257,8 @@ namespace isaac
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
                 T_Stream__& stream,
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+                bool renderOptimization,
                 Tex3D<isaac_byte4, T_indexType>& volumeTexture,
                 Tex3D<isaac_byte4, T_indexType>& isoTexture,
 #endif
@@ -268,7 +269,8 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(enabled)
                 {
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+                    if(renderOptimization)
                     {
                         MergeToCombinedTexture<T_Source, volumeFieldSourceListSize, T_transferSize> kernel;
                         executeKernelOnVolume<T_Acc>(
@@ -312,7 +314,7 @@ namespace isaac
                 typename T_Weight,
                 typename T_IsoTheshold,
                 typename T_Stream__
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                 ,
                 IndexType T_indexType
 #endif
@@ -333,7 +335,8 @@ namespace isaac
                 T_Stream__& stream,
                 isaac_int timeStep,
                 bool updateLIC,
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+                bool renderOptimization,
                 Tex3D<isaac_byte4, T_indexType>& volumeTexture,
                 Tex3D<isaac_byte4, T_indexType>& isoTexture,
 #endif
@@ -361,7 +364,8 @@ namespace isaac
                             scale,
                             timeStep);
                     }
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+                    if(renderOptimization)
                     {
                         MergeLICToCombinedTexture<T_Source, volumeFieldSourceListSize, T_transferSize> kernel;
                         executeKernelOnVolume<T_Acc>(
@@ -540,6 +544,7 @@ namespace isaac
                 = alpaka::createTaskKernel<T_Acc>(workdiv, haltonKernel, tmpTex.getTexture(), seedNumber);
             alpaka::enqueue(stream, haltonKernelInstance);
 #else
+            Tex3DAllocator<T_Host, isaac_float> tmpTexHost(host, localSize);
             for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
             {
                 for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
@@ -547,19 +552,21 @@ namespace isaac
                     for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
                     {
                         isaac_float value = std::rand() / isaac_float(RAND_MAX);
-                        if(value <= 0.9999)
+                        if(value > isaac_float(20000) / isaac_float(localSize.x * localSize.y * localSize.z))
                             value = 0;
                         else
                             value = 1;
                         // isaac_float value = 0;
                         // if((x % 16) * (y % 16) == 0)
                         //    value = 1;
-                        tmpTex.getTexture()[isaac_int3(x, y, z)] = value;
+                        tmpTexHost.getTexture()[isaac_int3(x, y, z)] = value;
                         // hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] =
                         // sampler.sample(tmpTex.getTexture(), isaac_float3(x, y, z));
                     }
                 }
             }
+            tmpTexHost.copyToTexture(stream, tmpTex);
+            alpaka::wait(stream);
 #endif
             GaussBlur7Kernel gaussKernel;
             executeKernelOnVolume<T_Acc>(
@@ -660,7 +667,7 @@ namespace isaac
             , framebufferNormal(acc, framebufferSize)
             , framebufferDepth(acc, framebufferSize)
             , deviceNoiseTextureAllocator(acc, localSize)
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
             , combinedVolumeTextureAllocator(acc, localSize)
             , combinedIsoTextureAllocator(acc, localSize)
 #endif
@@ -672,6 +679,9 @@ namespace isaac
             // reads will never crash and be much faster. But for
             // debugging reasons let's alloc 4 extra bytes for valgrind:
             json_set_alloc_funcs(extra_malloc, extra_free);
+#endif
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+            renderOptimization = true;
 #endif
             json_object_seed(0);
             globalSizeScaled = isaac_float3(globalSize) * scale;
@@ -1312,6 +1322,7 @@ namespace isaac
             sendRotation = false;
             sendTransfer = false;
             sendInterpolation = false;
+            sendRenderOptimization = false;
             sendStep = false;
             sendSeedPoints = false;
             sendIsoThreshold = false;
@@ -1365,6 +1376,10 @@ namespace isaac
                         if(strcmp(target, "interpolation") == 0)
                         {
                             sendInterpolation = true;
+                        }
+                        if(strcmp(target, "render optimization") == 0)
+                        {
+                            sendRenderOptimization = true;
                         }
                         if(strcmp(target, "step") == 0)
                         {
@@ -1579,6 +1594,13 @@ namespace isaac
                 interpolation = json_boolean_value(js);
                 sendInterpolation = true;
             }
+            if(js = json_object_get(message, "render optimization"))
+            {
+                redraw = true;
+                updatePersistentBuffers = true;
+                renderOptimization = json_boolean_value(js);
+                sendRenderOptimization = true;
+            }
             if(js = json_object_get(message, "step"))
             {
                 redraw = true;
@@ -1709,7 +1731,7 @@ namespace isaac
 
             if(updatePersistentBuffers)
             {
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                 combinedVolumeTextureAllocator.clearColor(stream);
                 combinedIsoTextureAllocator.clearColor(stream);
 #endif
@@ -1724,8 +1746,9 @@ namespace isaac
                     sourceIsoThreshold,
                     pointer,
                     stream
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                     ,
+                    renderOptimization,
                     combinedVolumeTextureAllocator.getTexture(),
                     combinedIsoTextureAllocator.getTexture()
 #endif
@@ -1748,7 +1771,8 @@ namespace isaac
                     stream,
                     timeStep,
                     updateLIC,
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+                    renderOptimization,
                     combinedVolumeTextureAllocator.getTexture(),
                     combinedIsoTextureAllocator.getTexture(),
 #endif
@@ -2132,74 +2156,81 @@ namespace isaac
             // wait until render kernel has finished
             alpaka::wait(myself->stream);
 
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-            bool anyIsoSourceActive = false;
-            for(int i = 0; i < volumeFieldSourceListSize; ++i)
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+            if(myself->renderOptimization)
             {
-                if(myself->sourceIsoThreshold.value[i] > 0)
-                    anyIsoSourceActive = true;
+                bool anyIsoSourceActive = false;
+                for(int i = 0; i < volumeFieldSourceListSize; ++i)
+                {
+                    if(myself->sourceIsoThreshold.value[i] > 0)
+                        anyIsoSourceActive = true;
+                }
+                if(anyIsoSourceActive)
+                {
+                    if(myself->interpolation)
+                    {
+                        CombinedIsoRenderKernel<FilterType::LINEAR> kernel;
+                        auto const instance(alpaka::createTaskKernel<T_Acc>(
+                            workdiv,
+                            kernel,
+                            gBuffer,
+                            myself->combinedIsoTextureAllocator.getTexture(),
+                            myself->step,
+                            isaac_scale,
+                            myself->clipping));
+                        alpaka::enqueue(myself->stream, instance);
+                    }
+                    else
+                    {
+                        CombinedIsoRenderKernel<FilterType::NEAREST> kernel;
+                        auto const instance(alpaka::createTaskKernel<T_Acc>(
+                            workdiv,
+                            kernel,
+                            gBuffer,
+                            myself->combinedIsoTextureAllocator.getTexture(),
+                            myself->step,
+                            isaac_scale,
+                            myself->clipping));
+                        alpaka::enqueue(myself->stream, instance);
+                    }
+                    alpaka::wait(myself->stream);
+                }
             }
-            if(anyIsoSourceActive)
+#endif
+#ifdef ISAAC_LEGACY_RENDERING
+            if(!myself->renderOptimization)
             {
-                if(myself->interpolation)
-                {
-                    CombinedIsoRenderKernel<FilterType::LINEAR> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
-                        workdiv,
-                        kernel,
+                // call iso render kernel
+                IsoRenderKernelCaller<
+                    T_VolumeSourceList,
+                    T_FieldSourceList,
+                    TransferDeviceStruct<combinedSourceListSize>,
+                    IsoThresholdStruct<volumeFieldSourceListSize>,
+                    PersistentArrayStruct<volumeFieldSourceListSize>,
+                    PersistentArrayStruct<fSourceListSize>,
+                    boost::mpl::vector<>,
+                    T_transferSize,
+                    alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
+                    T_Acc,
+                    T_Stream,
+                    volumeFieldSourceListSize>::
+                    call(
+                        myself->stream,
                         gBuffer,
-                        myself->combinedIsoTextureAllocator.getTexture(),
+                        myself->volumeSources,
+                        myself->fieldSources,
                         myself->step,
-                        isaac_scale,
-                        myself->clipping));
-                    alpaka::enqueue(myself->stream, instance);
-                }
-                else
-                {
-                    CombinedIsoRenderKernel<FilterType::NEAREST> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
+                        myself->transferDevice,
+                        myself->sourceIsoThreshold,
+                        myself->persistentTextureArray,
+                        myself->licTextures,
                         workdiv,
-                        kernel,
-                        gBuffer,
-                        myself->combinedIsoTextureAllocator.getTexture(),
-                        myself->step,
+                        myself->interpolation,
                         isaac_scale,
-                        myself->clipping));
-                    alpaka::enqueue(myself->stream, instance);
-                }
+                        myself->clipping);
+                // wait until render kernel has finished
                 alpaka::wait(myself->stream);
             }
-#else
-            // call iso render kernel
-            IsoRenderKernelCaller<
-                T_VolumeSourceList,
-                T_FieldSourceList,
-                TransferDeviceStruct<combinedSourceListSize>,
-                IsoThresholdStruct<volumeFieldSourceListSize>,
-                PersistentArrayStruct<volumeFieldSourceListSize>,
-                PersistentArrayStruct<fSourceListSize>,
-                boost::mpl::vector<>,
-                T_transferSize,
-                alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
-                T_Acc,
-                T_Stream,
-                volumeFieldSourceListSize>::
-                call(
-                    myself->stream,
-                    gBuffer,
-                    myself->volumeSources,
-                    myself->fieldSources,
-                    myself->step,
-                    myself->transferDevice,
-                    myself->sourceIsoThreshold,
-                    myself->persistentTextureArray,
-                    myself->licTextures,
-                    workdiv,
-                    myself->interpolation,
-                    isaac_scale,
-                    myself->clipping);
-            // wait until render kernel has finished
-            alpaka::wait(myself->stream);
 #endif
 
             // process color and depth values for depth simulation
@@ -2251,78 +2282,84 @@ namespace isaac
                 alpaka::enqueue(myself->stream, instance);
                 alpaka::wait(myself->stream);
             }
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
-            bool anyVolumeSourceActive = false;
-            for(int i = 0; i < volumeFieldSourceListSize; ++i)
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+            if(myself->renderOptimization)
             {
-                if(myself->sourceWeight.value[i] > 0)
-                    anyVolumeSourceActive = true;
+                bool anyVolumeSourceActive = false;
+                for(int i = 0; i < volumeFieldSourceListSize; ++i)
+                {
+                    if(myself->sourceWeight.value[i] > 0)
+                        anyVolumeSourceActive = true;
+                }
+                if(anyVolumeSourceActive)
+                {
+                    if(myself->interpolation)
+                    {
+                        CombinedVolumeRenderKernel<FilterType::LINEAR, volumeFieldSourceListSize> kernel;
+                        auto const instance(alpaka::createTaskKernel<T_Acc>(
+                            workdiv,
+                            kernel,
+                            gBuffer,
+                            myself->combinedVolumeTextureAllocator.getTexture(),
+                            myself->step,
+                            isaac_scale,
+                            myself->clipping));
+                        alpaka::enqueue(myself->stream, instance);
+                    }
+                    else
+                    {
+                        CombinedVolumeRenderKernel<FilterType::NEAREST, volumeFieldSourceListSize> kernel;
+                        auto const instance(alpaka::createTaskKernel<T_Acc>(
+                            workdiv,
+                            kernel,
+                            gBuffer,
+                            myself->combinedVolumeTextureAllocator.getTexture(),
+                            myself->step,
+                            isaac_scale,
+                            myself->clipping));
+                        alpaka::enqueue(myself->stream, instance);
+                    }
+                    alpaka::wait(myself->stream);
+                }
             }
-            if(anyVolumeSourceActive)
+
+#endif
+#ifdef ISAAC_LEGACY_RENDERING
+
+            if(!myself->renderOptimization)
             {
-                if(myself->interpolation)
-                {
-                    CombinedVolumeRenderKernel<FilterType::LINEAR, volumeFieldSourceListSize> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
-                        workdiv,
-                        kernel,
+                // call volume render kernel
+                VolumeRenderKernelCaller<
+                    T_VolumeSourceList,
+                    T_FieldSourceList,
+                    TransferDeviceStruct<combinedSourceListSize>,
+                    SourceWeightStruct<combinedSourceListSize>,
+                    PersistentArrayStruct<volumeFieldSourceListSize>,
+                    PersistentArrayStruct<fSourceListSize>,
+                    boost::mpl::vector<>,
+                    T_transferSize,
+                    alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
+                    T_Acc,
+                    T_Stream,
+                    volumeFieldSourceListSize>::
+                    call(
+                        myself->stream,
                         gBuffer,
-                        myself->combinedVolumeTextureAllocator.getTexture(),
+                        myself->volumeSources,
+                        myself->fieldSources,
                         myself->step,
-                        isaac_scale,
-                        myself->clipping));
-                    alpaka::enqueue(myself->stream, instance);
-                }
-                else
-                {
-                    CombinedVolumeRenderKernel<FilterType::NEAREST, volumeFieldSourceListSize> kernel;
-                    auto const instance(alpaka::createTaskKernel<T_Acc>(
+                        myself->transferDevice,
+                        myself->sourceWeight,
+                        myself->persistentTextureArray,
+                        myself->licTextures,
                         workdiv,
-                        kernel,
-                        gBuffer,
-                        myself->combinedVolumeTextureAllocator.getTexture(),
-                        myself->step,
+                        myself->interpolation,
                         isaac_scale,
-                        myself->clipping));
-                    alpaka::enqueue(myself->stream, instance);
-                }
+                        myself->clipping);
+
+                // wait until render kernel has finished
                 alpaka::wait(myself->stream);
             }
-
-#else
-
-
-            // call volume render kernel
-            VolumeRenderKernelCaller<
-                T_VolumeSourceList,
-                T_FieldSourceList,
-                TransferDeviceStruct<combinedSourceListSize>,
-                SourceWeightStruct<combinedSourceListSize>,
-                PersistentArrayStruct<volumeFieldSourceListSize>,
-                PersistentArrayStruct<fSourceListSize>,
-                boost::mpl::vector<>,
-                T_transferSize,
-                alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>,
-                T_Acc,
-                T_Stream,
-                volumeFieldSourceListSize>::
-                call(
-                    myself->stream,
-                    gBuffer,
-                    myself->volumeSources,
-                    myself->fieldSources,
-                    myself->step,
-                    myself->transferDevice,
-                    myself->sourceWeight,
-                    myself->persistentTextureArray,
-                    myself->licTextures,
-                    workdiv,
-                    myself->interpolation,
-                    isaac_scale,
-                    myself->clipping);
-
-            // wait until render kernel has finished
-            alpaka::wait(myself->stream);
 #endif
 
             // stop and restart time for delta calculation
@@ -2458,6 +2495,18 @@ namespace isaac
                 {
                     json_object_set_new(myself->jsonRoot, "interpolation", json_boolean(myself->interpolation));
                     json_object_set_new(myself->jsonInitRoot, "interpolation", json_boolean(myself->interpolation));
+                    myself->sendInitJson = true;
+                }
+                if(myself->sendRenderOptimization)
+                {
+                    json_object_set_new(
+                        myself->jsonRoot,
+                        "render optimization",
+                        json_boolean(myself->renderOptimization));
+                    json_object_set_new(
+                        myself->jsonInitRoot,
+                        "render optimization",
+                        json_boolean(myself->renderOptimization));
                     myself->sendInitJson = true;
                 }
                 if(myself->sendStep)
@@ -2617,7 +2666,7 @@ namespace isaac
 
         Tex3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
 
-#ifdef ISAAC_SINGLE_BUFFER_OPTIMIZATION
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
 #    ifdef ISAAC_MORTON_CODE
         Tex3DAllocator<DevAcc, isaac_byte4, IndexType::MORTON> combinedVolumeTextureAllocator;
         Tex3DAllocator<DevAcc, isaac_byte4, IndexType::MORTON> combinedIsoTextureAllocator;
@@ -2655,6 +2704,7 @@ namespace isaac
         bool sendProjection;
         bool sendTransfer;
         bool sendInterpolation;
+        bool sendRenderOptimization;
         bool sendStep;
         bool sendSeedPoints;
         bool sendIsoThreshold;
@@ -2669,6 +2719,7 @@ namespace isaac
 
 
         bool interpolation;
+        bool renderOptimization = false;
         bool icetBoundingBox;
         isaac_float step;
         isaac_int seedPoints;

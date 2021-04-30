@@ -494,6 +494,7 @@ function onClientMessage(response) {
 
 			sources = response["sources"];
 			document.getElementById("interpolation_checkbox").checked = response["interpolation"];
+			document.getElementById("render_optimization_checkbox").checked = response["render optimization"];
 			document.getElementById("step").value = response["step"];
 			document.getElementById("seed_points").value = parseInt(response["seed points"]);
 			
@@ -536,6 +537,8 @@ function onClientMessage(response) {
 				renderer.setDistance(response["distance"]);
 			if (response.hasOwnProperty("interpolation"))
 				document.getElementById("interpolation_checkbox").checked = response["interpolation"];
+			if (response.hasOwnProperty("render optimization"))
+				document.getElementById("render_optimization_checkbox").checked = response["render optimization"];
 			if (response.hasOwnProperty("step"))
 				document.getElementById("step").value = response["step"];
 			if (response.hasOwnProperty("seed points"))
@@ -1044,6 +1047,11 @@ function dropable_checkbox_click() {
 function interpolation_checkbox_click() {
 	var status = document.getElementById("interpolation_checkbox").checked;
 	sendFeedback("interpolation", status);
+};
+
+function render_optimization_checkbox_click() {
+	var status = document.getElementById("render_optimization_checkbox").checked;
+	sendFeedback("render optimization", status);
 };
 
 function step_button_click() {

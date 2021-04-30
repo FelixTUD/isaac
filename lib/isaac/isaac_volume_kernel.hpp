@@ -56,7 +56,7 @@ namespace isaac
                 int(SimulationSize.globalSize.x),
                 ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
             isaac_float stepSizeUnscaled = stepSize * (glm::length(ray.dir) / glm::length(ray.dir / scale));
-            isaac_float factor = stepSizeUnscaled / min_size * 2.0f;
+            isaac_float factor = stepSizeUnscaled / min_size * 2.0f * isaac_float(T_sourceCount);
             isaac_int startSteps = glm::ceil(ray.startDepth / stepSizeUnscaled);
             isaac_int endSteps = glm::floor(ray.endDepth / stepSizeUnscaled);
             isaac_float3 stepVec = stepSizeUnscaled * ray.dir / scale;
@@ -70,7 +70,7 @@ namespace isaac
                 isaac_float3 pos = startUnscaled + stepVec * isaac_float(i);
                 isaac_float4 value;
                 const Sampler<T_filterType, BorderType::CLAMP, true> sampler;
-                value = sampler.sample(combinedTexture, pos) * isaac_float(T_sourceCount);
+                value = sampler.sample(combinedTexture, pos);
                 value *= factor;
                 isaac_float weight = glm::max(isaac_float(1) - color.w, isaac_float(0));
                 color += weight * value;
