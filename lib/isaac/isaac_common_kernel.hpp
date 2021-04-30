@@ -704,7 +704,9 @@ namespace isaac
                 volumeColorByte.a++;
             volumeTexture[coord] = volumeColorByte;
             */
-            volumeTexture[coord] = transformColor(volumeColor / isaac_float(10));
+            volumeColor /= isaac_float(10);
+            volumeColor = clamp(volumeColor, isaac_float(0), isaac_float(1));
+            volumeTexture[coord] = isaac_byte4(glm::round(volumeColor * isaac_float(255)));
             isoTexture[coord] = transformColor(isoColor);
         }
     };

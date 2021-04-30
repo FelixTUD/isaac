@@ -18,7 +18,7 @@
 #include <alpaka/alpaka.hpp>
 #include <boost/preprocessor.hpp>
 
-#define ISAAC_MORTON_CODE
+//#define ISAAC_MORTON_CODE
 #define ISAAC_COMBINED_BUFFER_OPTIMIZATION
 #define ISAAC_LEGACY_RENDERING
 
