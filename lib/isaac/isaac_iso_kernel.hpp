@@ -123,6 +123,8 @@ namespace isaac
         }
     };
 
+#ifdef ISAAC_LEGACY_RENDERING
+
     template<typename T_Accessor>
     ISAAC_DEVICE_INLINE isaac_float3
     getGradient(const T_Accessor& accessor, const isaac_float3& pos, const isaac_size3& localSize)
@@ -876,5 +878,7 @@ namespace isaac
             }
         }
     };
+
+#endif
 
 } // namespace isaac

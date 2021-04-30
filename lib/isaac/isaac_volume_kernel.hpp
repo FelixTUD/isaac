@@ -56,7 +56,7 @@ namespace isaac
                 int(SimulationSize.globalSize.x),
                 ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
             isaac_float stepSizeUnscaled = stepSize * (glm::length(ray.dir) / glm::length(ray.dir / scale));
-            isaac_float factor = stepSizeUnscaled / min_size * 2.0f * isaac_float(T_sourceCount);
+            isaac_float factor = stepSizeUnscaled / min_size * 2.0f * isaac_float(10);
             isaac_int startSteps = glm::ceil(ray.startDepth / stepSizeUnscaled);
             isaac_int endSteps = glm::floor(ray.endDepth / stepSizeUnscaled);
             isaac_float3 stepVec = stepSizeUnscaled * ray.dir / scale;
@@ -86,6 +86,7 @@ namespace isaac
         }
     };
 
+#ifdef ISAAC_LEGACY_RENDERING
 
     template<
         FilterType T_filterType,
@@ -498,7 +499,7 @@ namespace isaac
                 }
             }
 
-#if ISAAC_SHOWBORDER == 1
+#    if ISAAC_SHOWBORDER == 1
             if(color.w <= isaac_float(0.99))
             {
                 oma = isaac_float(1) - color.w;
@@ -508,7 +509,7 @@ namespace isaac
                 colorAdd.w = oma * factor * isaac_float(10);
                 color += colorAdd;
             }
-#endif
+#    endif
 
             // Blend solid color and new volume color
             isaac_float4 solidColor = transformColor(gBuffer.color[pixel]);
@@ -714,4 +715,6 @@ namespace isaac
             }
         }
     };
+
+#endif
 } // namespace isaac

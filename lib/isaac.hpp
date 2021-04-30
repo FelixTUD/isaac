@@ -269,25 +269,6 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(enabled)
                 {
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                    if(renderOptimization)
-                    {
-                        MergeToCombinedTexture<T_Source, volumeFieldSourceListSize, T_transferSize> kernel;
-                        executeKernelOnVolume<T_Acc>(
-                            localSize + T_Source::guardSize * 2,
-                            stream,
-                            kernel,
-                            index,
-                            source,
-                            isaac_int3(localSize),
-                            transferArray.pointer[index],
-                            weight.value[index],
-                            isoThreshold.value[index],
-                            volumeTexture,
-                            isoTexture);
-                    }
-#endif
-
                     if(!T_Source::persistent)
                     {
                         UpdatePersistendTextureKernel<T_Source> kernel;
@@ -364,25 +345,6 @@ namespace isaac
                             scale,
                             timeStep);
                     }
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                    if(renderOptimization)
-                    {
-                        MergeLICToCombinedTexture<T_Source, volumeFieldSourceListSize, T_transferSize> kernel;
-                        executeKernelOnVolume<T_Acc>(
-                            localSize + T_Source::guardSize * 2,
-                            stream,
-                            kernel,
-                            index,
-                            source,
-                            isaac_int3(localSize),
-                            transferArray.pointer[index],
-                            weight.value[index],
-                            isoThreshold.value[index],
-                            licTextures.textures[I],
-                            volumeTexture,
-                            isoTexture);
-                    }
-#endif
                     {
                         UpdatePersistendTextureKernel<T_Source> kernel;
                         executeKernelOnVolume<T_Acc>(
@@ -1780,6 +1742,28 @@ namespace isaac
 
                 offset = volumeFieldSourceListSize;
                 forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
+
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+                if(renderOptimization)
+                {
+                    MergeToCombinedTextureKernel<T_transferSize> kernel;
+                    executeKernelOnVolume<T_Acc>(
+                        localSize,
+                        stream,
+                        kernel,
+                        volumeSources,
+                        fieldSources,
+                        persistentTextureArray,
+                        isaac_int3(localSize),
+                        transferDevice,
+                        sourceWeight,
+                        sourceIsoThreshold,
+                        licTextures,
+                        combinedVolumeTextureAllocator.getTexture(),
+                        combinedIsoTextureAllocator.getTexture());
+                }
+#endif
+
                 ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
             }
             ISAAC_WAIT_VISUALIZATION
