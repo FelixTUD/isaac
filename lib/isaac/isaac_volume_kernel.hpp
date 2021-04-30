@@ -114,6 +114,7 @@ namespace isaac
             }
             else
             {
+                isaac_float3 offsetPos = pos - isaac_float(0.5);
                 isaac_int3 coord;
                 isaac_float_dim<T_Source::featureDim> data8[2][2][2];
                 for(int x = 0; x < 2; x++)
@@ -122,22 +123,22 @@ namespace isaac
                     {
                         for(int z = 0; z < 2; z++)
                         {
-                            coord.x = isaac_int(pos.x) + x;
-                            coord.y = isaac_int(pos.y) + y;
-                            coord.z = isaac_int(pos.z) + z;
+                            coord.x = isaac_int(offsetPos.x) + x;
+                            coord.y = isaac_int(offsetPos.y) + y;
+                            coord.z = isaac_int(offsetPos.z) + z;
                             if(T_Source::guardSize < 1)
                             {
                                 if(isaac_uint(coord.x) >= localSize.x)
                                 {
-                                    coord.x = isaac_int(pos.x) + 1 - x;
+                                    coord.x = isaac_int(offsetPos.x) + 1 - x;
                                 }
                                 if(isaac_uint(coord.y) >= localSize.y)
                                 {
-                                    coord.y = isaac_int(pos.y) + 1 - y;
+                                    coord.y = isaac_int(offsetPos.y) + 1 - y;
                                 }
                                 if(isaac_uint(coord.z) >= localSize.z)
                                 {
-                                    coord.z = isaac_int(pos.z) + 1 - z;
+                                    coord.z = isaac_int(offsetPos.z) + 1 - z;
                                 }
                             }
                             data8[x][y][z] = source[coord];
@@ -145,7 +146,7 @@ namespace isaac
                     }
                 }
 
-                data = trilinear(glm::fract(pos), data8);
+                data = trilinear(glm::fract(offsetPos), data8);
             }
 
             result = applyFunctorChain(data, T_nr + T_offset);
