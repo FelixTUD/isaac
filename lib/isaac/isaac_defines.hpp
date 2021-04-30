@@ -19,7 +19,7 @@
 #include <boost/preprocessor.hpp>
 
 //#define ISAAC_MORTON_CODE
-#define ISAAC_SINGLE_BUFFER_OPTIMIZATION
+//#define ISAAC_SINGLE_BUFFER_OPTIMIZATION
 
 #ifndef ISAAC_MAX_DIFFERENCE
 #    define ISAAC_MAX_DIFFERENCE 4

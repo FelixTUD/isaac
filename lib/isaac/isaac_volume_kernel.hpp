@@ -87,10 +87,18 @@ namespace isaac
     };
 
 
-    template<isaac_int T_interpolation, int T_nr, typename T_Source, typename T_PointerArray>
-    ISAAC_DEVICE_INLINE isaac_float getValue(
+    template<
+        FilterType T_filterType,
+        int T_nr,
+        int T_offset,
+        ISAAC_IDX_TYPE T_transferSize,
+        typename T_Source,
+        typename T_TransferArray,
+        typename T_PointerArray>
+    ISAAC_DEVICE_INLINE isaac_float4 getColorValue(
         const T_Source& source,
         const isaac_float3& pos,
+        const T_TransferArray& transferArray,
         const T_PointerArray& persistentArray,
         const isaac_size3& localSize)
     {
@@ -98,7 +106,7 @@ namespace isaac
         isaac_float result = isaac_float(0);
         if(T_Source::persistent)
         {
-            if(T_interpolation == 0)
+            if(T_filterType == FilterType::NEAREST)
             {
                 isaac_int3 coord = pos;
 
@@ -140,22 +148,45 @@ namespace isaac
                 data = trilinear(glm::fract(pos), data8);
             }
 
-            result = applyFunctorChain(data, T_nr);
+            result = applyFunctorChain(data, T_nr + T_offset);
         }
         else
         {
-            Tex3D<isaac_float> texture = persistentArray.textures[T_nr];
-            if(T_interpolation == 0)
-            {
-                const Sampler<FilterType::NEAREST, BorderType::CLAMP> sampler;
-                result = sampler.sample(texture, pos);
-            }
-            else
-            {
-                const Sampler<FilterType::LINEAR, BorderType::CLAMP> sampler;
-                result = sampler.sample(texture, pos);
-            }
+            Tex3D<isaac_float> texture = persistentArray.textures[T_nr + T_offset];
+            const Sampler<T_filterType, BorderType::CLAMP> sampler;
+            result = sampler.sample(texture, pos);
         }
+        // return isaac_float4(1, 0, 0, result);
+        ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(result * isaac_float(T_transferSize)));
+        lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
+        return transferArray.pointer[T_nr + T_offset][lookupValue];
+    }
+
+    template<
+        FilterType T_filterType,
+        int T_nr,
+        int T_offset,
+        ISAAC_IDX_TYPE T_transferSize,
+        typename T_Source,
+        typename T_TransferArray,
+        typename T_PointerArray,
+        typename T_LicTextureArray>
+    ISAAC_DEVICE_INLINE isaac_float4 getLicBlendedColorValue(
+        const T_Source& source,
+        const isaac_float3& pos,
+        const T_TransferArray& transferArray,
+        const T_PointerArray& persistentArray,
+        const T_LicTextureArray& licTextureArray,
+        const isaac_size3& localSize)
+    {
+        isaac_float4 result = getColorValue<T_filterType, T_nr, T_offset, T_transferSize>(
+            source,
+            pos,
+            transferArray,
+            persistentArray,
+            localSize);
+        const Sampler<T_filterType, BorderType::CLAMP> sampler;
+        result.a *= sampler.sample(licTextureArray.textures[T_nr], pos);
         return result;
     }
 
@@ -177,7 +208,98 @@ namespace isaac
                 - std::numeric_limits<isaac_float>::min());
     }
 
-    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, isaac_int T_interpolation, int T_offset = 0>
+    template<
+        FilterType T_filterType,
+        int T_nr,
+        int T_offset,
+        ISAAC_IDX_TYPE T_transferSize,
+        typename T_Source,
+        typename T_TransferArray,
+        typename T_PersistentArray>
+    class SourceAccessor
+    {
+    public:
+        ISAAC_DEVICE_INLINE SourceAccessor(
+            const T_Source& source,
+            const T_TransferArray& transferArray,
+            const T_PersistentArray& persistentTextureArray,
+            const isaac_size3& localSize)
+            : source(source)
+            , transferArray(transferArray)
+            , persistentTextureArray(persistentTextureArray)
+            , localSize(localSize)
+        {
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float4 getValue(const isaac_float3& pos) const
+        {
+            isaac_float3 coord = pos;
+            if(T_Source::persistent)
+                checkCoord<T_Source>(coord, localSize);
+            return getColorValue<T_filterType, T_nr, T_offset, T_transferSize>(
+                source,
+                coord,
+                transferArray,
+                persistentTextureArray,
+                localSize);
+        }
+
+    private:
+        const T_Source& source;
+        const T_TransferArray& transferArray;
+        const T_PersistentArray& persistentTextureArray;
+        const isaac_size3& localSize;
+    };
+
+    template<
+        FilterType T_filterType,
+        int T_nr,
+        int T_offset,
+        ISAAC_IDX_TYPE T_transferSize,
+        typename T_Source,
+        typename T_TransferArray,
+        typename T_PersistentArray,
+        typename T_LicTextureArray>
+    class SourceLicBlendedAccessor
+    {
+    public:
+        ISAAC_DEVICE_INLINE SourceLicBlendedAccessor(
+            const T_Source& source,
+            const T_TransferArray& transferArray,
+            const T_PersistentArray& persistentTextureArray,
+            const T_LicTextureArray& licTextureArray,
+            const isaac_size3& localSize)
+            : source(source)
+            , transferArray(transferArray)
+            , persistentTextureArray(persistentTextureArray)
+            , licTextureArray(licTextureArray)
+            , localSize(localSize)
+        {
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float4 getValue(const isaac_float3& pos) const
+        {
+            isaac_float3 coord = pos;
+            if(T_Source::persistent)
+                checkCoord<T_Source>(coord, localSize);
+            return getLicBlendedColorValue<T_filterType, T_nr, T_offset, T_transferSize>(
+                source,
+                coord,
+                transferArray,
+                persistentTextureArray,
+                licTextureArray,
+                localSize);
+        }
+
+    private:
+        const T_Source& source;
+        const T_TransferArray& transferArray;
+        const T_PersistentArray& persistentTextureArray;
+        const T_LicTextureArray& licTextureArray;
+        const isaac_size3& localSize;
+    };
+
+    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, FilterType T_filterType, int T_offset = 0>
     struct MergeVolumeSourceIterator
     {
         template<
@@ -198,11 +320,51 @@ namespace isaac
         {
             if(boost::mpl::at_c<T_Filter, T_NR::value + T_offset>::type::value)
             {
-                isaac_float result
-                    = getValue<T_interpolation, T_NR::value + T_offset>(source, pos, persistentArray, localSize);
-                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(result * isaac_float(T_transferSize)));
-                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                isaac_float4 value = transferArray.pointer[T_NR::value + T_offset][lookupValue];
+                isaac_float4 value = getColorValue<T_filterType, T_NR::value, T_offset, T_transferSize>(
+                    source,
+                    pos,
+                    transferArray,
+                    persistentArray,
+                    localSize);
+                value.w *= sourceWeight.value[T_NR::value + T_offset];
+                color.x = color.x + value.x * value.w;
+                color.y = color.y + value.y * value.w;
+                color.z = color.z + value.z * value.w;
+                color.w = color.w + value.w;
+            }
+        }
+    };
+
+    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, FilterType T_filterType, int T_offset = 0>
+    struct MergeVolumeLICSourceIterator
+    {
+        template<
+            typename T_NR,
+            typename T_Source,
+            typename T_TransferArray,
+            typename T_SourceWeight,
+            typename T_PointerArray,
+            typename T_LicTextureArray>
+        ISAAC_DEVICE_INLINE void operator()(
+            const T_NR& nr,
+            const T_Source& source,
+            const isaac_float3& pos,
+            const isaac_size3& localSize,
+            const T_TransferArray& transferArray,
+            const T_SourceWeight& sourceWeight,
+            const T_PointerArray& persistentArray,
+            const T_LicTextureArray& licTextureArray,
+            isaac_float4& color) const
+        {
+            if(boost::mpl::at_c<T_Filter, T_NR::value + T_offset>::type::value)
+            {
+                isaac_float4 value = getLicBlendedColorValue<T_filterType, T_NR::value, T_offset, T_transferSize>(
+                    source,
+                    pos,
+                    transferArray,
+                    persistentArray,
+                    licTextureArray,
+                    localSize);
                 value.w *= sourceWeight.value[T_NR::value + T_offset];
                 color.x = color.x + value.x * value.w;
                 color.y = color.y + value.y * value.w;
@@ -218,9 +380,10 @@ namespace isaac
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
+        typename T_LicTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        isaac_int T_interpolation>
+        FilterType T_filterType>
     struct VolumeRenderKernel
     {
         template<typename T_Acc>
@@ -233,6 +396,7 @@ namespace isaac
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_SourceWeight sourceWeight, // weights of sources for blending
             const T_PointerArray persistentArray,
+            const T_LicTextureArray licTextureArray,
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -302,7 +466,7 @@ namespace isaac
                 pos = startUnscaled + stepVec * isaac_float(i);
                 forEachWithMplParams(
                     sources,
-                    MergeVolumeSourceIterator<T_transferSize, T_Filter, T_interpolation>(),
+                    MergeVolumeSourceIterator<T_transferSize, T_Filter, T_filterType>(),
                     pos,
                     SimulationSize.localSize,
                     transferArray,
@@ -311,16 +475,17 @@ namespace isaac
                     value);
                 forEachWithMplParams(
                     fieldSources,
-                    MergeVolumeSourceIterator<
+                    MergeVolumeLICSourceIterator<
                         T_transferSize,
                         T_Filter,
-                        T_interpolation,
+                        T_filterType,
                         boost::mpl::size<T_VolumeSourceList>::type::value>(),
                     pos,
                     SimulationSize.localSize,
                     transferArray,
                     sourceWeight,
                     persistentArray,
+                    licTextureArray,
                     value);
                 oma = isaac_float(1) - color.w;
                 value *= factor;
@@ -358,6 +523,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
+        typename T_LicTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -375,6 +541,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
             const T_PointerArray& persistentArray,
+            const T_LicTextureArray& licTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -391,6 +558,7 @@ namespace isaac
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
+                    T_LicTextureArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::false_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -406,6 +574,7 @@ namespace isaac
                         transferArray,
                         sourceWeight,
                         persistentArray,
+                        licTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -419,6 +588,7 @@ namespace isaac
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
+                    T_LicTextureArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::true_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -434,6 +604,7 @@ namespace isaac
                         transferArray,
                         sourceWeight,
                         persistentArray,
+                        licTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -448,6 +619,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_SourceWeight,
         typename T_PointerArray,
+        typename T_LicTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -459,6 +631,7 @@ namespace isaac
         T_TransferArray,
         T_SourceWeight,
         T_PointerArray,
+        T_LicTextureArray,
         T_Filter,
         T_transferSize,
         T_WorkDiv,
@@ -476,6 +649,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
             const T_PointerArray& persistentArray,
+            const T_LicTextureArray& licTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -489,9 +663,10 @@ namespace isaac
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
+                    T_LicTextureArray,
                     T_Filter,
                     T_transferSize,
-                    1>
+                    FilterType::LINEAR>
                     kernel;
                 auto const instance(alpaka::createTaskKernel<T_Acc>(
                     workdiv,
@@ -503,6 +678,7 @@ namespace isaac
                     transferArray,
                     sourceWeight,
                     persistentArray,
+                    licTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);
@@ -515,9 +691,10 @@ namespace isaac
                     T_TransferArray,
                     T_SourceWeight,
                     T_PointerArray,
+                    T_LicTextureArray,
                     T_Filter,
                     T_transferSize,
-                    0>
+                    FilterType::NEAREST>
                     kernel;
                 auto const instance(alpaka::createTaskKernel<T_Acc>(
                     workdiv,
@@ -529,6 +706,7 @@ namespace isaac
                     transferArray,
                     sourceWeight,
                     persistentArray,
+                    licTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);

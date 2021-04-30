@@ -123,52 +123,18 @@ namespace isaac
         }
     };
 
-    template<isaac_int T_interpolation, isaac_int T_index, int T_nr, typename T_Source, typename T_PersistentArray>
-    ISAAC_DEVICE_INLINE isaac_float getCompGradient(
-        const T_Source& source,
-        const isaac_float3& pos,
-        const T_PersistentArray& persistentTextureArray,
-        const isaac_size3& localSize)
-    {
-        isaac_float3 front = {0, 0, 0};
-        front[T_index] = -1;
-        front = front + pos;
-        checkCoord<T_Source>(front, localSize);
-
-        isaac_float3 back = {0, 0, 0};
-        back[T_index] = 1;
-        back = back + pos;
-        checkCoord<T_Source>(back, localSize);
-
-        isaac_float d;
-        if(T_interpolation)
-        {
-            d = back[T_index] - front[T_index];
-        }
-        else
-        {
-            d = isaac_int(back[T_index]) - isaac_int(front[T_index]);
-        }
-
-        return (getValue<T_interpolation, T_nr>(source, back, persistentTextureArray, localSize)
-                - getValue<T_interpolation, T_nr>(source, front, persistentTextureArray, localSize))
-            / d;
-    }
-
-    template<isaac_int T_interpolation, int T_nr, typename T_Source, typename T_PersistentArray>
-    ISAAC_DEVICE_INLINE isaac_float3 getGradient(
-        const T_Source& source,
-        const isaac_float3& pos,
-        const T_PersistentArray& persistentTextureArray,
-        const isaac_size3& localSize)
+    template<typename T_Accessor>
+    ISAAC_DEVICE_INLINE isaac_float3
+    getGradient(const T_Accessor& accessor, const isaac_float3& pos, const isaac_size3& localSize)
     {
         isaac_float3 gradient
-            = {getCompGradient<T_interpolation, 0, T_nr>(source, pos, persistentTextureArray, localSize),
-               getCompGradient<T_interpolation, 1, T_nr>(source, pos, persistentTextureArray, localSize),
-               getCompGradient<T_interpolation, 2, T_nr>(source, pos, persistentTextureArray, localSize)};
+            = {accessor.getValue(pos + isaac_float3(1, 0, 0)).a - accessor.getValue(pos - isaac_float3(1, 0, 0)).a,
+               accessor.getValue(pos + isaac_float3(0, 1, 0)).a - accessor.getValue(pos - isaac_float3(0, 1, 0)).a,
+               accessor.getValue(pos + isaac_float3(0, 0, 1)).a - accessor.getValue(pos - isaac_float3(0, 0, 1)).a};
         return gradient;
     }
 
+    /*
     template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, isaac_int T_interpolation>
     struct IsoCellTraversalSourceIterator
     {
@@ -393,9 +359,70 @@ namespace isaac
             }
         }
     };
+    */
 
-    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, isaac_int T_interpolation, int T_offset = 0>
-    struct IsoStepSourceIterator
+
+    struct HitInfo
+    {
+        bool hit = false;
+        isaac_float4 color;
+        isaac_float3 normal;
+        isaac_float depth;
+    };
+
+    template<typename T_Accessor, typename T_IsoTheshold>
+    ISAAC_DEVICE_INLINE void IsoStepSource(
+        const T_Accessor& accessor,
+        const Ray& ray,
+        const isaac_float& t,
+        const isaac_float3& pos,
+        const isaac_float& stepSize,
+        const isaac_size3& localSize,
+        const T_IsoTheshold& sourceIsoThreshold,
+        const isaac_float3& scale,
+        const bool& first,
+        isaac_float* oldValues,
+        int index,
+        HitInfo& hitInfo)
+    {
+        isaac_float value = accessor.getValue(pos).a;
+        isaac_float prevValue = oldValues[index];
+        oldValues[index] = value;
+        isaac_float isoThreshold = sourceIsoThreshold.value[index];
+        if(value < isoThreshold)
+            return;
+
+        isaac_float testDepth;
+        if(first)
+            testDepth = ray.startDepth;
+        else
+            testDepth = t + stepSize * (isoThreshold - prevValue) / (value - prevValue);
+
+        if(testDepth > hitInfo.depth)
+            return;
+
+        hitInfo.depth = testDepth;
+        hitInfo.hit = true;
+
+        isaac_float3 newPos = ray.start + ray.dir * hitInfo.depth;
+        isaac_float3 posUnscaled = newPos / scale;
+        // get color of hit
+
+        hitInfo.color = accessor.getValue(posUnscaled);
+        hitInfo.color.a = 1.0f;
+        isaac_float3 gradient = getGradient(accessor, posUnscaled, localSize);
+        isaac_float gradientLength = glm::length(gradient);
+        if(first)
+        {
+            gradient = ray.clippingNormal;
+            gradientLength = isaac_float(1);
+        }
+        // gradient *= scale;
+        hitInfo.normal = -gradient / gradientLength;
+    }
+
+    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, FilterType T_filterType, int T_offset = 0>
+    struct IsoSourceIterator
     {
         template<
             typename T_NR,
@@ -417,65 +444,93 @@ namespace isaac
             const isaac_float3& scale,
             const bool& first,
             isaac_float* oldValues,
-            bool& hit,
-            isaac_float4& hitColor,
-            isaac_float3& hitNormal,
-            isaac_float& depth) const
+            HitInfo& hitInfo) const
         {
             if(boost::mpl::at_c<T_Filter, T_NR::value + T_offset>::type::value)
             {
-                isaac_float value = getValue<T_interpolation, T_NR::value + T_offset>(
-                    source,
+                auto sourceAccessor = SourceAccessor<
+                    T_filterType,
+                    T_NR::value,
+                    T_offset,
+                    T_transferSize,
+                    T_Source,
+                    T_TransferArray,
+                    T_PersistentArray>(source, transferArray, persistentTextureArray, SimulationSize.localSize);
+
+                IsoStepSource(
+                    sourceAccessor,
+                    ray,
+                    t,
                     pos,
-                    persistentTextureArray,
-                    localSize);
-                ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(value * isaac_float(T_transferSize)));
-                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                value = transferArray.pointer[T_NR::value + T_offset][lookupValue].a;
-                isaac_float prevValue = oldValues[T_NR::value + T_offset];
-                oldValues[T_NR::value + T_offset] = value;
-                isaac_float isoThreshold = sourceIsoThreshold.value[T_NR::value + T_offset];
-                if(value < isoThreshold)
-                    return;
+                    stepSize,
+                    localSize,
+                    sourceIsoThreshold,
+                    scale,
+                    first,
+                    oldValues,
+                    T_NR::value + T_offset,
+                    hitInfo);
+            }
+        }
+    };
 
-                isaac_float testDepth;
-                if(first)
-                    testDepth = ray.startDepth;
-                else
-                    testDepth = t + stepSize * (isoThreshold - prevValue) / (value - prevValue);
-
-                if(testDepth > depth)
-                    return;
-
-                depth = testDepth;
-                hit = true;
-
-                isaac_float3 newPos = ray.start + ray.dir * depth;
-                isaac_float3 posUnscaled = newPos / scale;
-                checkCoord<T_Source>(posUnscaled, localSize);
-                // get color of hit
-                isaac_float result = getValue<T_interpolation, T_NR::value + T_offset>(
+    template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, FilterType T_filterType, int T_offset = 0>
+    struct IsoLicSourceIterator
+    {
+        template<
+            typename T_NR,
+            typename T_Source,
+            typename T_TransferArray,
+            typename T_IsoTheshold,
+            typename T_PersistentArray,
+            typename T_LicTextureArray>
+        ISAAC_DEVICE_INLINE void operator()(
+            const T_NR& nr,
+            const T_Source& source,
+            const Ray& ray,
+            const isaac_float& t,
+            const isaac_float3& pos,
+            const isaac_float& stepSize,
+            const isaac_size3& localSize,
+            const T_TransferArray& transferArray,
+            const T_IsoTheshold& sourceIsoThreshold,
+            const T_PersistentArray& persistentTextureArray,
+            const T_LicTextureArray& licTextureArray,
+            const isaac_float3& scale,
+            const bool& first,
+            isaac_float* oldValues,
+            HitInfo& hitInfo) const
+        {
+            if(boost::mpl::at_c<T_Filter, T_NR::value + T_offset>::type::value)
+            {
+                auto sourceAccessor = SourceLicBlendedAccessor<
+                    T_filterType,
+                    T_NR::value,
+                    T_offset,
+                    T_transferSize,
+                    T_Source,
+                    T_TransferArray,
+                    T_PersistentArray,
+                    T_LicTextureArray>(
                     source,
-                    posUnscaled,
+                    transferArray,
                     persistentTextureArray,
-                    localSize);
-                lookupValue = ISAAC_IDX_TYPE(glm::round(result * isaac_float(T_transferSize)));
-                lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
-                hitColor = transferArray.pointer[T_NR::value + T_offset][lookupValue];
-                hitColor.a = 1.0f;
-                isaac_float3 gradient = getGradient<T_interpolation, T_NR::value + T_offset>(
-                    source,
-                    posUnscaled,
-                    persistentTextureArray,
-                    localSize);
-                isaac_float gradientLength = glm::length(gradient);
-                if(first)
-                {
-                    gradient = ray.clippingNormal;
-                    gradientLength = isaac_float(1);
-                }
-                // gradient *= scale;
-                hitNormal = -gradient / gradientLength;
+                    licTextureArray,
+                    SimulationSize.localSize);
+
+                IsoStepSource(
+                    sourceAccessor,
+                    ray,
+                    t,
+                    pos,
+                    stepSize,
+                    localSize,
+                    sourceIsoThreshold,
+                    scale,
+                    first,
+                    oldValues,
+                    T_NR::value + T_offset,
+                    hitInfo);
             }
         }
     };
@@ -489,7 +544,7 @@ namespace isaac
         typename T_LicTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
-        isaac_int T_interpolation>
+        FilterType T_filterType>
     struct IsoStepRenderKernel
     {
         template<typename T_Acc>
@@ -561,10 +616,9 @@ namespace isaac
                 endSteps--;
                 pos = startUnscaled + stepVec * isaac_float(endSteps);
             }
-            bool hit = false;
-            isaac_float depth = ray.endDepth;
-            isaac_float4 hitColor = isaac_float4(0);
-            isaac_float3 hitNormal;
+            HitInfo hitInfo;
+            hitInfo.hit = false;
+            hitInfo.depth = ray.endDepth;
             isaac_float oldValues[ZeroCheck<
                 boost::mpl::size<T_VolumeSourceList>::type::value
                 + boost::mpl::size<T_FieldSourceList>::type::value>::value];
@@ -573,14 +627,14 @@ namespace isaac
                 i++)
                 oldValues[i] = 0;
             // iterate over the volume
-            for(isaac_int i = startSteps; i <= endSteps && !hit; i++)
+            for(isaac_int i = startSteps; i <= endSteps && !hitInfo.hit; i++)
             {
                 pos = startUnscaled + stepVec * isaac_float(i);
                 bool first = ray.isClipped && i == startSteps;
                 isaac_float t = i * stepSizeUnscaled;
                 forEachWithMplParams(
                     sources,
-                    IsoStepSourceIterator<T_transferSize, T_Filter, T_interpolation>(),
+                    IsoSourceIterator<T_transferSize, T_Filter, T_filterType>(),
                     ray,
                     t,
                     pos,
@@ -592,17 +646,14 @@ namespace isaac
                     scale,
                     first,
                     oldValues,
-                    hit,
-                    hitColor,
-                    hitNormal,
-                    depth);
+                    hitInfo);
 
                 forEachWithMplParams(
                     fieldSources,
-                    IsoStepSourceIterator<
+                    IsoLicSourceIterator<
                         T_transferSize,
                         T_Filter,
-                        T_interpolation,
+                        T_filterType,
                         boost::mpl::size<T_VolumeSourceList>::type::value>(),
                     ray,
                     t,
@@ -612,20 +663,18 @@ namespace isaac
                     transferArray,
                     sourceIsoThreshold,
                     persistentTextureArray,
+                    licTextureArray,
                     scale,
                     first,
                     oldValues,
-                    hit,
-                    hitColor,
-                    hitNormal,
-                    depth);
+                    hitInfo);
             }
 
-            if(hit)
+            if(hitInfo.hit)
             {
-                gBuffer.color[pixel] = transformColor(hitColor);
-                gBuffer.normal[pixel] = hitNormal;
-                gBuffer.depth[pixel] = depth;
+                gBuffer.color[pixel] = transformColor(hitInfo.color);
+                gBuffer.normal[pixel] = hitInfo.normal;
+                gBuffer.depth[pixel] = hitInfo.depth;
             }
         }
     };
@@ -780,7 +829,7 @@ namespace isaac
                     T_LicTextureArray,
                     T_Filter,
                     T_transferSize,
-                    1>
+                    FilterType::LINEAR>
                     kernel;
                 auto const instance(alpaka::createTaskKernel<T_Acc>(
                     workdiv,
@@ -808,7 +857,7 @@ namespace isaac
                     T_LicTextureArray,
                     T_Filter,
                     T_transferSize,
-                    0>
+                    FilterType::NEAREST>
                     kernel;
                 auto const instance(alpaka::createTaskKernel<T_Acc>(
                     workdiv,
@@ -827,4 +876,5 @@ namespace isaac
             }
         }
     };
+
 } // namespace isaac

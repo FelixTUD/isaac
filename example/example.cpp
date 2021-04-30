@@ -23,9 +23,9 @@
 
 using namespace isaac;
 
-#define VOLUME_X 128
-#define VOLUME_Y 128
-#define VOLUME_Z 128
+#define VOLUME_X 256
+#define VOLUME_Y 256
+#define VOLUME_Z 256
 
 #define PARTICLE_VOLUME_X 64
 #define PARTICLE_VOLUME_Y 64
@@ -79,7 +79,7 @@ class TestSource2
 public:
     static const ISAAC_IDX_TYPE featureDim = 1;
     static const ISAAC_IDX_TYPE guardSize = 0;
-    static const bool persistent = false;
+    static const bool persistent = true;
 
 
     ISAAC_NO_HOST_DEVICE_WARNING TestSource2(isaac_float* ptr) : ptr(ptr)
@@ -241,7 +241,7 @@ int main(int argc, char** argv)
     printf("Using name %s\n", name);
 
     // This defines the size of the generated rendering
-    isaac_size2 framebufferSize = {ISAAC_IDX_TYPE(800), ISAAC_IDX_TYPE(600)};
+    isaac_size2 framebufferSize = {ISAAC_IDX_TYPE(1920), ISAAC_IDX_TYPE(1080)};
 
     // Alpaka specific initialization
     using AccDim = alpaka::DimInt<3>;
@@ -434,7 +434,6 @@ int main(int argc, char** argv)
     {
         json_object_set_new(visualization->getJsonMetaRoot(), "interval", json_integer(interval));
     }
-
     // Main loop
     while(!forceExit)
     {
