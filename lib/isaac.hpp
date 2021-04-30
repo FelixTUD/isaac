@@ -278,9 +278,9 @@ namespace isaac
                             index,
                             source,
                             isaac_int3(localSize),
-                            transferArray,
-                            weight,
-                            isoThreshold,
+                            transferArray.pointer[index],
+                            weight.value[index],
+                            isoThreshold.value[index],
                             volumeTexture,
                             isoTexture);
                     }
@@ -371,9 +371,9 @@ namespace isaac
                             index,
                             source,
                             isaac_int3(localSize),
-                            transferArray,
-                            weight,
-                            isoThreshold,
+                            transferArray.pointer[index],
+                            weight.value[index],
+                            isoThreshold.value[index],
                             licTextures.textures[I],
                             volumeTexture,
                             isoTexture);
