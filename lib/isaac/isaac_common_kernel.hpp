@@ -466,7 +466,7 @@ namespace isaac
             if(sourceWeight > 0)
             {
                 isaac_float4 volumeColor = color;
-                volumeColor.a *= sourceWeight;
+                volumeColor.a = glm::min(volumeColor.a * sourceWeight, isaac_float(1));
                 volumeColor.r *= volumeColor.a;
                 volumeColor.g *= volumeColor.a;
                 volumeColor.b *= volumeColor.a;
@@ -592,7 +592,7 @@ namespace isaac
             if(sourceWeight > 0)
             {
                 isaac_float4 volumeColor = color;
-                volumeColor.a *= sourceWeight;
+                volumeColor.a = glm::min(volumeColor.a * sourceWeight, isaac_float(1));
                 volumeColor.r *= volumeColor.a;
                 volumeColor.g *= volumeColor.a;
                 volumeColor.b *= volumeColor.a;
