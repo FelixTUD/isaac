@@ -693,21 +693,31 @@ namespace isaac
                 volumeColor,
                 isoColor);
 
+#if 1
             /*
-            const isaac_byte ditherMask[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
-            volumeColor = glm::clamp(volumeColor / isaac_float(10), isaac_float(0), isaac_float(1));
-            volumeColor *= isaac_float(255);
-            isaac_float ditherValue = ditherMask[coord.x % 4 + (coord.y % 4) * 4] / isaac_float(16);
-            isaac_float fract = glm::fract(volumeColor.a);
-            isaac_byte4 volumeColorByte = isaac_byte4(volumeColor);
-            if(fract > ditherValue)
-                volumeColorByte.a++;
-            volumeTexture[coord] = volumeColorByte;
+            const isaac_byte ditherMask[8] = {0, 4, 6, 7, 3, 2, 1, 5};
+            isaac_float ditherValue = ditherMask[coord.x % 2 + (coord.y % 2) * 2 + (coord.z % 2) * 4] / isaac_float(8);
             */
+
+            const isaac_byte ditherMask[64]
+                = {17, 46, 55, 1,  57, 7,  38, 31, 9,  52, 2,  54, 36, 26, 19, 44, 53, 20, 47, 22, 29, 60,
+                   62, 12, 45, 14, 26, 33, 8,  39, 11, 63, 13, 56, 6,  50, 40, 32, 23, 48, 21, 42, 51, 5,
+                   61, 3,  34, 27, 41, 10, 30, 37, 4,  35, 15, 59, 49, 24, 43, 18, 25, 64, 58, 16};
+            isaac_float ditherValue
+                = ditherMask[coord.x % 4 + (coord.y % 4) * 4 + (coord.z % 4) * 16] / isaac_float(64);
+
+            volumeColor /= isaac_float(10);
+            volumeColor *= isaac_float(255);
+            isaac_int4 volumeColorInt = isaac_int4(volumeColor);
+            volumeColorInt += isaac_int4(glm::greaterThan(glm::fract(volumeColor), isaac_float4(ditherValue)));
+            volumeTexture[coord] = isaac_byte4(glm::clamp(volumeColorInt, isaac_int(0), isaac_int(255)));
+#else
             volumeColor /= isaac_float(10);
             volumeColor = clamp(volumeColor, isaac_float(0), isaac_float(1));
             volumeTexture[coord] = isaac_byte4(glm::round(volumeColor * isaac_float(255)));
-            isoTexture[coord] = transformColor(isoColor);
+#endif
+            isoColor = clamp(isoColor, isaac_float(0), isaac_float(1));
+            isoTexture[coord] = isaac_byte4(glm::round(isoColor * isaac_float(255)));
         }
     };
 } // namespace isaac
