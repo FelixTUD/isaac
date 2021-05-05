@@ -406,8 +406,6 @@ namespace isaac
             buffer = alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, bufferExtent);
 
             texture.init(alpaka::getPtrNative(buffer), size, guardSize);
-
-            std::cout << "Finished texture init!" << std::endl;
         }
 
         template<typename T_Queue, typename T_ViewDst>
@@ -473,6 +471,8 @@ namespace isaac
         Tex3D<isaac_float> textures[ZeroCheck<T_n>::value];
     };
 
+    /* TODO: Remove if not needed
+
     struct CombinedTexture
     {
 #ifdef ISAAC_MORTON_CODE
@@ -515,6 +515,7 @@ namespace isaac
             alpha.clearColor(queue);
         }
     };
+    */
 
     struct GBuffer
     {

@@ -125,6 +125,97 @@ namespace isaac
 
 #ifdef ISAAC_LEGACY_RENDERING
 
+    template<
+        FilterType T_filterType,
+        int T_nr,
+        int T_offset,
+        ISAAC_IDX_TYPE T_transferSize,
+        typename T_Source,
+        typename T_TransferArray,
+        typename T_PersistentArray>
+    class SourceAccessor
+    {
+    public:
+        ISAAC_DEVICE_INLINE SourceAccessor(
+            const T_Source& source,
+            const T_TransferArray& transferArray,
+            const T_PersistentArray& persistentTextureArray,
+            const isaac_size3& localSize)
+            : source(source)
+            , transferArray(transferArray)
+            , persistentTextureArray(persistentTextureArray)
+            , localSize(localSize)
+        {
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float4 getValue(const isaac_float3& pos) const
+        {
+            isaac_float3 coord = pos;
+            if(T_Source::persistent)
+                checkCoord<T_Source>(coord, localSize);
+            return getColorValue<T_filterType, T_nr, T_offset, T_transferSize>(
+                source,
+                coord,
+                transferArray,
+                persistentTextureArray,
+                localSize);
+        }
+
+    private:
+        const T_Source& source;
+        const T_TransferArray& transferArray;
+        const T_PersistentArray& persistentTextureArray;
+        const isaac_size3& localSize;
+    };
+
+    template<
+        FilterType T_filterType,
+        int T_nr,
+        int T_offset,
+        ISAAC_IDX_TYPE T_transferSize,
+        typename T_Source,
+        typename T_TransferArray,
+        typename T_PersistentArray,
+        typename T_AdvectionTextureArray>
+    class SourceAdvectionBlendedAccessor
+    {
+    public:
+        ISAAC_DEVICE_INLINE SourceAdvectionBlendedAccessor(
+            const T_Source& source,
+            const T_TransferArray& transferArray,
+            const T_PersistentArray& persistentTextureArray,
+            const T_AdvectionTextureArray& advectionTextureArray,
+            const isaac_size3& localSize)
+            : source(source)
+            , transferArray(transferArray)
+            , persistentTextureArray(persistentTextureArray)
+            , advectionTextureArray(advectionTextureArray)
+            , localSize(localSize)
+        {
+        }
+
+        ISAAC_DEVICE_INLINE isaac_float4 getValue(const isaac_float3& pos) const
+        {
+            isaac_float3 coord = pos;
+            if(T_Source::persistent)
+                checkCoord<T_Source>(coord, localSize);
+            return getAdvectionBlendedColorValue<T_filterType, T_nr, T_offset, T_transferSize>(
+                source,
+                coord,
+                transferArray,
+                persistentTextureArray,
+                advectionTextureArray,
+                localSize);
+        }
+
+    private:
+        const T_Source& source;
+        const T_TransferArray& transferArray;
+        const T_PersistentArray& persistentTextureArray;
+        const T_AdvectionTextureArray& advectionTextureArray;
+        const isaac_size3& localSize;
+    };
+
     template<typename T_Accessor>
     ISAAC_DEVICE_INLINE isaac_float3
     getGradient(const T_Accessor& accessor, const isaac_float3& pos, const isaac_size3& localSize)
@@ -477,7 +568,7 @@ namespace isaac
     };
 
     template<ISAAC_IDX_TYPE T_transferSize, typename T_Filter, FilterType T_filterType, int T_offset = 0>
-    struct IsoLicSourceIterator
+    struct IsoAdvectionSourceIterator
     {
         template<
             typename T_NR,
@@ -485,7 +576,7 @@ namespace isaac
             typename T_TransferArray,
             typename T_IsoTheshold,
             typename T_PersistentArray,
-            typename T_LicTextureArray>
+            typename T_AdvectionTextureArray>
         ISAAC_DEVICE_INLINE void operator()(
             const T_NR& nr,
             const T_Source& source,
@@ -497,7 +588,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_IsoTheshold& sourceIsoThreshold,
             const T_PersistentArray& persistentTextureArray,
-            const T_LicTextureArray& licTextureArray,
+            const T_AdvectionTextureArray& advectionTextureArray,
             const isaac_float3& scale,
             const bool& first,
             isaac_float* oldValues,
@@ -505,7 +596,7 @@ namespace isaac
         {
             if(boost::mpl::at_c<T_Filter, T_NR::value + T_offset>::type::value)
             {
-                auto sourceAccessor = SourceLicBlendedAccessor<
+                auto sourceAccessor = SourceAdvectionBlendedAccessor<
                     T_filterType,
                     T_NR::value,
                     T_offset,
@@ -513,11 +604,11 @@ namespace isaac
                     T_Source,
                     T_TransferArray,
                     T_PersistentArray,
-                    T_LicTextureArray>(
+                    T_AdvectionTextureArray>(
                     source,
                     transferArray,
                     persistentTextureArray,
-                    licTextureArray,
+                    advectionTextureArray,
                     SimulationSize.localSize);
 
                 IsoStepSource(
@@ -543,7 +634,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_IsoTheshold,
         typename T_PersistentArray,
-        typename T_LicTextureArray,
+        typename T_AdvectionTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         FilterType T_filterType>
@@ -559,7 +650,7 @@ namespace isaac
             const T_TransferArray transferArray, // mapping to simulation memory
             const T_IsoTheshold sourceIsoThreshold, // weights of sources for blending
             const T_PersistentArray persistentTextureArray,
-            const T_LicTextureArray licTextureArray,
+            const T_AdvectionTextureArray advectionTextureArray,
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -652,7 +743,7 @@ namespace isaac
 
                 forEachWithMplParams(
                     fieldSources,
-                    IsoLicSourceIterator<
+                    IsoAdvectionSourceIterator<
                         T_transferSize,
                         T_Filter,
                         T_filterType,
@@ -665,7 +756,7 @@ namespace isaac
                     transferArray,
                     sourceIsoThreshold,
                     persistentTextureArray,
-                    licTextureArray,
+                    advectionTextureArray,
                     scale,
                     first,
                     oldValues,
@@ -688,7 +779,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_IsoThreshold,
         typename T_PersistentArray,
-        typename T_LicTextureArray,
+        typename T_AdvectionTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -706,7 +797,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
             const T_PersistentArray& persistentTextureArray,
-            const T_LicTextureArray& licTextureArray,
+            const T_AdvectionTextureArray& advectionTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -723,7 +814,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
-                    T_LicTextureArray,
+                    T_AdvectionTextureArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::false_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -739,7 +830,7 @@ namespace isaac
                         transferArray,
                         sourceIsoThreshold,
                         persistentTextureArray,
-                        licTextureArray,
+                        advectionTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -753,7 +844,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
-                    T_LicTextureArray,
+                    T_AdvectionTextureArray,
                     typename boost::mpl::push_back<T_Filter, boost::mpl::true_>::type,
                     T_transferSize,
                     T_WorkDiv,
@@ -769,7 +860,7 @@ namespace isaac
                         transferArray,
                         sourceIsoThreshold,
                         persistentTextureArray,
-                        licTextureArray,
+                        advectionTextureArray,
                         workdiv,
                         interpolation,
                         scale,
@@ -784,7 +875,7 @@ namespace isaac
         typename T_TransferArray,
         typename T_IsoThreshold,
         typename T_PersistentArray,
-        typename T_LicTextureArray,
+        typename T_AdvectionTextureArray,
         typename T_Filter,
         ISAAC_IDX_TYPE T_transferSize,
         typename T_WorkDiv,
@@ -796,7 +887,7 @@ namespace isaac
         T_TransferArray,
         T_IsoThreshold,
         T_PersistentArray,
-        T_LicTextureArray,
+        T_AdvectionTextureArray,
         T_Filter,
         T_transferSize,
         T_WorkDiv,
@@ -814,7 +905,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_IsoThreshold& sourceIsoThreshold,
             const T_PersistentArray& persistentTextureArray,
-            const T_LicTextureArray& licTextureArray,
+            const T_AdvectionTextureArray& advectionTextureArray,
             const T_WorkDiv& workdiv,
             const isaac_int interpolation,
             const isaac_float3& scale,
@@ -828,7 +919,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
-                    T_LicTextureArray,
+                    T_AdvectionTextureArray,
                     T_Filter,
                     T_transferSize,
                     FilterType::LINEAR>
@@ -843,7 +934,7 @@ namespace isaac
                     transferArray,
                     sourceIsoThreshold,
                     persistentTextureArray,
-                    licTextureArray,
+                    advectionTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);
@@ -856,7 +947,7 @@ namespace isaac
                     T_TransferArray,
                     T_IsoThreshold,
                     T_PersistentArray,
-                    T_LicTextureArray,
+                    T_AdvectionTextureArray,
                     T_Filter,
                     T_transferSize,
                     FilterType::NEAREST>
@@ -871,7 +962,7 @@ namespace isaac
                     transferArray,
                     sourceIsoThreshold,
                     persistentTextureArray,
-                    licTextureArray,
+                    advectionTextureArray,
                     scale,
                     clipping));
                 alpaka::enqueue(stream, instance);

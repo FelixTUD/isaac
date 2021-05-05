@@ -179,7 +179,7 @@ namespace isaac
                 typename T_Array,
                 typename T_LocalSize,
                 typename T_Vector,
-                typename T_LicArray,
+                typename T_AdvectionArray,
                 typename T_DevAcc>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
@@ -187,19 +187,21 @@ namespace isaac
                 T_Array& persistentTextureArray,
                 const T_LocalSize& localSize,
                 T_Vector& allocatorVector,
-                T_Vector& licAllocators,
-                T_LicArray& licTextures,
-                T_LicArray& licTexturesBackBuffer,
+                T_Vector& advectionAllocators,
+                T_AdvectionArray& advectionTextures,
+                T_AdvectionArray& advectionTexturesBackBuffer,
                 const T_DevAcc& acc,
                 const int offset = 0) const
             {
                 allocatorVector.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
                 persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
 
-                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
-                licTextures.textures[I] = licAllocators.back().getTexture();
-                licAllocators.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
-                licTexturesBackBuffer.textures[I] = licAllocators.back().getTexture();
+                advectionAllocators.push_back(
+                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                advectionTextures.textures[I] = advectionAllocators.back().getTexture();
+                advectionAllocators.push_back(
+                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                advectionTexturesBackBuffer.textures[I] = advectionAllocators.back().getTexture();
             }
         };
 
@@ -285,13 +287,13 @@ namespace isaac
             }
         };
 
-        struct UpdateLICTextureIterator
+        struct UpdateAdvectionTextureIterator
         {
             template<
                 typename T_Source,
                 typename T_Array,
                 typename T_TransferArray,
-                typename T_LicArray,
+                typename T_AdvectionArray,
                 typename T_Weight,
                 typename T_IsoTheshold,
                 typename T_Stream__
@@ -304,8 +306,8 @@ namespace isaac
                 const int I,
                 T_Source& source,
                 T_Array& persistentTextureArray,
-                T_LicArray& licTextures,
-                T_LicArray& licTexturesBackBuffer,
+                T_AdvectionArray& advectionTextures,
+                T_AdvectionArray& advectionTexturesBackBuffer,
                 const Tex3D<isaac_float>& noiseTexture,
                 const isaac_size3& localSize,
                 const T_TransferArray& transferArray,
@@ -315,7 +317,7 @@ namespace isaac
                 void* pointer,
                 T_Stream__& stream,
                 isaac_int timeStep,
-                bool updateLIC,
+                bool updateAdvection,
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                 bool renderOptimization,
                 Tex3D<isaac_byte4, T_indexType>& volumeTexture,
@@ -328,18 +330,18 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(enabled)
                 {
-                    if(updateLIC)
+                    if(updateAdvection)
                     {
-                        std::swap(licTextures.textures[I], licTexturesBackBuffer.textures[I]);
-                        GenerateLICTextureKernel<T_Source> kernel;
+                        std::swap(advectionTextures.textures[I], advectionTexturesBackBuffer.textures[I]);
+                        GenerateAdvectionTextureKernel<T_Source> kernel;
                         executeKernelOnVolume<T_Acc>(
                             localSize + T_Source::guardSize * 2,
                             stream,
                             kernel,
                             index,
                             source,
-                            licTextures.textures[I],
-                            licTexturesBackBuffer.textures[I],
+                            advectionTextures.textures[I],
+                            advectionTexturesBackBuffer.textures[I],
                             noiseTexture,
                             isaac_int3(localSize),
                             scale,
@@ -727,9 +729,9 @@ namespace isaac
                 persistentTextureArray,
                 localSize,
                 persistentTextureAllocators,
-                licTextureAllocators,
-                licTextures,
-                licTexturesBackBuffer,
+                advectionTextureAllocators,
+                advectionTextures,
+                advectionTexturesBackBuffer,
                 acc,
                 offset);
 
@@ -1274,7 +1276,7 @@ namespace isaac
             bool redraw = true)
         {
             bool updatePersistentBuffers = redraw;
-            bool updateLIC = redraw;
+            bool updateAdvection = redraw;
 
             myself = this;
 
@@ -1719,10 +1721,10 @@ namespace isaac
                 int offset = vSourceListSize;
                 forEachParams(
                     fieldSources,
-                    UpdateLICTextureIterator(),
+                    UpdateAdvectionTextureIterator(),
                     persistentTextureArray,
-                    licTextures,
-                    licTexturesBackBuffer,
+                    advectionTextures,
+                    advectionTexturesBackBuffer,
                     deviceNoiseTextureAllocator.getTexture(),
                     localSize,
                     transferDevice,
@@ -1732,7 +1734,7 @@ namespace isaac
                     pointer,
                     stream,
                     timeStep,
-                    updateLIC,
+                    updateAdvection,
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                     renderOptimization,
                     combinedVolumeTextureAllocator.getTexture(),
@@ -1758,7 +1760,7 @@ namespace isaac
                         transferDevice,
                         sourceWeight,
                         sourceIsoThreshold,
-                        licTextures,
+                        advectionTextures,
                         combinedVolumeTextureAllocator.getTexture(),
                         combinedIsoTextureAllocator.getTexture());
                 }
@@ -2207,7 +2209,7 @@ namespace isaac
                         myself->transferDevice,
                         myself->sourceIsoThreshold,
                         myself->persistentTextureArray,
-                        myself->licTextures,
+                        myself->advectionTextures,
                         workdiv,
                         myself->interpolation,
                         isaac_scale,
@@ -2335,7 +2337,7 @@ namespace isaac
                         myself->transferDevice,
                         myself->sourceWeight,
                         myself->persistentTextureArray,
-                        myself->licTextures,
+                        myself->advectionTextures,
                         workdiv,
                         myself->interpolation,
                         isaac_scale,
@@ -2727,9 +2729,9 @@ namespace isaac
         std::vector<alpaka::Buf<DevAcc, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferDeviceBuf;
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
         std::vector<Tex3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
-        std::vector<Tex3DAllocator<DevAcc, isaac_float>> licTextureAllocators;
-        PersistentArrayStruct<fSourceListSize> licTextures;
-        PersistentArrayStruct<fSourceListSize> licTexturesBackBuffer;
+        std::vector<Tex3DAllocator<DevAcc, isaac_float>> advectionTextureAllocators;
+        PersistentArrayStruct<fSourceListSize> advectionTextures;
+        PersistentArrayStruct<fSourceListSize> advectionTexturesBackBuffer;
 
         TransferDeviceStruct<combinedSourceListSize> transferDevice;
         TransferHostStruct<combinedSourceListSize> transferHost;

@@ -440,15 +440,15 @@ namespace isaac
     };
 
     template<typename T_Source>
-    struct GenerateLICTextureKernel
+    struct GenerateAdvectionTextureKernel
     {
         template<typename T_Acc>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             const int nr,
             const T_Source source,
-            Tex3D<isaac_float> licTexture,
-            Tex3D<isaac_float> licTextureBackBuffer,
+            Tex3D<isaac_float> advectionTexture,
+            Tex3D<isaac_float> advectionTextureBackBuffer,
             const Tex3D<isaac_float> noiseTexture,
             const isaac_int3 localSize,
             const isaac_float3 scale,
@@ -459,7 +459,7 @@ namespace isaac
             if(!isInUpperBounds(coord, localSize + isaac_int3(2 * T_Source::guardSize)))
                 return;
             coord -= T_Source::guardSize;
-#if 0
+#if 1
             Sampler<FilterType::LINEAR, BorderType::VALUE> sampler;
 
             isaac_float3 vector = source[coord];
@@ -472,13 +472,13 @@ namespace isaac
             // Center coord to voxel and add the vector offset
             isaac_float3 offsetCoord = isaac_float3(coord) + isaac_float(0.5) + offset;
             // Get the interpolated sample with the offset coordinates from the previous frame
-            isaac_float historyValue = sampler.sample(licTextureBackBuffer, offsetCoord);
+            isaac_float historyValue = sampler.sample(advectionTextureBackBuffer, offsetCoord);
             // Sample the noise value
             isaac_float noiseValue = noiseTexture[coord];
 
             // Blend everything together with a falloff weight
-            licTexture[coord] = noiseValue + historyValue * isaac_float(0.95) * (1 - noiseValue);
-            // licTexture[coord] = glm::min(value, isaac_float(1));
+            advectionTexture[coord] = noiseValue + historyValue * isaac_float(0.95) * (1 - noiseValue);
+            // advectionTexture[coord] = glm::min(value, isaac_float(1));
 #else
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
             isaac_float3 fCoord = coord;
@@ -511,7 +511,7 @@ namespace isaac
                 result += (sampler.sample(noiseTexture, fCoord) * (steps - timeStep - i));
                 fCoord += vector * isaac_float(3) / scale;
             }
-            licTexture[coord] = result / isaac_float(30);
+            advectionTexture[coord] = result / isaac_float(30);
 #endif
         }
     };
@@ -576,7 +576,7 @@ namespace isaac
     };
 
     template<ISAAC_IDX_TYPE T_transferSize, int T_Offset>
-    struct MergeLICToCombinedTextureIterator
+    struct MergeAdvectionToCombinedTextureIterator
     {
         template<
             typename T_NR,
@@ -585,7 +585,7 @@ namespace isaac
             typename T_TransferArray,
             typename T_SourceWeight,
             typename T_IsoThreshold,
-            typename T_LicArray>
+            typename T_AdvectionArray>
         ISAAC_DEVICE void operator()(
             const T_NR& nr,
             const T_Source& source,
@@ -594,7 +594,7 @@ namespace isaac
             const T_TransferArray& transferArray,
             const T_SourceWeight& sourceWeight,
             const T_IsoThreshold& sourceIsoThreshold,
-            const T_LicArray& licTextures,
+            const T_AdvectionArray& advectionTextures,
             isaac_float4& volumeColor,
             isaac_float4& isoColor) const
         {
@@ -615,7 +615,7 @@ namespace isaac
                 ISAAC_IDX_TYPE lookupValue = ISAAC_IDX_TYPE(glm::round(texValue * isaac_float(T_transferSize)));
                 lookupValue = glm::clamp(lookupValue, ISAAC_IDX_TYPE(0), T_transferSize - 1);
                 isaac_float4 color = transferArray.pointer[T_NR::value + T_Offset][lookupValue];
-                color.a *= licTextures.textures[T_NR::value][coord];
+                color.a *= advectionTextures.textures[T_NR::value][coord];
                 if(volumeWeight > 0)
                 {
                     isaac_float4 volumeColorSource = color;
@@ -647,7 +647,7 @@ namespace isaac
             typename T_TransferArray,
             typename T_SourceWeight,
             typename T_IsoThreshold,
-            typename T_LicArray,
+            typename T_AdvectionArray,
             IndexType T_indexType>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
@@ -658,7 +658,7 @@ namespace isaac
             const T_TransferArray transferArray,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
-            const T_LicArray licTextures,
+            const T_AdvectionArray advectionTextures,
             Tex3D<isaac_byte4, T_indexType> volumeTexture,
             Tex3D<isaac_byte4, T_indexType> isoTexture) const
         {
@@ -681,13 +681,15 @@ namespace isaac
                 isoColor);
             forEachWithMplParams(
                 fieldSources,
-                MergeLICToCombinedTextureIterator<T_transferSize, boost::mpl::size<T_VolumeSourceList>::type::value>(),
+                MergeAdvectionToCombinedTextureIterator<
+                    T_transferSize,
+                    boost::mpl::size<T_VolumeSourceList>::type::value>(),
                 persistentTextureArray,
                 coord,
                 transferArray,
                 sourceWeight,
                 sourceIsoThreshold,
-                licTextures,
+                advectionTextures,
                 volumeColor,
                 isoColor);
 
