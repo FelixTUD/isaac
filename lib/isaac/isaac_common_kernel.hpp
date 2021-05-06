@@ -715,7 +715,7 @@ namespace isaac
             ditherCoord.z = coord.z % ISAAC_DITHER_SIZE;
             isaac_float ditherValue = ditherTexture[ditherCoord] / isaac_float(255);
 #    endif
-            volumeColor /= 10;
+            volumeColor /= totalWeight;
             volumeColor *= isaac_float(255);
             isaac_int4 volumeColorInt = isaac_int4(volumeColor);
             volumeColorInt += isaac_int4(glm::greaterThan(glm::fract(volumeColor), isaac_float4(ditherValue)));

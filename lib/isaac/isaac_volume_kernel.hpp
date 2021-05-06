@@ -57,7 +57,7 @@ namespace isaac
                 int(SimulationSize.globalSize.x),
                 ISAAC_MIN(int(SimulationSize.globalSize.y), int(SimulationSize.globalSize.z)));
             isaac_float stepSizeUnscaled = stepSize * (glm::length(ray.dir) / glm::length(ray.dir / scale));
-            isaac_float factor = stepSizeUnscaled / min_size * 2.0f * isaac_float(10);
+            isaac_float factor = stepSizeUnscaled / min_size * 2.0f * isaac_float(totalWeight);
             isaac_int startSteps = glm::ceil(ray.startDepth / stepSizeUnscaled);
             isaac_int endSteps = glm::floor(ray.endDepth / stepSizeUnscaled);
             isaac_float3 stepVec = stepSizeUnscaled * ray.dir / scale;
