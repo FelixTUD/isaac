@@ -27,8 +27,9 @@ namespace isaac
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
             GBuffer gBuffer,
-            Tex3D<isaac_byte4, T_indexType> combinedTexture,
-            isaac_float stepSize, // ray stepSize length
+            const Tex3D<isaac_byte4, T_indexType> combinedTexture,
+            const isaac_float stepSize, // ray stepSize length
+            const isaac_float totalWeight,
             const isaac_float3 scale, // isaac set scaling
             const ClippingStruct inputClipping // clipping planes
         ) const
@@ -72,7 +73,7 @@ namespace isaac
                 const Sampler<T_filterType, BorderType::CLAMP, true> sampler;
                 value = sampler.sample(combinedTexture, pos);
                 value *= factor;
-                isaac_float weight = glm::max(isaac_float(1) - color.w, isaac_float(0));
+                isaac_float weight = isaac_float(1) - color.w;
                 color += weight * value;
                 if(color.w > isaac_float(0.99))
                 {
@@ -237,11 +238,11 @@ namespace isaac
                     transferArray,
                     persistentArray,
                     localSize);
-                value.w *= sourceWeight.value[T_NR::value + T_offset];
-                color.x = color.x + value.x * value.w;
-                color.y = color.y + value.y * value.w;
-                color.z = color.z + value.z * value.w;
-                color.w = color.w + value.w;
+                value.a *= sourceWeight.value[T_NR::value + T_offset];
+                color.r += value.r * value.a;
+                color.g += value.g * value.a;
+                color.b += value.b * value.a;
+                color.a += value.a;
             }
         }
     };
@@ -277,11 +278,11 @@ namespace isaac
                         persistentArray,
                         advectionTextureArray,
                         localSize);
-                value.w *= sourceWeight.value[T_NR::value + T_offset];
-                color.x = color.x + value.x * value.w;
-                color.y = color.y + value.y * value.w;
-                color.z = color.z + value.z * value.w;
-                color.w = color.w + value.w;
+                value.a *= sourceWeight.value[T_NR::value + T_offset];
+                color.r += value.r * value.a;
+                color.g += value.g * value.a;
+                color.b += value.b * value.a;
+                color.a += value.a;
             }
         }
     };

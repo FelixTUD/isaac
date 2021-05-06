@@ -656,9 +656,11 @@ namespace isaac
             const T_PersistentArray persistentTextureArray,
             const isaac_int3 localSize,
             const T_TransferArray transferArray,
+            const isaac_float totalWeight,
             const T_SourceWeight sourceWeight,
             const T_IsoThreshold sourceIsoThreshold,
             const T_AdvectionArray advectionTextures,
+            const Tex3D<isaac_byte> ditherTexture,
             Tex3D<isaac_byte4, T_indexType> volumeTexture,
             Tex3D<isaac_byte4, T_indexType> isoTexture) const
         {
@@ -699,20 +701,27 @@ namespace isaac
             isaac_float ditherValue = ditherMask[coord.x % 2 + (coord.y % 2) * 2 + (coord.z % 2) * 4] / isaac_float(8);
             */
 
+#    if 0
             const isaac_byte ditherMask[64]
                 = {17, 46, 55, 1,  57, 7,  38, 31, 9,  52, 2,  54, 36, 26, 19, 44, 53, 20, 47, 22, 29, 60,
                    62, 12, 45, 14, 26, 33, 8,  39, 11, 63, 13, 56, 6,  50, 40, 32, 23, 48, 21, 42, 51, 5,
                    61, 3,  34, 27, 41, 10, 30, 37, 4,  35, 15, 59, 49, 24, 43, 18, 25, 64, 58, 16};
             isaac_float ditherValue
                 = ditherMask[coord.x % 4 + (coord.y % 4) * 4 + (coord.z % 4) * 16] / isaac_float(64);
-
-            volumeColor /= isaac_float(10);
+#    else
+            isaac_int3 ditherCoord;
+            ditherCoord.x = coord.x % ISAAC_DITHER_SIZE;
+            ditherCoord.y = coord.y % ISAAC_DITHER_SIZE;
+            ditherCoord.z = coord.z % ISAAC_DITHER_SIZE;
+            isaac_float ditherValue = ditherTexture[ditherCoord] / isaac_float(255);
+#    endif
+            volumeColor /= 10;
             volumeColor *= isaac_float(255);
             isaac_int4 volumeColorInt = isaac_int4(volumeColor);
             volumeColorInt += isaac_int4(glm::greaterThan(glm::fract(volumeColor), isaac_float4(ditherValue)));
             volumeTexture[coord] = isaac_byte4(glm::clamp(volumeColorInt, isaac_int(0), isaac_int(255)));
 #else
-            volumeColor /= isaac_float(10);
+            volumeColor /= totalWeight;
             volumeColor = clamp(volumeColor, isaac_float(0), isaac_float(1));
             volumeTexture[coord] = isaac_byte4(glm::round(volumeColor * isaac_float(255)));
 #endif

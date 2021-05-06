@@ -243,12 +243,7 @@ namespace isaac
                 typename T_TransferArray,
                 typename T_Weight,
                 typename T_IsoTheshold,
-                typename T_Stream__
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                ,
-                IndexType T_indexType
-#endif
-                >
+                typename T_Stream__>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
@@ -259,11 +254,6 @@ namespace isaac
                 const T_IsoTheshold& isoThreshold,
                 void* pointer,
                 T_Stream__& stream,
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                bool renderOptimization,
-                Tex3D<isaac_byte4, T_indexType>& volumeTexture,
-                Tex3D<isaac_byte4, T_indexType>& isoTexture,
-#endif
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -296,12 +286,7 @@ namespace isaac
                 typename T_AdvectionArray,
                 typename T_Weight,
                 typename T_IsoTheshold,
-                typename T_Stream__
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                ,
-                IndexType T_indexType
-#endif
-                >
+                typename T_Stream__>
             ISAAC_HOST_INLINE void operator()(
                 const int I,
                 T_Source& source,
@@ -317,12 +302,6 @@ namespace isaac
                 void* pointer,
                 T_Stream__& stream,
                 isaac_int timeStep,
-                bool updateAdvection,
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                bool renderOptimization,
-                Tex3D<isaac_byte4, T_indexType>& volumeTexture,
-                Tex3D<isaac_byte4, T_indexType>& isoTexture,
-#endif
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -330,7 +309,6 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(enabled)
                 {
-                    if(updateAdvection)
                     {
                         std::swap(advectionTextures.textures[I], advectionTexturesBackBuffer.textures[I]);
                         GenerateAdvectionTextureKernel<T_Source> kernel;
@@ -634,6 +612,7 @@ namespace isaac
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
             , combinedVolumeTextureAllocator(acc, localSize)
             , combinedIsoTextureAllocator(acc, localSize)
+            , volumeDitherAllocator(acc, isaac_size3(ISAAC_DITHER_SIZE))
 #endif
         {
 #if ISAAC_VALGRIND_TWEAKS == 1
@@ -656,6 +635,23 @@ namespace isaac
             backgroundColor[1] = 0;
             backgroundColor[2] = 0;
             backgroundColor[3] = 1;
+
+            Tex3DAllocator<T_Host, isaac_byte> tmpTexHost(host, isaac_size3(ISAAC_DITHER_SIZE));
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> distrib(0, 255);
+            for(isaac_int z = 0; z < ISAAC_DITHER_SIZE; z++)
+            {
+                for(isaac_int y = 0; y < ISAAC_DITHER_SIZE; y++)
+                {
+                    for(isaac_int x = 0; x < ISAAC_DITHER_SIZE; x++)
+                    {
+                        tmpTexHost.getTexture()[isaac_int3(x, y, z)] = distrib(gen);
+                    }
+                }
+            }
+            tmpTexHost.copyToTexture(stream, volumeDitherAllocator);
+            alpaka::wait(stream);
 
             // INIT
             MPI_Comm_dup(MPI_COMM_WORLD, &mpiWorld);
@@ -1695,57 +1691,50 @@ namespace isaac
 
             if(updatePersistentBuffers)
             {
+                ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
+                if(updateAdvection)
+                {
+                    forEachParams(
+                        volumeSources,
+                        UpdatePersistentTextureIterator(),
+                        persistentTextureArray,
+                        localSize,
+                        transferDevice,
+                        sourceWeight,
+                        sourceIsoThreshold,
+                        pointer,
+                        stream);
+
+                    int offset = vSourceListSize;
+                    forEachParams(
+                        fieldSources,
+                        UpdateAdvectionTextureIterator(),
+                        persistentTextureArray,
+                        advectionTextures,
+                        advectionTexturesBackBuffer,
+                        deviceNoiseTextureAllocator.getTexture(),
+                        localSize,
+                        transferDevice,
+                        scale,
+                        sourceWeight,
+                        sourceIsoThreshold,
+                        pointer,
+                        stream,
+                        timeStep,
+                        offset);
+
+                    offset = volumeFieldSourceListSize;
+                    forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
+                }
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+
                 combinedVolumeTextureAllocator.clearColor(stream);
                 combinedIsoTextureAllocator.clearColor(stream);
-#endif
-                ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
-                forEachParams(
-                    volumeSources,
-                    UpdatePersistentTextureIterator(),
-                    persistentTextureArray,
-                    localSize,
-                    transferDevice,
-                    sourceWeight,
-                    sourceIsoThreshold,
-                    pointer,
-                    stream
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                    ,
-                    renderOptimization,
-                    combinedVolumeTextureAllocator.getTexture(),
-                    combinedIsoTextureAllocator.getTexture()
-#endif
-                );
-
-                int offset = vSourceListSize;
-                forEachParams(
-                    fieldSources,
-                    UpdateAdvectionTextureIterator(),
-                    persistentTextureArray,
-                    advectionTextures,
-                    advectionTexturesBackBuffer,
-                    deviceNoiseTextureAllocator.getTexture(),
-                    localSize,
-                    transferDevice,
-                    scale,
-                    sourceWeight,
-                    sourceIsoThreshold,
-                    pointer,
-                    stream,
-                    timeStep,
-                    updateAdvection,
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-                    renderOptimization,
-                    combinedVolumeTextureAllocator.getTexture(),
-                    combinedIsoTextureAllocator.getTexture(),
-#endif
-                    offset);
-
-                offset = volumeFieldSourceListSize;
-                forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
-
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+                isaac_float totalWeight = 0;
+                for(int i = 0; i < volumeFieldSourceListSize; i++)
+                {
+                    totalWeight += sourceWeight.value[i];
+                }
                 if(renderOptimization)
                 {
                     MergeToCombinedTextureKernel<T_transferSize> kernel;
@@ -1758,9 +1747,11 @@ namespace isaac
                         persistentTextureArray,
                         isaac_int3(localSize),
                         transferDevice,
+                        totalWeight,
                         sourceWeight,
                         sourceIsoThreshold,
                         advectionTextures,
+                        volumeDitherAllocator.getTexture(),
                         combinedVolumeTextureAllocator.getTexture(),
                         combinedIsoTextureAllocator.getTexture());
                 }
@@ -2271,13 +2262,12 @@ namespace isaac
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
             if(myself->renderOptimization)
             {
-                bool anyVolumeSourceActive = false;
-                for(int i = 0; i < volumeFieldSourceListSize; ++i)
+                isaac_float totalWeight = 0;
+                for(int i = 0; i < combinedSourceListSize; i++)
                 {
-                    if(myself->sourceWeight.value[i] > 0)
-                        anyVolumeSourceActive = true;
+                    totalWeight += myself->sourceWeight.value[i];
                 }
-                if(anyVolumeSourceActive)
+                if(totalWeight > 0)
                 {
                     if(myself->interpolation)
                     {
@@ -2288,6 +2278,7 @@ namespace isaac
                             gBuffer,
                             myself->combinedVolumeTextureAllocator.getTexture(),
                             myself->step,
+                            totalWeight,
                             isaac_scale,
                             myself->clipping));
                         alpaka::enqueue(myself->stream, instance);
@@ -2301,6 +2292,7 @@ namespace isaac
                             gBuffer,
                             myself->combinedVolumeTextureAllocator.getTexture(),
                             myself->step,
+                            totalWeight,
                             isaac_scale,
                             myself->clipping));
                         alpaka::enqueue(myself->stream, instance);
@@ -2660,6 +2652,8 @@ namespace isaac
         Tex3DAllocator<DevAcc, isaac_byte4> combinedVolumeTextureAllocator;
         Tex3DAllocator<DevAcc, isaac_byte4> combinedIsoTextureAllocator;
 #    endif
+
+        Tex3DAllocator<DevAcc, isaac_byte> volumeDitherAllocator;
 #endif
 
 
