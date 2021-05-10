@@ -470,7 +470,7 @@ namespace isaac
             Tex3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize);
             tmpTex.clearColor(stream);
             alpaka::wait(stream);
-#if 1
+#if 0
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threadElements(
                 ISAAC_IDX_TYPE(1),
                 ISAAC_IDX_TYPE(1),
@@ -486,6 +486,7 @@ namespace isaac
                 = alpaka::createTaskKernel<T_Acc>(workdiv, haltonKernel, tmpTex.getTexture(), seedNumber);
             alpaka::enqueue(stream, haltonKernelInstance);
 #else
+#    if 1
             Tex3DAllocator<T_Host, isaac_float> tmpTexHost(host, localSize);
             for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
             {
@@ -493,22 +494,41 @@ namespace isaac
                 {
                     for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
                     {
-                        isaac_float value = std::rand() / isaac_float(RAND_MAX);
-                        if(value > isaac_float(20000) / isaac_float(localSize.x * localSize.y * localSize.z))
+                        // isaac_float value = std::rand() / isaac_float(RAND_MAX);
+                        // make value smaller to avoid artefacts
+                        isaac_float3 smallValue = glm::sin(isaac_float3(x, y, z));
+                        // get scalar value from 3d vector
+                        isaac_float value = glm::dot(smallValue, isaac_float3(12.9898, 78.233, 37.719));
+                        // make value more random by making it bigger and then taking teh factional part
+                        value = glm::fract(glm::sin(value) * 143758.5453);
+                        if(value > isaac_float(seedNumber) / isaac_float(localSize.x * localSize.y * localSize.z))
                             value = 0;
                         else
                             value = 1;
-                        // isaac_float value = 0;
-                        // if((x % 16) * (y % 16) == 0)
-                        //    value = 1;
                         tmpTexHost.getTexture()[isaac_int3(x, y, z)] = value;
-                        // hostNoiseTextureAllocator.getTexture()[isaac_int3(x, y, z)] =
-                        // sampler.sample(tmpTex.getTexture(), isaac_float3(x, y, z));
                     }
                 }
             }
             tmpTexHost.copyToTexture(stream, tmpTex);
             alpaka::wait(stream);
+#    else
+            Tex3DAllocator<T_Host, isaac_float> tmpTexHost(host, localSize);
+            for(isaac_int z = 0; z < isaac_int(localSize.z); z++)
+            {
+                for(isaac_int y = 0; y < isaac_int(localSize.y); y++)
+                {
+                    for(isaac_int x = 0; x < isaac_int(localSize.x); x++)
+                    {
+                        isaac_float value = 0;
+                        if((x % 16) * (y % 16) * (z % 16) == 15 * 15 * 15)
+                            value = 1;
+                        tmpTexHost.getTexture()[isaac_int3(x, y, z)] = value;
+                    }
+                }
+            }
+            tmpTexHost.copyToTexture(stream, tmpTex);
+            alpaka::wait(stream);
+#    endif
 #endif
             GaussBlur7Kernel gaussKernel;
             executeKernelOnVolume<T_Acc>(

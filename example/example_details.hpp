@@ -46,6 +46,7 @@ void updateVectorField(
 {
     using namespace isaac;
     float s = sin(pos * 10);
+    s = 1;
     for(ISAAC_IDX_TYPE x = 0; x < localSize.x; x++)
     {
         for(ISAAC_IDX_TYPE y = 0; y < localSize.y; y++)

@@ -23,9 +23,9 @@
 
 using namespace isaac;
 
-#define VOLUME_X 256
-#define VOLUME_Y 256
-#define VOLUME_Z 256
+#define VOLUME_X 128
+#define VOLUME_Y 128
+#define VOLUME_Z 128
 
 #define PARTICLE_VOLUME_X 64
 #define PARTICLE_VOLUME_Y 64
@@ -434,6 +434,7 @@ int main(int argc, char** argv)
     {
         json_object_set_new(visualization->getJsonMetaRoot(), "interval", json_integer(interval));
     }
+    // pause = true;
     // Main loop
     while(!forceExit)
     {

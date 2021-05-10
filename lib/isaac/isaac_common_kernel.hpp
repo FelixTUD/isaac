@@ -384,7 +384,7 @@ namespace isaac
                     coord.z + mask.z * i / isaac_float(scale.z));
                 result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
             }
-            dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(6);
+            dstTex[isaac_int3(coord.x, coord.y, coord.z)] = glm::min(result / isaac_float(6), isaac_float(1));
         }
     };
 
@@ -414,7 +414,7 @@ namespace isaac
                     coord.z + mask.z * i / isaac_float(scale.z));
                 result += sampler.sample(srcTex, sampleCoord) * gauss5[glm::abs(i)];
             }
-            dstTex[isaac_int3(coord.x, coord.y, coord.z)] = result / isaac_float(64);
+            dstTex[isaac_int3(coord.x, coord.y, coord.z)] = glm::min(result / isaac_float(64), isaac_float(1));
         }
     };
 
@@ -701,7 +701,7 @@ namespace isaac
             isaac_float ditherValue = ditherMask[coord.x % 2 + (coord.y % 2) * 2 + (coord.z % 2) * 4] / isaac_float(8);
             */
 
-#    if 0
+#    if 1
             const isaac_byte ditherMask[64]
                 = {17, 46, 55, 1,  57, 7,  38, 31, 9,  52, 2,  54, 36, 26, 19, 44, 53, 20, 47, 22, 29, 60,
                    62, 12, 45, 14, 26, 33, 8,  39, 11, 63, 13, 56, 6,  50, 40, 32, 23, 48, 21, 42, 51, 5,
@@ -725,6 +725,7 @@ namespace isaac
             volumeColor = clamp(volumeColor, isaac_float(0), isaac_float(1));
             volumeTexture[coord] = isaac_byte4(glm::round(volumeColor * isaac_float(255)));
 #endif
+
             isoColor = clamp(isoColor, isaac_float(0), isaac_float(1));
             isoTexture[coord] = isaac_byte4(glm::round(isoColor * isaac_float(255)));
         }
