@@ -62,7 +62,7 @@ namespace isaac
         ISAAC_HOST_DEVICE_INLINE void init(
             T_Type* bufferPtr,
             const isaac_size_dim<T_textureDim>& size,
-            ISAAC_IDX_TYPE guardSize = 0)
+            const isaac_size_dim<T_textureDim>& guardSize = isaac_size_dim<T_textureDim>(0))
         {
             this->bufferPtr = bufferPtr;
             this->size = size;
@@ -72,7 +72,7 @@ namespace isaac
 
         ISAAC_HOST_DEVICE_INLINE T_Type operator[](const isaac_int_dim<T_textureDim>& coord) const
         {
-            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
+            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int_dim<T_textureDim>(guardSize);
             assert(isInUpperBounds(offsetCoord, sizeWithGuard));
             return bufferPtr[hash(offsetCoord)];
         }
@@ -80,7 +80,7 @@ namespace isaac
 
         ISAAC_HOST_DEVICE_INLINE T_Type& operator[](const isaac_int_dim<T_textureDim>& coord)
         {
-            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int(guardSize);
+            isaac_uint_dim<T_textureDim> offsetCoord = coord + isaac_int_dim<T_textureDim>(guardSize);
             assert(isInUpperBounds(offsetCoord, sizeWithGuard));
             return bufferPtr[hash(offsetCoord)];
         }
@@ -114,7 +114,7 @@ namespace isaac
         {
             return sizeWithGuard;
         }
-        ISAAC_HOST_DEVICE_INLINE ISAAC_IDX_TYPE getGuardSize() const
+        ISAAC_HOST_DEVICE_INLINE isaac_size_dim<T_textureDim> getGuardSize() const
         {
             return guardSize;
         }
@@ -156,7 +156,7 @@ namespace isaac
         T_Type* bufferPtr = nullptr;
         isaac_size_dim<T_textureDim> size;
         isaac_size_dim<T_textureDim> sizeWithGuard;
-        ISAAC_IDX_TYPE guardSize;
+        isaac_size_dim<T_textureDim> guardSize;
     };
 
 
@@ -213,7 +213,7 @@ namespace isaac
             const T_Type& borderValue = T_Type(0)) const
         {
             const isaac_size_dim<T_textureDim> sizeWithGuard = texture.getSizeWithGuard();
-            const ISAAC_IDX_TYPE guardSize = texture.getGuardSize();
+            const isaac_size_dim<T_textureDim> guardSize = texture.getGuardSize();
 
             isaac_int_dim<T_textureDim> offsetCoord;
             if(T_border == BorderType::REPEAT)
@@ -221,13 +221,13 @@ namespace isaac
                 // Modulo modification to also account for negative values
                 for(int i = 0; i < T_textureDim; ++i)
                 {
-                    offsetCoord[i] = (sizeWithGuard[i] + ((coord[i] + isaac_int(guardSize)) % sizeWithGuard[i]))
+                    offsetCoord[i] = (sizeWithGuard[i] + ((coord[i] + isaac_int(guardSize[i])) % sizeWithGuard[i]))
                         % sizeWithGuard[i];
                 }
             }
             else if(T_border == BorderType::VALUE)
             {
-                offsetCoord = coord + isaac_int(guardSize);
+                offsetCoord = coord + isaac_int_dim<T_textureDim>(guardSize);
                 if(!isInLowerBounds(offsetCoord, isaac_int_dim<T_textureDim>(0))
                    || !isInUpperBounds(offsetCoord, isaac_int_dim<T_textureDim>(sizeWithGuard)))
                     return borderValue;
@@ -235,11 +235,11 @@ namespace isaac
             else
             {
                 offsetCoord = glm::clamp(
-                    coord + isaac_int(guardSize),
+                    coord + isaac_int_dim<T_textureDim>(guardSize),
                     isaac_int_dim<T_textureDim>(0),
                     isaac_int_dim<T_textureDim>(sizeWithGuard) - 1);
             }
-            return texture[offsetCoord - isaac_int(guardSize)];
+            return texture[offsetCoord - isaac_int_dim<T_textureDim>(guardSize)];
         }
 
         template<typename T_Type, IndexType T_indexType>
@@ -272,7 +272,7 @@ namespace isaac
             isaac_float data8[2][2][2];
             if(T_border == BorderType::CLAMP)
             {
-                const ISAAC_IDX_TYPE guardSize = texture.getGuardSize();
+                const isaac_size3 guardSize = texture.getGuardSize();
                 const isaac_size3 sizeWithGuard = texture.getSizeWithGuard();
 
                 coord = glm::clamp(
@@ -376,7 +376,7 @@ namespace isaac
         TextureAllocator(
             const T_DevAcc& devAcc,
             const isaac_size_dim<T_textureDim>& size,
-            ISAAC_IDX_TYPE guardSize = 0)
+            const isaac_size_dim<T_textureDim>& guardSize = isaac_size_dim<T_textureDim>(0))
             : bufferExtent(0)
             , buffer(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, bufferExtent))
         {

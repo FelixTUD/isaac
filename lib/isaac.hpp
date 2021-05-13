@@ -166,7 +166,7 @@ namespace isaac
                 if(!T_Source::persistent)
                 {
                     allocatorVector.push_back(
-                        Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                        Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
                     persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
                 }
             }
@@ -193,14 +193,15 @@ namespace isaac
                 const T_DevAcc& acc,
                 const int offset = 0) const
             {
-                allocatorVector.push_back(Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                allocatorVector.push_back(
+                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
                 persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
 
                 advectionAllocators.push_back(
-                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
                 advectionTextures.textures[I] = advectionAllocators.back().getTexture();
                 advectionAllocators.push_back(
-                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, T_Source::guardSize));
+                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
                 advectionTexturesBackBuffer.textures[I] = advectionAllocators.back().getTexture();
             }
         };
@@ -1777,7 +1778,7 @@ namespace isaac
                 }
 #endif
 
-                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
+                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, =, buffer, getTicksUs())
             }
             ISAAC_WAIT_VISUALIZATION
 
@@ -1879,13 +1880,13 @@ namespace isaac
                         }
                     }
                     icetCompositeOrder(icetOrderArray);
-                    ISAAC_STOP_TIME_MEASUREMENT(sortingTime, +=, sorting, getTicksUs())
+                    ISAAC_STOP_TIME_MEASUREMENT(sortingTime, =, sorting, getTicksUs())
 
                     // Drawing
                     ISAAC_START_TIME_MEASUREMENT(merge, getTicksUs())
                     image[pass]
                         = icetDrawFrame(glm::value_ptr(projections[pass]), glm::value_ptr(modelview), backgroundColor);
-                    ISAAC_STOP_TIME_MEASUREMENT(mergeTime, +=, merge, getTicksUs())
+                    ISAAC_STOP_TIME_MEASUREMENT(mergeTime, =, merge, getTicksUs())
                 }
             }
             else
@@ -2361,7 +2362,7 @@ namespace isaac
 #endif
 
             // stop and restart time for delta calculation
-            ISAAC_STOP_TIME_MEASUREMENT(myself->kernelTime, +=, kernel, myself->getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->kernelTime, =, kernel, myself->getTicksUs())
             ISAAC_START_TIME_MEASUREMENT(copy, myself->getTicksUs())
 
             // get memory view from IceT pixels on host
@@ -2374,7 +2375,7 @@ namespace isaac
             myself->framebuffer.copyToBuffer(myself->stream, result_buffer);
 
             // stop timer and calculate copy time
-            ISAAC_STOP_TIME_MEASUREMENT(myself->copyTime, +=, copy, myself->getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->copyTime, =, copy, myself->getTicksUs())
         }
 
 
@@ -2612,7 +2613,7 @@ namespace isaac
                     myself->communicator->serverSend(NULL, false, true);
                 }
             }
-            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, +=, video_send, myself->getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, =, video_send, myself->getTicksUs())
             myself->metaNr++;
             return 0;
         }
