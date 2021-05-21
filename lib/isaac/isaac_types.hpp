@@ -128,6 +128,24 @@ namespace isaac
         isaac_size3 localSizeScaled; // same as globalSizeScaled
     };
 
+    template<typename T_Type>
+    struct Neighbours
+    {
+        T_Type array[27];
+
+        T_Type& get(isaac_int3 signedSide)
+        {
+            signedSide += isaac_int(1);
+            return array[signedSide.x + signedSide.y * 3 + signedSide.z * 9];
+        }
+
+        void set(isaac_int3 signedSide, T_Type element)
+        {
+            signedSide += isaac_int(1);
+            array[signedSide.x + signedSide.y * 3 + signedSide.z * 9] = element;
+        }
+    };
+
     template<int T_n>
     struct ZeroCheck
     {

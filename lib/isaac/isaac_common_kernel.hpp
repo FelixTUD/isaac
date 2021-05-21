@@ -439,6 +439,88 @@ namespace isaac
         }
     };
 
+    struct SyncToOwnGuard
+    {
+        template<typename T_Acc, typename T_SrcTexture, typename T_DstTexture>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            const isaac_int3 side,
+            const T_SrcTexture srcTexture,
+            T_DstTexture guardTexture) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
+            if(!isInUpperBounds(coord, isaac_int3(guardTexture.getSize())))
+                return;
+
+            isaac_int3 srcCoord = glm::max(side, isaac_int(0))
+                * (isaac_int3(srcTexture.getSize()) - isaac_int3(guardTexture.getSize()) - isaac_int(1));
+            srcCoord += glm::abs(side) * isaac_int3(coord);
+            srcCoord += (isaac_int(1) - glm::abs(side)) * coord;
+
+            /*
+            printf(
+                "%d, %d, %d; %d, %d, %d; %d, %d, %d; %d, %d, %d\n",
+                guardTexture.getSize().x,
+                guardTexture.getSize().y,
+                guardTexture.getSize().z,
+                side.x,
+                side.y,
+                side.z,
+                coord.x,
+                coord.y,
+                coord.z,
+                srcCoord.x,
+                srcCoord.y,
+                srcCoord.z);
+            */
+
+            guardTexture[coord] = srcTexture[srcCoord];
+        }
+    };
+
+    struct SyncFromNeighbourGuard
+    {
+        template<typename T_Acc, typename T_SrcTexture, typename T_DstTexture>
+        ISAAC_DEVICE void operator()(
+            T_Acc const& acc,
+            const isaac_int3 side,
+            const T_SrcTexture guardTexture,
+            T_DstTexture mainTexture) const
+        {
+            auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
+            isaac_int3 coord = {isaac_int(alpThreadIdx[2]), isaac_int(alpThreadIdx[1]), isaac_int(alpThreadIdx[0])};
+            if(!isInUpperBounds(coord, isaac_int3(guardTexture.getSize())))
+                return;
+
+            isaac_int3 dstCoord = glm::max(side, isaac_int(0)) * (isaac_int3(mainTexture.getSize()) - isaac_int(1));
+            dstCoord += glm::min(side, isaac_int(0)) * isaac_int3(guardTexture.getSize());
+            dstCoord += glm::abs(side) * isaac_int3(coord);
+            dstCoord += (isaac_int(1) - glm::abs(side)) * coord;
+            /*
+            // if(!isInUpperBounds(dstCoord + mainTexture.getGuardSize(), mainTexture.getSizeWithGuard())
+            //   && !isInLowerBounds(dstCoord + mainTexture.getGuardSize(), isaac_int3(0)))
+            {
+                printf(
+                    "%d, %d, %d; %d, %d, %d; %d, %d, %d; %d, %d, %d\n",
+                    guardTexture.getSize().x,
+                    guardTexture.getSize().y,
+                    guardTexture.getSize().z,
+                    side.x,
+                    side.y,
+                    side.z,
+                    coord.x,
+                    coord.y,
+                    coord.z,
+                    dstCoord.x,
+                    dstCoord.y,
+                    dstCoord.z);
+            }
+            */
+            mainTexture[dstCoord] = guardTexture[coord];
+        }
+    };
+
     template<typename T_Source>
     struct GenerateAdvectionTextureKernel
     {

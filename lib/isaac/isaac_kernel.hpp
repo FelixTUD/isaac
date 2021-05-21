@@ -24,10 +24,10 @@
 
 namespace isaac
 {
-    template<typename T_Acc, typename T_Stream, typename T_KernelFnObj, typename... T_Args>
+    template<typename T_Acc, typename T_Queue, typename T_KernelFnObj, typename... T_Args>
     inline void executeKernelOnVolume(
         isaac_size3 volumeSize,
-        T_Stream& stream,
+        T_Queue& queue,
         const T_KernelFnObj& kernelFnObj,
         T_Args&&... args)
     {
@@ -48,7 +48,76 @@ namespace isaac
         const alpaka::Vec<Dim, ISAAC_IDX_TYPE> grid(gridSize.z, gridSize.y, gridSize.x);
         auto const workdiv = alpaka::WorkDivMembers<Dim, ISAAC_IDX_TYPE>(grid, blocks, threadElements);
         auto const instance = alpaka::createTaskKernel<T_Acc>(workdiv, kernelFnObj, args...);
-        alpaka::enqueue(stream, instance);
-        alpaka::wait(stream);
+        alpaka::enqueue(queue, instance);
+    }
+
+    template<typename T_Acc, typename T_Queue, typename T_AccDev, typename T_Type, IndexType T_indexType>
+    void syncOwnGuardTextures(
+        T_Queue& queue,
+        SyncedTexture3DAllocator<T_AccDev, T_Type, T_indexType>& texture,
+        Neighbours<isaac_int>& neighbourIds)
+    {
+        const SyncToOwnGuard kernel;
+        for(int z = 0; z < 3; z++)
+        {
+            for(int y = 0; y < 3; y++)
+            {
+                for(int x = 0; x < 3; x++)
+                {
+                    if(x != 1 || y != 1 || z != 1)
+                    {
+                        isaac_int3 side(x, y, z);
+                        isaac_int3 signedSide = side - ISAAC_IDX_TYPE(1);
+                        if(neighbourIds.get(signedSide) != -1)
+                        {
+                            Texture<T_Type, 3>& dstTexture = texture.getOwnGuardTexture(signedSide);
+                            executeKernelOnVolume<T_Acc>(
+                                dstTexture.getSize(),
+                                queue,
+                                kernel,
+                                signedSide,
+                                texture.getTexture(),
+                                dstTexture);
+                        }
+                    }
+                }
+            }
+        }
+        alpaka::wait(queue);
+    }
+
+    template<typename T_Acc, typename T_Queue, typename T_AccDev, typename T_Type, IndexType T_indexType>
+    void syncNeighbourGuardTextures(
+        T_Queue& queue,
+        SyncedTexture3DAllocator<T_AccDev, T_Type, T_indexType>& texture,
+        Neighbours<isaac_int>& neighbourIds)
+    {
+        const SyncFromNeighbourGuard kernel;
+        for(int z = 0; z < 3; z++)
+        {
+            for(int y = 0; y < 3; y++)
+            {
+                for(int x = 0; x < 3; x++)
+                {
+                    if(x != 1 || y != 1 || z != 1)
+                    {
+                        isaac_int3 side(x, y, z);
+                        isaac_int3 signedSide = side - ISAAC_IDX_TYPE(1);
+                        if(neighbourIds.get(signedSide) != -1)
+                        {
+                            Texture<T_Type, 3>& guardTexture = texture.getNeighbourGuardTexture(signedSide);
+                            executeKernelOnVolume<T_Acc>(
+                                guardTexture.getSize(),
+                                queue,
+                                kernel,
+                                signedSide,
+                                guardTexture,
+                                texture.getTexture());
+                        }
+                    }
+                }
+            }
+        }
+        alpaka::wait(queue);
     }
 } // namespace isaac

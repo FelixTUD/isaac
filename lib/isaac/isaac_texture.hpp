@@ -451,6 +451,140 @@ namespace isaac
         alpaka::Buf<T_DevAcc, T_Type, FraDim, ISAAC_IDX_TYPE> buffer;
     };
 
+    template<typename T_DevAcc, typename T_Type, IndexType T_indexType = IndexType::SWEEP>
+    class SyncedTexture3DAllocator
+    {
+        using FraDim = alpaka::DimInt<1>;
+
+    public:
+        SyncedTexture3DAllocator(
+            const T_DevAcc& devAcc,
+            const isaac_size3& size,
+            const isaac_size3& guardSize = isaac_size3(0))
+            : bufferExtent(0)
+            , buffer(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, bufferExtent))
+        {
+            const isaac_size3 sizeWithGuard = size + ISAAC_IDX_TYPE(2) * guardSize;
+
+            ISAAC_IDX_TYPE totalAllocation = 0;
+            if(T_indexType == IndexType::MORTON)
+            {
+                ISAAC_IDX_TYPE maxDim = sizeWithGuard[0];
+                std::cout << sizeWithGuard[0] << ", ";
+                for(int i = 1; i < 3; ++i)
+                {
+                    std::cout << sizeWithGuard[i] << ", ";
+                    maxDim = glm::max(maxDim, sizeWithGuard[i]);
+                }
+                bufferExtent = glm::pow(maxDim, ISAAC_IDX_TYPE(3));
+                std::cout << std::endl << bufferExtent << std::endl;
+            }
+            else
+            {
+                bufferExtent = sizeWithGuard[0];
+                for(int i = 1; i < 3; ++i)
+                {
+                    bufferExtent *= (sizeWithGuard[i]);
+                }
+            }
+
+            buffer = alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, bufferExtent);
+            totalAllocation += bufferExtent;
+            texture.init(alpaka::getPtrNative(buffer), size, guardSize);
+
+            std::cout << "Guard buffer allocations: " << std::endl;
+            for(int z = 0; z < 3; z++)
+            {
+                for(int y = 0; y < 3; y++)
+                {
+                    for(int x = 0; x < 3; x++)
+                    {
+                        if(x != 1 || y != 1 || z != 1)
+                        {
+                            isaac_int3 side(x, y, z);
+                            isaac_int3 signedSide = side - ISAAC_IDX_TYPE(1);
+                            isaac_size3 guardTexSize = isaac_size3(glm::abs(signedSide)) * guardSize;
+                            guardTexSize += (ISAAC_IDX_TYPE(1) - isaac_size3(glm::abs(signedSide))) * size;
+
+                            ISAAC_IDX_TYPE extent = guardTexSize.x * guardTexSize.y * guardTexSize.z;
+                            ownGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
+                            totalAllocation += extent;
+                            ownGuardTextures.get(signedSide)
+                                .init(alpaka::getPtrNative(ownGuardBuffers.back()), guardTexSize);
+
+                            neighbourGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
+                            totalAllocation += extent;
+                            neighbourGuardTextures.get(signedSide)
+                                .init(alpaka::getPtrNative(neighbourGuardBuffers.back()), guardTexSize);
+
+                            std::cout << "side: (" << signedSide.x << ", " << signedSide.y << ", " << signedSide.z
+                                      << ")";
+                            std::cout << " size: (" << guardTexSize.x << ", " << guardTexSize.y << ", "
+                                      << guardTexSize.z << ")" << std::endl;
+                        }
+                    }
+                }
+            }
+            totalAllocation *= sizeof(T_Type);
+            std::cout << "Total Allocation size: " << totalAllocation / float(1024 * 1024) << " MB" << std::endl;
+        }
+
+        template<typename T_Queue, typename T_ViewDst>
+        void copyToBuffer(T_Queue& queue, T_ViewDst& viewDst) const
+        {
+            alpaka::memcpy(queue, viewDst, buffer, bufferExtent);
+        }
+
+        template<typename T_Queue, typename T_TextureAllocator>
+        void copyToTexture(T_Queue& queue, T_TextureAllocator& textureDst) const
+        {
+            assert(bufferExtent == textureDst.getBufferExtent());
+            alpaka::memcpy(queue, textureDst.getTextureView(), buffer, bufferExtent);
+        }
+
+        template<typename T_Queue>
+        void clearColor(T_Queue& queue)
+        {
+            alpaka::memset(queue, buffer, 0, bufferExtent);
+        }
+
+        Texture<T_Type, 3, T_indexType>& getTexture()
+        {
+            return texture;
+        }
+
+        Texture<T_Type, 3>& getOwnGuardTexture(isaac_int3 signedSide)
+        {
+            return ownGuardTextures.get(signedSide);
+        }
+
+        Texture<T_Type, 3>& getNeighbourGuardTexture(isaac_int3 signedSide)
+        {
+            return neighbourGuardTextures.get(signedSide);
+        }
+
+        alpaka::Buf<T_DevAcc, T_Type, FraDim, ISAAC_IDX_TYPE>& getTextureView()
+        {
+            return buffer;
+        }
+
+        ISAAC_IDX_TYPE getBufferExtent()
+        {
+            return bufferExtent;
+        }
+
+    private:
+        Texture<T_Type, 3, T_indexType> texture;
+        Neighbours<Texture<T_Type, 3>> ownGuardTextures;
+        Neighbours<Texture<T_Type, 3>> neighbourGuardTextures;
+
+        ISAAC_IDX_TYPE bufferExtent;
+
+        alpaka::Buf<T_DevAcc, T_Type, FraDim, ISAAC_IDX_TYPE> buffer;
+        std::vector<alpaka::Buf<T_DevAcc, T_Type, FraDim, ISAAC_IDX_TYPE>> ownGuardBuffers;
+        std::vector<alpaka::Buf<T_DevAcc, T_Type, FraDim, ISAAC_IDX_TYPE>> neighbourGuardBuffers;
+    };
+
 
     template<typename T_Type, IndexType T_indexType = IndexType::SWEEP>
     using Tex2D = Texture<T_Type, 2, T_indexType>;
@@ -494,9 +628,8 @@ namespace isaac
         Tex3DAllocator<T_DevAcc, isaac_byte4> color;
         Tex3DAllocator<T_DevAcc, isaac_float> alpha;
 #endif
-        CombinedTextureAllocator(const T_DevAcc& devAcc, const isaac_size3& size, ISAAC_IDX_TYPE guardSize = 0)
-            : color(devAcc, size, guardSize)
-            , alpha(devAcc, size, guardSize)
+        CombinedTextureAllocator(const T_DevAcc& devAcc, const isaac_size3& size, ISAAC_IDX_TYPE guardSize
+= 0) : color(devAcc, size, guardSize) , alpha(devAcc, size, guardSize)
         {
         }
 

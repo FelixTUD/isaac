@@ -179,6 +179,7 @@ namespace isaac
                 typename T_Array,
                 typename T_LocalSize,
                 typename T_Vector,
+                typename T_AdvectionVector,
                 typename T_AdvectionArray,
                 typename T_DevAcc>
             ISAAC_HOST_INLINE void operator()(
@@ -187,7 +188,7 @@ namespace isaac
                 T_Array& persistentTextureArray,
                 const T_LocalSize& localSize,
                 T_Vector& allocatorVector,
-                T_Vector& advectionAllocators,
+                T_AdvectionVector& advectionAllocators,
                 T_AdvectionArray& advectionTextures,
                 T_AdvectionArray& advectionTexturesBackBuffer,
                 const T_DevAcc& acc,
@@ -198,10 +199,10 @@ namespace isaac
                 persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
 
                 advectionAllocators.push_back(
-                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
+                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(1, 3, 3)));
                 advectionTextures.textures[I] = advectionAllocators.back().getTexture();
                 advectionAllocators.push_back(
-                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
+                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(1, 3, 3)));
                 advectionTexturesBackBuffer.textures[I] = advectionAllocators.back().getTexture();
             }
         };
@@ -273,6 +274,7 @@ namespace isaac
                             source,
                             persistentTextureArray.textures[index],
                             isaac_int3(localSize));
+                        alpaka::wait(stream);
                     }
                 }
             }
@@ -325,6 +327,7 @@ namespace isaac
                             isaac_int3(localSize),
                             scale,
                             timeStep);
+                        alpaka::wait(stream);
                     }
                     {
                         UpdatePersistendTextureKernel<T_Source> kernel;
@@ -336,6 +339,7 @@ namespace isaac
                             source,
                             persistentTextureArray.textures[index],
                             isaac_int3(localSize));
+                        alpaka::wait(stream);
                     }
                 }
             }
@@ -377,6 +381,7 @@ namespace isaac
                         alpaka::getPtrNative(localMinMax),
                         localSize,
                         persistentTextureArray.textures[index]);
+                    alpaka::wait(stream);
 
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
                         localMinMaxHostArray,
@@ -438,6 +443,7 @@ namespace isaac
                         I + T_offset,
                         alpaka::getPtrNative(localMinMax),
                         localSize);
+                    alpaka::wait(stream);
 
                     alpaka::ViewPlainPtr<T_Host, MinMax, FraDim, ISAAC_IDX_TYPE> minMaxBuffer(
                         localMinMaxHostArray,
@@ -540,6 +546,7 @@ namespace isaac
                 deviceNoiseTextureAllocator.getTexture(),
                 scale,
                 isaac_float3(1, 0, 0));
+            alpaka::wait(stream);
             executeKernelOnVolume<T_Acc>(
                 localSize,
                 stream,
@@ -548,6 +555,7 @@ namespace isaac
                 tmpTex.getTexture(),
                 scale,
                 isaac_float3(0, 1, 0));
+            alpaka::wait(stream);
             executeKernelOnVolume<T_Acc>(
                 localSize,
                 stream,
@@ -556,6 +564,7 @@ namespace isaac
                 deviceNoiseTextureAllocator.getTexture(),
                 scale,
                 isaac_float3(0, 0, 1));
+            alpaka::wait(stream);
         }
 
 
@@ -656,6 +665,11 @@ namespace isaac
             backgroundColor[1] = 0;
             backgroundColor[2] = 0;
             backgroundColor[3] = 1;
+
+            for(isaac_int& id : neighbourNodeIds.array)
+            {
+                id = 0;
+            }
 
             Tex3DAllocator<T_Host, isaac_byte> tmpTexHost(host, isaac_size3(ISAAC_DITHER_SIZE));
             std::random_device rd;
@@ -1746,6 +1760,11 @@ namespace isaac
 
                     offset = volumeFieldSourceListSize;
                     forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
+                    for(auto& advectionTextureAllocator : advectionTextureAllocators)
+                    {
+                        syncOwnGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
+                        syncNeighbourGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
+                    }
                 }
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
 
@@ -1775,6 +1794,7 @@ namespace isaac
                         volumeDitherAllocator.getTexture(),
                         combinedVolumeTextureAllocator.getTexture(),
                         combinedIsoTextureAllocator.getTexture());
+                    alpaka::wait(stream);
                 }
 #endif
 
@@ -2744,9 +2764,11 @@ namespace isaac
         std::vector<alpaka::Buf<DevAcc, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferDeviceBuf;
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
         std::vector<Tex3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
-        std::vector<Tex3DAllocator<DevAcc, isaac_float>> advectionTextureAllocators;
+        std::vector<SyncedTexture3DAllocator<DevAcc, isaac_float>> advectionTextureAllocators;
         PersistentArrayStruct<fSourceListSize> advectionTextures;
         PersistentArrayStruct<fSourceListSize> advectionTexturesBackBuffer;
+
+        Neighbours<isaac_int> neighbourNodeIds;
 
         TransferDeviceStruct<combinedSourceListSize> transferDevice;
         TransferHostStruct<combinedSourceListSize> transferHost;
