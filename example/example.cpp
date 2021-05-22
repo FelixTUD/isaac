@@ -434,6 +434,17 @@ int main(int argc, char** argv)
     {
         json_object_set_new(visualization->getJsonMetaRoot(), "interval", json_integer(interval));
     }
+    isaac::Neighbours<isaac_int> neighbourIds;
+    for(int i = 0; i < 27; i++)
+    {
+        neighbourIds.array[i] = -1;
+    }
+    if(rank == 0)
+        neighbourIds.set(isaac_int3(0, 1, 0), 1);
+    if(rank == 1)
+        neighbourIds.set(isaac_int3(0, -1, 0), 0);
+
+    visualization->updateNeighbours(neighbourIds);
     // pause = true;
     // Main loop
     while(!forceExit)

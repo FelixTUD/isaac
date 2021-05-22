@@ -119,6 +119,11 @@ namespace isaac
             return guardSize;
         }
 
+        ISAAC_HOST_DEVICE_INLINE T_Type* getPtr() const
+        {
+            return bufferPtr;
+        }
+
         // TODO: this
         /* Not yet working because of partial template specialization
         template<typename T_Acc, typename T_AccDim, typename T_Stream, typename T_Kernel, typename... T_Args>
@@ -558,9 +563,19 @@ namespace isaac
             return ownGuardTextures.get(signedSide);
         }
 
+        Texture<T_Type, 3>& getOwnGuardTexture(isaac_int index)
+        {
+            return ownGuardTextures.array[index];
+        }
+
         Texture<T_Type, 3>& getNeighbourGuardTexture(isaac_int3 signedSide)
         {
             return neighbourGuardTextures.get(signedSide);
+        }
+
+        Texture<T_Type, 3>& getNeighbourGuardTexture(isaac_int index)
+        {
+            return neighbourGuardTextures.array[index];
         }
 
         alpaka::Buf<T_DevAcc, T_Type, FraDim, ISAAC_IDX_TYPE>& getTextureView()

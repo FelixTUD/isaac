@@ -189,6 +189,7 @@ namespace isaac
                 const T_LocalSize& localSize,
                 T_Vector& allocatorVector,
                 T_AdvectionVector& advectionAllocators,
+                T_AdvectionVector& advectionAllocatorsBackBuffer,
                 T_AdvectionArray& advectionTextures,
                 T_AdvectionArray& advectionTexturesBackBuffer,
                 const T_DevAcc& acc,
@@ -199,11 +200,11 @@ namespace isaac
                 persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
 
                 advectionAllocators.push_back(
-                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(1, 3, 3)));
+                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(5, 5, 2)));
                 advectionTextures.textures[I] = advectionAllocators.back().getTexture();
-                advectionAllocators.push_back(
-                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(1, 3, 3)));
-                advectionTexturesBackBuffer.textures[I] = advectionAllocators.back().getTexture();
+                advectionAllocatorsBackBuffer.push_back(
+                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(5, 5, 2)));
+                advectionTexturesBackBuffer.textures[I] = advectionAllocatorsBackBuffer.back().getTexture();
             }
         };
 
@@ -313,7 +314,6 @@ namespace isaac
                 if(enabled)
                 {
                     {
-                        std::swap(advectionTextures.textures[I], advectionTexturesBackBuffer.textures[I]);
                         GenerateAdvectionTextureKernel<T_Source> kernel;
                         executeKernelOnVolume<T_Acc>(
                             localSize + T_Source::guardSize * 2,
@@ -477,7 +477,7 @@ namespace isaac
             Tex3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize);
             tmpTex.clearColor(stream);
             alpaka::wait(stream);
-#if 0
+#if 1
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threadElements(
                 ISAAC_IDX_TYPE(1),
                 ISAAC_IDX_TYPE(1),
@@ -668,7 +668,7 @@ namespace isaac
 
             for(isaac_int& id : neighbourNodeIds.array)
             {
-                id = 0;
+                id = -1;
             }
 
             Tex3DAllocator<T_Host, isaac_byte> tmpTexHost(host, isaac_size3(ISAAC_DITHER_SIZE));
@@ -761,6 +761,7 @@ namespace isaac
                 localSize,
                 persistentTextureAllocators,
                 advectionTextureAllocators,
+                advectionTextureAllocatorsBackBuffer,
                 advectionTextures,
                 advectionTexturesBackBuffer,
                 acc,
@@ -1056,6 +1057,12 @@ namespace isaac
                     icetBoundingVertices(0, 0, 0, 0, NULL);
                 }
             }
+        }
+
+        void updateNeighbours(const Neighbours<isaac_int> neighbourIds)
+        {
+            ISAAC_WAIT_VISUALIZATION
+            this->neighbourNodeIds = neighbourIds;
         }
 
 
@@ -1740,6 +1747,8 @@ namespace isaac
                         pointer,
                         stream);
 
+                    std::swap(advectionTextureAllocators, advectionTextureAllocatorsBackBuffer);
+                    std::swap(advectionTextures, advectionTexturesBackBuffer);
                     int offset = vSourceListSize;
                     forEachParams(
                         fieldSources,
@@ -1763,6 +1772,55 @@ namespace isaac
                     for(auto& advectionTextureAllocator : advectionTextureAllocators)
                     {
                         syncOwnGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
+                        std::vector<MPI_Request> mpiRequests;
+                        for(int i = 0; i < 27; i++)
+                        {
+                            if(neighbourNodeIds.array[i] != -1)
+                            {
+                                std::cout << "Node " << rank << ", syncing" << std::endl;
+                                mpiRequests.push_back(MPI_Request());
+
+                                Tex3D<isaac_float>& neighbourGuard
+                                    = advectionTextureAllocator.getNeighbourGuardTexture(i);
+                                isaac_size3 neighbourSize = neighbourGuard.getSize();
+                                MPI_Irecv(
+                                    neighbourGuard.getPtr(),
+                                    neighbourSize.x * neighbourSize.y * neighbourSize.z,
+                                    MPI_FLOAT,
+                                    neighbourNodeIds.array[i],
+                                    0,
+                                    MPI_COMM_WORLD,
+                                    &(mpiRequests.back()));
+
+                                std::cout << "Node " << rank << " , ptr" << neighbourGuard.getPtr() << ", syncing2"
+                                          << std::endl;
+                                mpiRequests.push_back(MPI_Request());
+
+
+                                Tex3D<isaac_float>& ownGuard = advectionTextureAllocator.getOwnGuardTexture(i);
+                                isaac_size3 ownSize = ownGuard.getSize();
+                                MPI_Isend(
+                                    ownGuard.getPtr(),
+                                    ownSize.x * ownSize.y * ownSize.z,
+                                    MPI_FLOAT,
+                                    neighbourNodeIds.array[i],
+                                    0,
+                                    MPI_COMM_WORLD,
+                                    &(mpiRequests.back()));
+
+                                std::cout << "Node " << rank << " , ptr" << ownGuard.getPtr() << ", syncing3"
+                                          << std::endl;
+                            }
+
+                            for(MPI_Request& mpiRequest : mpiRequests)
+                            {
+                                std::cout << "Node " << rank << ", request" << mpiRequest << " , syncing4"
+                                          << std::endl;
+
+                                MPI_Wait(&mpiRequest, NULL);
+                                std::cout << "Node " << rank << ", syncing5" << std::endl;
+                            }
+                        }
                         syncNeighbourGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
                     }
                 }
@@ -2765,6 +2823,7 @@ namespace isaac
         std::vector<alpaka::Buf<T_Host, isaac_float4, TexDim, ISAAC_IDX_TYPE>> transferHostBuf;
         std::vector<Tex3DAllocator<DevAcc, isaac_float>> persistentTextureAllocators;
         std::vector<SyncedTexture3DAllocator<DevAcc, isaac_float>> advectionTextureAllocators;
+        std::vector<SyncedTexture3DAllocator<DevAcc, isaac_float>> advectionTextureAllocatorsBackBuffer;
         PersistentArrayStruct<fSourceListSize> advectionTextures;
         PersistentArrayStruct<fSourceListSize> advectionTexturesBackBuffer;
 
