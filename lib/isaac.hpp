@@ -1775,48 +1775,53 @@ namespace isaac
 
                     offset = volumeFieldSourceListSize;
                     forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
-                    for(auto& advectionTextureAllocator : advectionTextureAllocators)
+                    for(int j = 0; j < fSourceListSize; ++j)
                     {
-                        syncOwnGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
-                        std::vector<MPI_Request> mpiRequests;
-                        for(int i = 0; i < 27; i++)
+                        if(sourceWeight.value[j + vSourceListSize] > 0
+                           || sourceIsoThreshold.value[j + vSourceListSize] > 0)
                         {
-                            if(neighbourNodeIds.array[i] != -1)
+                            auto& advectionTextureAllocator = advectionTextureAllocators[j];
+                            syncOwnGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
+                            std::vector<MPI_Request> mpiRequests;
+                            for(int i = 0; i < 27; ++i)
                             {
-                                mpiRequests.push_back(MPI_Request());
+                                if(neighbourNodeIds.array[i] != -1)
+                                {
+                                    mpiRequests.push_back(MPI_Request());
 
-                                Tex3D<isaac_float>& neighbourGuard
-                                    = advectionTextureAllocator.getNeighbourGuardTexture(i);
-                                isaac_size3 neighbourSize = neighbourGuard.getSize();
-                                MPI_Irecv(
-                                    neighbourGuard.getPtr(),
-                                    neighbourSize.x * neighbourSize.y * neighbourSize.z,
-                                    MPI_FLOAT,
-                                    neighbourNodeIds.array[i],
-                                    0,
-                                    MPI_COMM_WORLD,
-                                    &(mpiRequests.back()));
+                                    Tex3D<isaac_float>& neighbourGuard
+                                        = advectionTextureAllocator.getNeighbourGuardTexture(i);
+                                    isaac_size3 neighbourSize = neighbourGuard.getSize();
+                                    MPI_Irecv(
+                                        neighbourGuard.getPtr(),
+                                        neighbourSize.x * neighbourSize.y * neighbourSize.z,
+                                        MPI_FLOAT,
+                                        neighbourNodeIds.array[i],
+                                        0,
+                                        MPI_COMM_WORLD,
+                                        &(mpiRequests.back()));
 
 
-                                mpiRequests.push_back(MPI_Request());
-                                Tex3D<isaac_float>& ownGuard = advectionTextureAllocator.getOwnGuardTexture(i);
-                                isaac_size3 ownSize = ownGuard.getSize();
-                                MPI_Isend(
-                                    ownGuard.getPtr(),
-                                    ownSize.x * ownSize.y * ownSize.z,
-                                    MPI_FLOAT,
-                                    neighbourNodeIds.array[i],
-                                    0,
-                                    MPI_COMM_WORLD,
-                                    &(mpiRequests.back()));
+                                    mpiRequests.push_back(MPI_Request());
+                                    Tex3D<isaac_float>& ownGuard = advectionTextureAllocator.getOwnGuardTexture(i);
+                                    isaac_size3 ownSize = ownGuard.getSize();
+                                    MPI_Isend(
+                                        ownGuard.getPtr(),
+                                        ownSize.x * ownSize.y * ownSize.z,
+                                        MPI_FLOAT,
+                                        neighbourNodeIds.array[i],
+                                        0,
+                                        MPI_COMM_WORLD,
+                                        &(mpiRequests.back()));
+                                }
+
+                                for(MPI_Request& mpiRequest : mpiRequests)
+                                {
+                                    MPI_Wait(&mpiRequest, NULL);
+                                }
                             }
-
-                            for(MPI_Request& mpiRequest : mpiRequests)
-                            {
-                                MPI_Wait(&mpiRequest, NULL);
-                            }
+                            syncNeighbourGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
                         }
-                        syncNeighbourGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
                     }
                 }
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
