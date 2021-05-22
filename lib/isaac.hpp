@@ -187,6 +187,7 @@ namespace isaac
                 const T_Source& source,
                 T_Array& persistentTextureArray,
                 const T_LocalSize& localSize,
+                const isaac_float3& scale,
                 T_Vector& allocatorVector,
                 T_AdvectionVector& advectionAllocators,
                 T_AdvectionVector& advectionAllocatorsBackBuffer,
@@ -199,11 +200,15 @@ namespace isaac
                     Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
                 persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
 
-                advectionAllocators.push_back(
-                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(5, 5, 2)));
+                advectionAllocators.push_back(SyncedTexture3DAllocator<T_DevAcc, isaac_float>(
+                    acc,
+                    localSize,
+                    isaac_size3(glm::ceil(isaac_float3(ISAAC_MAX_ADVECTION_STEP_SIZE) / scale))));
                 advectionTextures.textures[I] = advectionAllocators.back().getTexture();
-                advectionAllocatorsBackBuffer.push_back(
-                    SyncedTexture3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(5, 5, 2)));
+                advectionAllocatorsBackBuffer.push_back(SyncedTexture3DAllocator<T_DevAcc, isaac_float>(
+                    acc,
+                    localSize,
+                    isaac_size3(glm::ceil(isaac_float3(ISAAC_MAX_ADVECTION_STEP_SIZE) / scale))));
                 advectionTexturesBackBuffer.textures[I] = advectionAllocatorsBackBuffer.back().getTexture();
             }
         };
@@ -759,6 +764,7 @@ namespace isaac
                 AllocateFieldTextureIterator(),
                 persistentTextureArray,
                 localSize,
+                scale,
                 persistentTextureAllocators,
                 advectionTextureAllocators,
                 advectionTextureAllocatorsBackBuffer,
@@ -1777,7 +1783,6 @@ namespace isaac
                         {
                             if(neighbourNodeIds.array[i] != -1)
                             {
-                                std::cout << "Node " << rank << ", syncing" << std::endl;
                                 mpiRequests.push_back(MPI_Request());
 
                                 Tex3D<isaac_float>& neighbourGuard
@@ -1792,11 +1797,8 @@ namespace isaac
                                     MPI_COMM_WORLD,
                                     &(mpiRequests.back()));
 
-                                std::cout << "Node " << rank << " , ptr" << neighbourGuard.getPtr() << ", syncing2"
-                                          << std::endl;
+
                                 mpiRequests.push_back(MPI_Request());
-
-
                                 Tex3D<isaac_float>& ownGuard = advectionTextureAllocator.getOwnGuardTexture(i);
                                 isaac_size3 ownSize = ownGuard.getSize();
                                 MPI_Isend(
@@ -1807,18 +1809,11 @@ namespace isaac
                                     0,
                                     MPI_COMM_WORLD,
                                     &(mpiRequests.back()));
-
-                                std::cout << "Node " << rank << " , ptr" << ownGuard.getPtr() << ", syncing3"
-                                          << std::endl;
                             }
 
                             for(MPI_Request& mpiRequest : mpiRequests)
                             {
-                                std::cout << "Node " << rank << ", request" << mpiRequest << " , syncing4"
-                                          << std::endl;
-
                                 MPI_Wait(&mpiRequest, NULL);
-                                std::cout << "Node " << rank << ", syncing5" << std::endl;
                             }
                         }
                         syncNeighbourGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);

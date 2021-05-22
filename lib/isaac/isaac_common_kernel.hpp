@@ -550,7 +550,7 @@ namespace isaac
             isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
             vector /= vectorLength;
 
-            isaac_float3 offset = vector * isaac_float(3) / scale;
+            isaac_float3 offset = vector * isaac_float(ISAAC_MAX_ADVECTION_STEP_SIZE) / scale;
             // Center coord to voxel and add the vector offset
             isaac_float3 offsetCoord = isaac_float3(coord) + isaac_float(0.5) + offset;
             // Get the interpolated sample with the offset coordinates from the previous frame

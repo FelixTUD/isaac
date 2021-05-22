@@ -439,10 +439,10 @@ int main(int argc, char** argv)
     {
         neighbourIds.array[i] = -1;
     }
-    if(rank == 0)
-        neighbourIds.set(isaac_int3(0, 1, 0), 1);
-    if(rank == 1)
-        neighbourIds.set(isaac_int3(0, -1, 0), 0);
+    if(rank < numProc - 1)
+        neighbourIds.set(isaac_int3(0, 1, 0), rank + 1);
+    if(rank > 0)
+        neighbourIds.set(isaac_int3(0, -1, 0), rank - 1);
 
     visualization->updateNeighbours(neighbourIds);
     // pause = true;

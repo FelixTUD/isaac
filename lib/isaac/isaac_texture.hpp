@@ -507,7 +507,7 @@ namespace isaac
                         if(x != 1 || y != 1 || z != 1)
                         {
                             isaac_int3 side(x, y, z);
-                            isaac_int3 signedSide = side - ISAAC_IDX_TYPE(1);
+                            isaac_int3 signedSide = side - isaac_int(1);
                             isaac_size3 guardTexSize = isaac_size3(glm::abs(signedSide)) * guardSize;
                             guardTexSize += (ISAAC_IDX_TYPE(1) - isaac_size3(glm::abs(signedSide))) * size;
 
@@ -521,11 +521,12 @@ namespace isaac
                             totalAllocation += extent;
                             neighbourGuardTextures.get(signedSide)
                                 .init(alpaka::getPtrNative(neighbourGuardBuffers.back()), guardTexSize);
-
+                            /*
                             std::cout << "side: (" << signedSide.x << ", " << signedSide.y << ", " << signedSide.z
                                       << ")";
                             std::cout << " size: (" << guardTexSize.x << ", " << guardTexSize.y << ", "
                                       << guardTexSize.z << ")" << std::endl;
+                            */
                         }
                     }
                 }

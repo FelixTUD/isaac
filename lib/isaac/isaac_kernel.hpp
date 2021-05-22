@@ -67,7 +67,7 @@ namespace isaac
                     if(x != 1 || y != 1 || z != 1)
                     {
                         isaac_int3 side(x, y, z);
-                        isaac_int3 signedSide = side - ISAAC_IDX_TYPE(1);
+                        isaac_int3 signedSide = side - isaac_int(1);
                         if(neighbourIds.get(signedSide) != -1)
                         {
                             Texture<T_Type, 3>& dstTexture = texture.getOwnGuardTexture(signedSide);
@@ -102,7 +102,7 @@ namespace isaac
                     if(x != 1 || y != 1 || z != 1)
                     {
                         isaac_int3 side(x, y, z);
-                        isaac_int3 signedSide = side - ISAAC_IDX_TYPE(1);
+                        isaac_int3 signedSide = side - isaac_int(1);
                         if(neighbourIds.get(signedSide) != -1)
                         {
                             Texture<T_Type, 3>& guardTexture = texture.getNeighbourGuardTexture(signedSide);
