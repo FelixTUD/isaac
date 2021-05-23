@@ -203,12 +203,12 @@ namespace isaac
                 advectionAllocators.push_back(SyncedTexture3DAllocator<T_DevAcc, isaac_float>(
                     acc,
                     localSize,
-                    isaac_size3(glm::ceil(isaac_float3(ISAAC_MAX_ADVECTION_STEP_SIZE) / scale))));
+                    isaac_size3(glm::ceil(isaac_float3(ISAAC_MAX_ADVECTION_STEP_SIZE + 1) / scale))));
                 advectionTextures.textures[I] = advectionAllocators.back().getTexture();
                 advectionAllocatorsBackBuffer.push_back(SyncedTexture3DAllocator<T_DevAcc, isaac_float>(
                     acc,
                     localSize,
-                    isaac_size3(glm::ceil(isaac_float3(ISAAC_MAX_ADVECTION_STEP_SIZE) / scale))));
+                    isaac_size3(glm::ceil(isaac_float3(ISAAC_MAX_ADVECTION_STEP_SIZE + 1) / scale))));
                 advectionTexturesBackBuffer.textures[I] = advectionAllocatorsBackBuffer.back().getTexture();
             }
         };
@@ -1814,12 +1814,8 @@ namespace isaac
                                         MPI_COMM_WORLD,
                                         &(mpiRequests.back()));
                                 }
-
-                                for(MPI_Request& mpiRequest : mpiRequests)
-                                {
-                                    MPI_Wait(&mpiRequest, NULL);
-                                }
                             }
+                            MPI_Waitall(mpiRequests.size(), &mpiRequests[0], NULL);
                             syncNeighbourGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
                         }
                     }

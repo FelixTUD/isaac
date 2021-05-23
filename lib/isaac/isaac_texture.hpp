@@ -475,14 +475,14 @@ namespace isaac
             if(T_indexType == IndexType::MORTON)
             {
                 ISAAC_IDX_TYPE maxDim = sizeWithGuard[0];
-                std::cout << sizeWithGuard[0] << ", ";
+                // std::cout << sizeWithGuard[0] << ", ";
                 for(int i = 1; i < 3; ++i)
                 {
                     std::cout << sizeWithGuard[i] << ", ";
                     maxDim = glm::max(maxDim, sizeWithGuard[i]);
                 }
                 bufferExtent = glm::pow(maxDim, ISAAC_IDX_TYPE(3));
-                std::cout << std::endl << bufferExtent << std::endl;
+                // std::cout << std::endl << bufferExtent << std::endl;
             }
             else
             {
@@ -497,7 +497,7 @@ namespace isaac
             totalAllocation += bufferExtent;
             texture.init(alpaka::getPtrNative(buffer), size, guardSize);
 
-            std::cout << "Guard buffer allocations: " << std::endl;
+            // std::cout << "Guard buffer allocations: " << std::endl;
             for(int z = 0; z < 3; z++)
             {
                 for(int y = 0; y < 3; y++)
@@ -532,7 +532,7 @@ namespace isaac
                 }
             }
             totalAllocation *= sizeof(T_Type);
-            std::cout << "Total Allocation size: " << totalAllocation / float(1024 * 1024) << " MB" << std::endl;
+            // std::cout << "Total Allocation size: " << totalAllocation / float(1024 * 1024) << " MB" << std::endl;
         }
 
         template<typename T_Queue, typename T_ViewDst>
