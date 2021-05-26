@@ -783,7 +783,7 @@ namespace isaac
             isaac_float ditherValue = ditherMask[coord.x % 2 + (coord.y % 2) * 2 + (coord.z % 2) * 4] / isaac_float(8);
             */
 
-#    if 0
+#    if 1
             const isaac_byte ditherMask[64]
                 = {17, 46, 55, 1,  57, 7,  38, 31, 9,  52, 2,  54, 36, 26, 19, 44, 53, 20, 47, 22, 29, 60,
                    62, 12, 45, 14, 26, 33, 8,  39, 11, 63, 13, 56, 6,  50, 40, 32, 23, 48, 21, 42, 51, 5,

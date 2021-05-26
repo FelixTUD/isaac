@@ -1800,8 +1800,12 @@ namespace isaac
                                         0,
                                         MPI_COMM_WORLD,
                                         &(mpiRequests.back()));
-
-
+                                }
+                            }
+                            for(int i = 26; i >= 0; --i)
+                            {
+                                if(neighbourNodeIds.array[i] != -1)
+                                {
                                     mpiRequests.push_back(MPI_Request());
                                     Tex3D<isaac_float>& ownGuard = advectionTextureAllocator.getOwnGuardTexture(i);
                                     isaac_size3 ownSize = ownGuard.getSize();
