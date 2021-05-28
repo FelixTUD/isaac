@@ -58,29 +58,18 @@ namespace isaac
         Neighbours<isaac_int>& neighbourIds)
     {
         const SyncToOwnGuard kernel;
-        for(int z = 0; z < 3; z++)
+        for(isaac_uint i = 1; i < 27; ++i)
         {
-            for(int y = 0; y < 3; y++)
+            if(neighbourIds.array[i] != -1)
             {
-                for(int x = 0; x < 3; x++)
-                {
-                    if(x != 1 || y != 1 || z != 1)
-                    {
-                        isaac_int3 side(x, y, z);
-                        isaac_int3 signedSide = side - isaac_int(1);
-                        if(neighbourIds.get(signedSide) != -1)
-                        {
-                            Texture<T_Type, 3>& dstTexture = texture.getOwnGuardTexture(signedSide);
-                            executeKernelOnVolume<T_Acc>(
-                                dstTexture.getSize(),
-                                queue,
-                                kernel,
-                                signedSide,
-                                texture.getTexture(),
-                                dstTexture);
-                        }
-                    }
-                }
+                Texture<T_Type, 3>& dstTexture = texture.getOwnGuardTexture(i);
+                executeKernelOnVolume<T_Acc>(
+                    dstTexture.getSize(),
+                    queue,
+                    kernel,
+                    indexToDirection(i),
+                    texture.getTexture(),
+                    dstTexture);
             }
         }
         alpaka::wait(queue);
@@ -93,29 +82,18 @@ namespace isaac
         Neighbours<isaac_int>& neighbourIds)
     {
         const SyncFromNeighbourGuard kernel;
-        for(int z = 0; z < 3; z++)
+        for(isaac_uint i = 1; i < 27; ++i)
         {
-            for(int y = 0; y < 3; y++)
+            if(neighbourIds.array[i] != -1)
             {
-                for(int x = 0; x < 3; x++)
-                {
-                    if(x != 1 || y != 1 || z != 1)
-                    {
-                        isaac_int3 side(x, y, z);
-                        isaac_int3 signedSide = side - isaac_int(1);
-                        if(neighbourIds.get(signedSide) != -1)
-                        {
-                            Texture<T_Type, 3>& guardTexture = texture.getNeighbourGuardTexture(signedSide);
-                            executeKernelOnVolume<T_Acc>(
-                                guardTexture.getSize(),
-                                queue,
-                                kernel,
-                                signedSide,
-                                guardTexture,
-                                texture.getTexture());
-                        }
-                    }
-                }
+                Texture<T_Type, 3>& guardTexture = texture.getNeighbourGuardTexture(i);
+                executeKernelOnVolume<T_Acc>(
+                    guardTexture.getSize(),
+                    queue,
+                    kernel,
+                    indexToDirection(i),
+                    guardTexture,
+                    texture.getTexture());
             }
         }
         alpaka::wait(queue);

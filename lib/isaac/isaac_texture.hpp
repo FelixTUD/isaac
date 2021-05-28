@@ -498,38 +498,31 @@ namespace isaac
             texture.init(alpaka::getPtrNative(buffer), size, guardSize);
 
             // std::cout << "Guard buffer allocations: " << std::endl;
-            for(int z = 0; z < 3; z++)
+
+            // start at index 1, because 0 is center
+            for(ISAAC_IDX_TYPE i = 1; i < 27; ++i)
             {
-                for(int y = 0; y < 3; y++)
-                {
-                    for(int x = 0; x < 3; x++)
-                    {
-                        if(x != 1 || y != 1 || z != 1)
-                        {
-                            isaac_int3 side(x, y, z);
-                            isaac_int3 signedSide = side - isaac_int(1);
-                            isaac_size3 guardTexSize = isaac_size3(glm::abs(signedSide)) * guardSize;
-                            guardTexSize += (ISAAC_IDX_TYPE(1) - isaac_size3(glm::abs(signedSide))) * size;
+                isaac_int3 direction = indexToDirection(i);
+                isaac_size3 guardTexSize = isaac_size3(glm::abs(direction)) * guardSize;
+                guardTexSize += (ISAAC_IDX_TYPE(1) - isaac_size3(glm::abs(direction))) * size;
 
-                            ISAAC_IDX_TYPE extent = guardTexSize.x * guardTexSize.y * guardTexSize.z;
-                            ownGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
-                            totalAllocation += extent;
-                            ownGuardTextures.get(signedSide)
-                                .init(alpaka::getPtrNative(ownGuardBuffers.back()), guardTexSize);
+                ISAAC_IDX_TYPE extent = guardTexSize.x * guardTexSize.y * guardTexSize.z;
+                ownGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
+                totalAllocation += extent;
+                ownGuardTextures.get(direction).init(alpaka::getPtrNative(ownGuardBuffers.back()), guardTexSize);
 
-                            neighbourGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
-                            totalAllocation += extent;
-                            neighbourGuardTextures.get(signedSide)
-                                .init(alpaka::getPtrNative(neighbourGuardBuffers.back()), guardTexSize);
-                            /*
-                            std::cout << "side: (" << signedSide.x << ", " << signedSide.y << ", " << signedSide.z
-                                      << ")";
-                            std::cout << " size: (" << guardTexSize.x << ", " << guardTexSize.y << ", "
-                                      << guardTexSize.z << ")" << std::endl;
-                            */
-                        }
-                    }
-                }
+                neighbourGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
+                totalAllocation += extent;
+                neighbourGuardTextures.get(direction).init(
+                    alpaka::getPtrNative(neighbourGuardBuffers.back()),
+                    guardTexSize);
+
+                /*
+                std::cout << "side: (" << direction.x << ", " << direction.y << ", " << direction.z
+                    << ")";
+                std::cout << " size: (" << guardTexSize.x << ", " << guardTexSize.y << ", "
+                    << guardTexSize.z << ")" << std::endl;
+                */
             }
             totalAllocation *= sizeof(T_Type);
             // std::cout << "Total Allocation size: " << totalAllocation / float(1024 * 1024) << " MB" << std::endl;
@@ -559,22 +552,22 @@ namespace isaac
             return texture;
         }
 
-        Texture<T_Type, 3>& getOwnGuardTexture(isaac_int3 signedSide)
+        Texture<T_Type, 3>& getOwnGuardTexture(isaac_int3 direction)
         {
-            return ownGuardTextures.get(signedSide);
+            return ownGuardTextures.get(direction);
         }
 
-        Texture<T_Type, 3>& getOwnGuardTexture(isaac_int index)
+        Texture<T_Type, 3>& getOwnGuardTexture(isaac_uint index)
         {
             return ownGuardTextures.array[index];
         }
 
-        Texture<T_Type, 3>& getNeighbourGuardTexture(isaac_int3 signedSide)
+        Texture<T_Type, 3>& getNeighbourGuardTexture(isaac_int3 direction)
         {
-            return neighbourGuardTextures.get(signedSide);
+            return neighbourGuardTextures.get(direction);
         }
 
-        Texture<T_Type, 3>& getNeighbourGuardTexture(isaac_int index)
+        Texture<T_Type, 3>& getNeighbourGuardTexture(isaac_uint index)
         {
             return neighbourGuardTextures.array[index];
         }

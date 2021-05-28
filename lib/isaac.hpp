@@ -1775,7 +1775,7 @@ namespace isaac
 
                     offset = volumeFieldSourceListSize;
                     forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
-                    for(int j = 0; j < fSourceListSize; ++j)
+                    for(isaac_uint j = 0; j < fSourceListSize; ++j)
                     {
                         if(sourceWeight.value[j + vSourceListSize] > 0
                            || sourceIsoThreshold.value[j + vSourceListSize] > 0)
@@ -1783,7 +1783,7 @@ namespace isaac
                             auto& advectionTextureAllocator = advectionTextureAllocators[j];
                             syncOwnGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
                             std::vector<MPI_Request> mpiRequests;
-                            for(int i = 0; i < 27; ++i)
+                            for(isaac_int i = 1; i < 27; ++i)
                             {
                                 if(neighbourNodeIds.array[i] != -1)
                                 {
@@ -1802,7 +1802,7 @@ namespace isaac
                                         &(mpiRequests.back()));
                                 }
                             }
-                            for(int i = 26; i >= 0; --i)
+                            for(isaac_int i = 26; i > 0; --i)
                             {
                                 if(neighbourNodeIds.array[i] != -1)
                                 {

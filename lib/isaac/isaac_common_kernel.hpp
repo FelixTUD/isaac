@@ -444,7 +444,7 @@ namespace isaac
         template<typename T_Acc, typename T_SrcTexture, typename T_DstTexture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
-            const isaac_int3 side,
+            const isaac_int3 direction,
             const T_SrcTexture srcTexture,
             T_DstTexture guardTexture) const
         {
@@ -453,10 +453,10 @@ namespace isaac
             if(!isInUpperBounds(coord, isaac_int3(guardTexture.getSize())))
                 return;
 
-            isaac_int3 srcCoord = glm::max(side, isaac_int(0))
+            isaac_int3 srcCoord = glm::max(direction, isaac_int(0))
                 * (isaac_int3(srcTexture.getSize()) - isaac_int3(guardTexture.getSize()) - isaac_int(1));
-            srcCoord += glm::abs(side) * isaac_int3(coord);
-            srcCoord += (isaac_int(1) - glm::abs(side)) * coord;
+            srcCoord += glm::abs(direction) * isaac_int3(coord);
+            srcCoord += (isaac_int(1) - glm::abs(direction)) * coord;
 
             /*
             printf(
@@ -464,9 +464,9 @@ namespace isaac
                 guardTexture.getSize().x,
                 guardTexture.getSize().y,
                 guardTexture.getSize().z,
-                side.x,
-                side.y,
-                side.z,
+                direction.x,
+                direction.y,
+                direction.z,
                 coord.x,
                 coord.y,
                 coord.z,
@@ -484,7 +484,7 @@ namespace isaac
         template<typename T_Acc, typename T_SrcTexture, typename T_DstTexture>
         ISAAC_DEVICE void operator()(
             T_Acc const& acc,
-            const isaac_int3 side,
+            const isaac_int3 direction,
             const T_SrcTexture guardTexture,
             T_DstTexture mainTexture) const
         {
@@ -493,10 +493,11 @@ namespace isaac
             if(!isInUpperBounds(coord, isaac_int3(guardTexture.getSize())))
                 return;
 
-            isaac_int3 dstCoord = glm::max(side, isaac_int(0)) * (isaac_int3(mainTexture.getSize()) - isaac_int(1));
-            dstCoord += glm::min(side, isaac_int(0)) * isaac_int3(guardTexture.getSize());
-            dstCoord += glm::abs(side) * isaac_int3(coord);
-            dstCoord += (isaac_int(1) - glm::abs(side)) * coord;
+            isaac_int3 dstCoord
+                = glm::max(direction, isaac_int(0)) * (isaac_int3(mainTexture.getSize()) - isaac_int(1));
+            dstCoord += glm::min(direction, isaac_int(0)) * isaac_int3(guardTexture.getSize());
+            dstCoord += glm::abs(direction) * isaac_int3(coord);
+            dstCoord += (isaac_int(1) - glm::abs(direction)) * coord;
             /*
             // if(!isInUpperBounds(dstCoord + mainTexture.getGuardSize(), mainTexture.getSizeWithGuard())
             //   && !isInLowerBounds(dstCoord + mainTexture.getGuardSize(), isaac_int3(0)))
@@ -506,9 +507,9 @@ namespace isaac
                     guardTexture.getSize().x,
                     guardTexture.getSize().y,
                     guardTexture.getSize().z,
-                    side.x,
-                    side.y,
-                    side.z,
+                    direction.x,
+                    direction.y,
+                    direction.z,
                     coord.x,
                     coord.y,
                     coord.z,

@@ -128,21 +128,44 @@ namespace isaac
         isaac_size3 localSizeScaled; // same as globalSizeScaled
     };
 
+    inline isaac_int3 indexToDirection(isaac_uint index)
+    {
+        isaac_int3 direction;
+        for(isaac_int d = 0; d < 3; ++d)
+        {
+            const isaac_int dimDirection(index % 3);
+            direction[d] = (dimDirection == 2 ? -1 : dimDirection);
+            index /= 3;
+        }
+        return direction;
+    }
+
+    inline isaac_uint directionToIndex(isaac_int3 direction)
+    {
+        isaac_uint index = 0;
+        for(isaac_int d = 2; d >= 0; --d)
+        {
+            index += (direction[d] == -1 ? 2 : direction[d]);
+            index *= 3;
+        }
+        return index;
+    }
+
     template<typename T_Type>
     struct Neighbours
     {
         T_Type array[27];
 
-        T_Type& get(isaac_int3 signedSide)
+        T_Type& get(isaac_int3 direction)
         {
-            signedSide += isaac_int(1);
-            return array[signedSide.x + signedSide.y * 3 + signedSide.z * 9];
+            direction += isaac_int(1);
+            return array[direction.x + direction.y * 3 + direction.z * 9];
         }
 
-        void set(isaac_int3 signedSide, T_Type element)
+        void set(isaac_int3 direction, T_Type element)
         {
-            signedSide += isaac_int(1);
-            array[signedSide.x + signedSide.y * 3 + signedSide.z * 9] = element;
+            direction += isaac_int(1);
+            array[direction.x + direction.y * 3 + direction.z * 9] = element;
         }
     };
 
