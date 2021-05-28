@@ -143,11 +143,13 @@ namespace isaac
     inline isaac_uint directionToIndex(isaac_int3 direction)
     {
         isaac_uint index = 0;
-        for(isaac_int d = 2; d >= 0; --d)
+        // printf("Direction: %d, %d, %d\n", direction.x, direction.y, direction.z);
+        for(isaac_int d = 2; d > 0; --d)
         {
-            index += (direction[d] == -1 ? 2 : direction[d]);
             index *= 3;
+            index += (direction[d] == -1 ? 2 : direction[d]);
         }
+        // printf("Index %d\n", index);
         return index;
     }
 
@@ -158,13 +160,11 @@ namespace isaac
 
         T_Type& get(isaac_int3 direction)
         {
-            direction += isaac_int(1);
             return array[directionToIndex(direction)];
         }
 
         void set(isaac_int3 direction, T_Type element)
         {
-            direction += isaac_int(1);
             array[directionToIndex(direction)] = element;
         }
     };
