@@ -159,13 +159,13 @@ namespace isaac
         T_Type& get(isaac_int3 direction)
         {
             direction += isaac_int(1);
-            return array[direction.x + direction.y * 3 + direction.z * 9];
+            return array[directionToIndex(direction)];
         }
 
         void set(isaac_int3 direction, T_Type element)
         {
             direction += isaac_int(1);
-            array[direction.x + direction.y * 3 + direction.z * 9] = element;
+            array[directionToIndex(direction)] = element;
         }
     };
 
