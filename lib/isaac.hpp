@@ -1753,6 +1753,8 @@ namespace isaac
                         pointer,
                         stream);
 
+                    // swap back buffers with main buffers, as the last frames main buffer is this frames history back
+                    // buffer
                     std::swap(advectionTextureAllocators, advectionTextureAllocatorsBackBuffer);
                     std::swap(advectionTextures, advectionTexturesBackBuffer);
                     int offset = vSourceListSize;
@@ -1781,14 +1783,17 @@ namespace isaac
                            || sourceIsoThreshold.value[j + vSourceListSize] > 0)
                         {
                             auto& advectionTextureAllocator = advectionTextureAllocators[j];
+
+                            // prepare the main texture borders for mpi communication with copy kernel to dedicated
+                            // texture
                             syncOwnGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
                             std::vector<MPI_Request> mpiRequests;
+                            // iterate over all sides and exchange the guard textures with neighbours over mpi
                             for(isaac_int i = 1; i < 27; ++i)
                             {
                                 if(neighbourNodeIds.array[i] != -1)
                                 {
                                     mpiRequests.push_back(MPI_Request());
-
                                     Tex3D<isaac_float>& neighbourGuard
                                         = advectionTextureAllocator.getNeighbourGuardTexture(i);
                                     isaac_size3 neighbourSize = neighbourGuard.getSize();
@@ -1801,25 +1806,30 @@ namespace isaac
                                         MPI_COMM_WORLD,
                                         &(mpiRequests.back()));
                                 }
-                            }
-                            for(isaac_int i = 26; i > 0; --i)
-                            {
-                                if(neighbourNodeIds.array[i] != -1)
+
+                                // the mirrored index is needed to have the correct communication order if the same
+                                // neighbour is on multiple sides
+                                isaac_int iMirrored = toMirroredIndex(i);
+                                if(neighbourNodeIds.array[iMirrored] != -1)
                                 {
                                     mpiRequests.push_back(MPI_Request());
-                                    Tex3D<isaac_float>& ownGuard = advectionTextureAllocator.getOwnGuardTexture(i);
+                                    Tex3D<isaac_float>& ownGuard
+                                        = advectionTextureAllocator.getOwnGuardTexture(iMirrored);
                                     isaac_size3 ownSize = ownGuard.getSize();
                                     MPI_Isend(
                                         ownGuard.getPtr(),
                                         ownSize.x * ownSize.y * ownSize.z,
                                         MPI_FLOAT,
-                                        neighbourNodeIds.array[i],
+                                        neighbourNodeIds.array[iMirrored],
                                         0,
                                         MPI_COMM_WORLD,
                                         &(mpiRequests.back()));
                                 }
                             }
+                            // wait for all mpi communications to be finished
                             MPI_Waitall(mpiRequests.size(), &mpiRequests[0], NULL);
+
+                            // sync the received neighbour guard information with the main guards in the texture
                             syncNeighbourGuardTextures<T_Acc>(stream, advectionTextureAllocator, neighbourNodeIds);
                         }
                     }

@@ -507,15 +507,14 @@ namespace isaac
                 guardTexSize += (ISAAC_IDX_TYPE(1) - isaac_size3(glm::abs(direction))) * size;
 
                 ISAAC_IDX_TYPE extent = guardTexSize.x * guardTexSize.y * guardTexSize.z;
+
                 ownGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
                 totalAllocation += extent;
-                ownGuardTextures.get(direction).init(alpaka::getPtrNative(ownGuardBuffers.back()), guardTexSize);
+                ownGuardTextures.array[i].init(alpaka::getPtrNative(ownGuardBuffers.back()), guardTexSize);
 
                 neighbourGuardBuffers.push_back(alpaka::allocBuf<T_Type, ISAAC_IDX_TYPE>(devAcc, extent));
                 totalAllocation += extent;
-                neighbourGuardTextures.get(direction).init(
-                    alpaka::getPtrNative(neighbourGuardBuffers.back()),
-                    guardTexSize);
+                neighbourGuardTextures.array[i].init(alpaka::getPtrNative(neighbourGuardBuffers.back()), guardTexSize);
 
                 /*
                 std::cout << "side: (" << direction.x << ", " << direction.y << ", " << direction.z

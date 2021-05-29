@@ -144,13 +144,18 @@ namespace isaac
     {
         isaac_uint index = 0;
         // printf("Direction: %d, %d, %d\n", direction.x, direction.y, direction.z);
-        for(isaac_int d = 2; d > 0; --d)
+        for(isaac_int d = 2; d >= 0; --d)
         {
             index *= 3;
             index += (direction[d] == -1 ? 2 : direction[d]);
         }
         // printf("Index %d\n", index);
         return index;
+    }
+
+    inline isaac_int toMirroredIndex(isaac_uint index)
+    {
+        return directionToIndex(indexToDirection(index) * isaac_int(-1));
     }
 
     template<typename T_Type>
