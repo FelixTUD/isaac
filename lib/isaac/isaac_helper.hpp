@@ -208,7 +208,7 @@ namespace isaac
         }
     }
 
-    isaac_float4 getHSVA(isaac_float h, isaac_float s, isaac_float v, isaac_float a)
+    ISAAC_HOST_DEVICE_INLINE isaac_float4 getHSVA(isaac_float h, isaac_float s, isaac_float v, isaac_float a)
     {
         isaac_int hi = isaac_int(floor(h / (M_PI / 3)));
         isaac_float f = h / (M_PI / 3) - isaac_float(hi);

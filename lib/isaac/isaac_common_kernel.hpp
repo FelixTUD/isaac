@@ -303,27 +303,13 @@ namespace isaac
             // rank information color coded for debug
             else if(mode == 7)
             {
-                const isaac_float3 colorArray[6]
-                    = {isaac_float3(1, 0, 0),
-                       isaac_float3(0, 1, 0),
-                       isaac_float3(0, 0, 1),
-                       isaac_float3(0, 1, 1),
-                       isaac_float3(1, 1, 0),
-                       isaac_float3(1, 0, 1)};
-                gBuffer.color[pixel] = transformColor(isaac_float4(colorArray[rank % 6], color.a));
+                gBuffer.color[pixel] = transformColor(getHSVA(halton(rank, 3), 1, 1, color.a));
                 gBuffer.depth[pixel] = isaac_float(0);
             }
             // full buffer rank information color coded for debug
             else if(mode == 8)
             {
-                const isaac_float3 colorArray[6]
-                    = {isaac_float3(1, 0, 0),
-                       isaac_float3(0, 1, 0),
-                       isaac_float3(0, 0, 1),
-                       isaac_float3(0, 1, 1),
-                       isaac_float3(1, 1, 0),
-                       isaac_float3(1, 0, 1)};
-                gBuffer.color[pixel] = transformColor(isaac_float4(colorArray[rank % 6], isaac_float(1)));
+                gBuffer.color[pixel] = transformColor(getHSVA(halton(rank, 3), 1, 1, 1));
                 gBuffer.depth[pixel] = isaac_float(0);
             }
         }
