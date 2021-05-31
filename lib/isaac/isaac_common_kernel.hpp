@@ -241,7 +241,7 @@ namespace isaac
             // rank information color coded for debug
             if(mode == 7)
             {
-                color = transformColor(getHSVA(halton(rank, 3) * isaac_float(2 * M_PI), 1, 1, color.a));
+                color = getHSVA(halton(rank, 3) * isaac_float(2 * M_PI), 1, 1, color.a);
             }
 
             // normal blinn-phong shading
@@ -259,7 +259,7 @@ namespace isaac
                 specular *= 0.5f;
 
                 // for disabled specular mode
-                if(mode == 1 || mode == 7)
+                if(mode == 1)
                 {
                     specular = 0;
                 }
