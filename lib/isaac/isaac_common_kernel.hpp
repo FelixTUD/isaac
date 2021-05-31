@@ -238,9 +238,14 @@ namespace isaac
             isaac_float4 color = transformColor(gBuffer.color[pixel]);
             isaac_float3 normal = gBuffer.normal[pixel];
             isaac_float aoStrength = isaac_float(1) - gBuffer.aoStrength[pixel];
+            // rank information color coded for debug
+            if(mode == 7)
+            {
+                color = transformColor(getHSVA(halton(rank, 3) * isaac_float(2 * M_PI), 1, 1, color.a));
+            }
 
             // normal blinn-phong shading
-            if(mode < 3)
+            if(mode < 3 || mode == 7)
             {
                 Ray ray = pixelToRay(isaac_float2(pixel), isaac_float2(gBuffer.size));
                 isaac_float3 lightDir = -ray.dir;
@@ -254,7 +259,7 @@ namespace isaac
                 specular *= 0.5f;
 
                 // for disabled specular mode
-                if(mode == 1)
+                if(mode == 1 || mode == 7)
                 {
                     specular = 0;
                 }
@@ -269,7 +274,7 @@ namespace isaac
                 gBuffer.color[pixel] = transformColor(isaac_float4(shadedColor, color.a));
 
                 // render only solid
-                if(mode == 2)
+                if(mode == 2 || mode == 7)
                     gBuffer.depth[pixel] = isaac_float(0);
             }
             // render only volume
@@ -298,12 +303,6 @@ namespace isaac
                 isaac_float weight = aoProperties.weight;
                 isaac_float aoFactor = ((1.0f - weight) + weight * aoStrength);
                 gBuffer.color[pixel] = transformColor(isaac_float4(isaac_float3(aoFactor), color.a));
-                gBuffer.depth[pixel] = isaac_float(0);
-            }
-            // rank information color coded for debug
-            else if(mode == 7)
-            {
-                gBuffer.color[pixel] = transformColor(getHSVA(halton(rank, 3) * isaac_float(2 * M_PI), 1, 1, color.a));
                 gBuffer.depth[pixel] = isaac_float(0);
             }
             // full buffer rank information color coded for debug
