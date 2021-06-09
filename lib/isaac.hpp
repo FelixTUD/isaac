@@ -479,8 +479,7 @@ namespace isaac
 
         void updateNoiseTexture(isaac_uint seedNumber)
         {
-            Tex3DAllocator<DevAcc, isaac_float> tmpTex(acc, localSize);
-            tmpTex.clearColor(stream);
+            noiseTmpTexAllocator.clearColor(stream);
             alpaka::wait(stream);
 #if 1
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threadElements(
@@ -494,8 +493,11 @@ namespace isaac
             const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1), ISAAC_IDX_TYPE(1));
             const auto workdiv = alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threadElements);
             HaltonSeedingKernel haltonKernel;
-            auto haltonKernelInstance
-                = alpaka::createTaskKernel<T_Acc>(workdiv, haltonKernel, tmpTex.getTexture(), seedNumber);
+            auto haltonKernelInstance = alpaka::createTaskKernel<T_Acc>(
+                workdiv,
+                haltonKernel,
+                noiseTmpTexAllocator.getTexture(),
+                seedNumber);
             alpaka::enqueue(stream, haltonKernelInstance);
 #else
 #    if 1
@@ -521,7 +523,7 @@ namespace isaac
                     }
                 }
             }
-            tmpTexHost.copyToTexture(stream, tmpTex);
+            tmpTexHost.copyToTexture(stream, noiseTmpTexAllocator);
             alpaka::wait(stream);
 #    else
             Tex3DAllocator<T_Host, isaac_float> tmpTexHost(host, localSize);
@@ -538,7 +540,7 @@ namespace isaac
                     }
                 }
             }
-            tmpTexHost.copyToTexture(stream, tmpTex);
+            tmpTexHost.copyToTexture(stream, noiseTmpTexAllocator);
             alpaka::wait(stream);
 #    endif
 #endif
@@ -547,7 +549,7 @@ namespace isaac
                 localSize,
                 stream,
                 gaussKernel,
-                tmpTex.getTexture(),
+                noiseTmpTexAllocator.getTexture(),
                 deviceNoiseTextureAllocator.getTexture(),
                 scale,
                 isaac_float3(1, 0, 0));
@@ -557,7 +559,7 @@ namespace isaac
                 stream,
                 gaussKernel,
                 deviceNoiseTextureAllocator.getTexture(),
-                tmpTex.getTexture(),
+                noiseTmpTexAllocator.getTexture(),
                 scale,
                 isaac_float3(0, 1, 0));
             alpaka::wait(stream);
@@ -565,7 +567,7 @@ namespace isaac
                 localSize,
                 stream,
                 gaussKernel,
-                tmpTex.getTexture(),
+                noiseTmpTexAllocator.getTexture(),
                 deviceNoiseTextureAllocator.getTexture(),
                 scale,
                 isaac_float3(0, 0, 1));
@@ -644,6 +646,7 @@ namespace isaac
             , framebufferNormal(acc, framebufferSize)
             , framebufferDepth(acc, framebufferSize)
             , deviceNoiseTextureAllocator(acc, localSize)
+            , noiseTmpTexAllocator(acc, localSize)
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
             , combinedVolumeTextureAllocator(acc, localSize)
             , combinedIsoTextureAllocator(acc, localSize)
@@ -694,6 +697,7 @@ namespace isaac
             alpaka::wait(stream);
 
             // INIT
+            // TODO: get mpi communicator from application and duplicate that one!
             MPI_Comm_dup(MPI_COMM_WORLD, &mpiWorld);
             MPI_Comm_rank(mpiWorld, &rank);
             MPI_Comm_size(mpiWorld, &numProc);
@@ -1802,27 +1806,20 @@ namespace isaac
                                         neighbourSize.x * neighbourSize.y * neighbourSize.z,
                                         MPI_FLOAT,
                                         neighbourNodeIds.array[i],
-                                        0,
-                                        MPI_COMM_WORLD,
+                                        i,
+                                        mpiWorld,
                                         &(mpiRequests.back()));
-                                }
 
-                                // the mirrored index is needed to have the correct communication order if the same
-                                // neighbour is on multiple sides
-                                isaac_int iMirrored = toMirroredIndex(i);
-                                if(neighbourNodeIds.array[iMirrored] != -1)
-                                {
                                     mpiRequests.push_back(MPI_Request());
-                                    Tex3D<isaac_float>& ownGuard
-                                        = advectionTextureAllocator.getOwnGuardTexture(iMirrored);
+                                    Tex3D<isaac_float>& ownGuard = advectionTextureAllocator.getOwnGuardTexture(i);
                                     isaac_size3 ownSize = ownGuard.getSize();
                                     MPI_Isend(
                                         ownGuard.getPtr(),
                                         ownSize.x * ownSize.y * ownSize.z,
                                         MPI_FLOAT,
-                                        neighbourNodeIds.array[iMirrored],
-                                        0,
-                                        MPI_COMM_WORLD,
+                                        neighbourNodeIds.array[i],
+                                        toMirroredIndex(i),
+                                        mpiWorld,
                                         &(mpiRequests.back()));
                                 }
                             }
@@ -2752,6 +2749,7 @@ namespace isaac
         Tex2DAllocator<DevAcc, isaac_float3> framebufferNormal;
 
         Tex3DAllocator<DevAcc, isaac_float> deviceNoiseTextureAllocator;
+        Tex3DAllocator<DevAcc, isaac_float> noiseTmpTexAllocator;
 
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
 #    ifdef ISAAC_MORTON_CODE
