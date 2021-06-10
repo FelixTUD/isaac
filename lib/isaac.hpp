@@ -311,6 +311,9 @@ namespace isaac
                 void* pointer,
                 T_Stream__& stream,
                 isaac_int timeStep,
+                bool updateAdvection,
+                const isaac_float& advectionStepFactor,
+                const isaac_float& advectionHistoryWeight,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -318,6 +321,7 @@ namespace isaac
                 source.update(enabled, pointer);
                 if(enabled)
                 {
+                    if(updateAdvection)
                     {
                         GenerateAdvectionTextureKernel<T_Source> kernel;
                         executeKernelOnVolume<T_Acc>(
@@ -331,6 +335,8 @@ namespace isaac
                             noiseTexture,
                             isaac_int3(localSize),
                             scale,
+                            advectionStepFactor * ISAAC_MAX_ADVECTION_STEP_SIZE,
+                            advectionHistoryWeight,
                             timeStep);
                         alpaka::wait(stream);
                     }
@@ -647,6 +653,9 @@ namespace isaac
             , framebufferDepth(acc, framebufferSize)
             , deviceNoiseTextureAllocator(acc, localSize)
             , noiseTmpTexAllocator(acc, localSize)
+            , advectionStepFactor(1)
+            , advectionHistoryWeight(0.95)
+            , updateAdvectionBorderMPI(true)
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
             , combinedVolumeTextureAllocator(acc, localSize)
             , combinedIsoTextureAllocator(acc, localSize)
@@ -899,6 +908,11 @@ namespace isaac
                 json_object_set_new(jsonRoot, "interpolation", json_boolean(interpolation));
                 json_object_set_new(jsonRoot, "step", json_real(step));
                 json_object_set_new(jsonRoot, "seed points", json_integer(seedPoints));
+
+                json_object_set_new(jsonRoot, "advection step", json_real(advectionStepFactor));
+                json_object_set_new(jsonRoot, "advection weight", json_real(advectionHistoryWeight));
+                json_object_set_new(jsonRoot, "advection border", json_boolean(updateAdvectionBorderMPI));
+
 
                 json_object_set_new(jsonRoot, "dimension", json_integer(3));
                 json_object_set_new(jsonRoot, "width", json_integer(globalSizeScaled.x));
@@ -1401,7 +1415,19 @@ namespace isaac
                         {
                             sendSeedPoints = true;
                         }
-                        if(strcmp(target, "iso mask") == 0)
+                        if(strcmp(target, "advection step") == 0)
+                        {
+                            sendAdvectionStepSize = true;
+                        }
+                        if(strcmp(target, "advection weight") == 0)
+                        {
+                            sendAdvectionHistoryWeight = true;
+                        }
+                        if(strcmp(target, "advection border") == 0)
+                        {
+                            sendAdvectionBorderMPI = true;
+                        }
+                        if(strcmp(target, "iso threshold") == 0)
                         {
                             sendIsoThreshold = true;
                         }
@@ -1630,6 +1656,21 @@ namespace isaac
                 updateNoiseTexture(seedPoints);
                 sendSeedPoints = true;
             }
+            if(js = json_object_get(message, "advection step"))
+            {
+                advectionStepFactor = json_number_value(js);
+                sendAdvectionStepSize = true;
+            }
+            if(js = json_object_get(message, "advection weight"))
+            {
+                advectionHistoryWeight = json_number_value(js);
+                sendAdvectionHistoryWeight = true;
+            }
+            if(js = json_object_get(message, "advection border"))
+            {
+                updateAdvectionBorderMPI = json_boolean_value(js);
+                sendAdvectionBorderMPI = true;
+            }
             if(json_array_size(js = json_object_get(message, "iso threshold")))
             {
                 redraw = true;
@@ -1744,43 +1785,47 @@ namespace isaac
             if(updatePersistentBuffers)
             {
                 ISAAC_START_TIME_MEASUREMENT(buffer, getTicksUs())
-                if(updateAdvection)
+                forEachParams(
+                    volumeSources,
+                    UpdatePersistentTextureIterator(),
+                    persistentTextureArray,
+                    localSize,
+                    transferDevice,
+                    sourceWeight,
+                    sourceIsoThreshold,
+                    pointer,
+                    stream);
+
+                // swap back buffers with main buffers, as the last frames main buffer is this frames history back
+                // buffer
+                std::swap(advectionTextureAllocators, advectionTextureAllocatorsBackBuffer);
+                std::swap(advectionTextures, advectionTexturesBackBuffer);
+                int offset = vSourceListSize;
+                forEachParams(
+                    fieldSources,
+                    UpdateAdvectionTextureIterator(),
+                    persistentTextureArray,
+                    advectionTextures,
+                    advectionTexturesBackBuffer,
+                    deviceNoiseTextureAllocator.getTexture(),
+                    localSize,
+                    transferDevice,
+                    scale,
+                    sourceWeight,
+                    sourceIsoThreshold,
+                    pointer,
+                    stream,
+                    timeStep,
+                    updateAdvection,
+                    advectionStepFactor,
+                    advectionHistoryWeight,
+                    offset);
+
+                offset = volumeFieldSourceListSize;
+                forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
+
+                if(updateAdvectionBorderMPI)
                 {
-                    forEachParams(
-                        volumeSources,
-                        UpdatePersistentTextureIterator(),
-                        persistentTextureArray,
-                        localSize,
-                        transferDevice,
-                        sourceWeight,
-                        sourceIsoThreshold,
-                        pointer,
-                        stream);
-
-                    // swap back buffers with main buffers, as the last frames main buffer is this frames history back
-                    // buffer
-                    std::swap(advectionTextureAllocators, advectionTextureAllocatorsBackBuffer);
-                    std::swap(advectionTextures, advectionTexturesBackBuffer);
-                    int offset = vSourceListSize;
-                    forEachParams(
-                        fieldSources,
-                        UpdateAdvectionTextureIterator(),
-                        persistentTextureArray,
-                        advectionTextures,
-                        advectionTexturesBackBuffer,
-                        deviceNoiseTextureAllocator.getTexture(),
-                        localSize,
-                        transferDevice,
-                        scale,
-                        sourceWeight,
-                        sourceIsoThreshold,
-                        pointer,
-                        stream,
-                        timeStep,
-                        offset);
-
-                    offset = volumeFieldSourceListSize;
-                    forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
                     for(isaac_uint j = 0; j < fSourceListSize; ++j)
                     {
                         if(sourceWeight.value[j + vSourceListSize] > 0
@@ -2605,6 +2650,40 @@ namespace isaac
                     json_object_set_new(myself->jsonInitRoot, "seed points", json_integer(myself->seedPoints));
                     myself->sendInitJson = true;
                 }
+                if(myself->sendSeedPoints)
+                {
+                    json_object_set_new(myself->jsonRoot, "advection step", json_real(myself->advectionStepFactor));
+                    json_object_set_new(
+                        myself->jsonInitRoot,
+                        "advection step",
+                        json_real(myself->advectionStepFactor));
+                    myself->sendInitJson = true;
+                }
+                if(myself->sendSeedPoints)
+                {
+                    json_object_set_new(
+                        myself->jsonRoot,
+                        "advection weight",
+                        json_real(myself->advectionHistoryWeight));
+                    json_object_set_new(
+                        myself->jsonInitRoot,
+                        "advection weight",
+                        json_real(myself->advectionHistoryWeight));
+                    myself->sendInitJson = true;
+                }
+                if(myself->sendSeedPoints)
+                {
+                    json_object_set_new(
+                        myself->jsonRoot,
+                        "advection border",
+                        json_boolean(myself->updateAdvectionBorderMPI));
+                    json_object_set_new(
+                        myself->jsonInitRoot,
+                        "advection border",
+                        json_boolean(myself->updateAdvectionBorderMPI));
+                    myself->sendInitJson = true;
+                }
+
                 if(myself->sendIsoThreshold)
                 {
                     json_object_set_new(myself->jsonRoot, "iso threshold", matrix = json_array());
@@ -2803,6 +2882,9 @@ namespace isaac
         bool sendController;
         bool sendInitJson;
         bool sendAO;
+        bool sendAdvectionStepSize;
+        bool sendAdvectionHistoryWeight;
+        bool sendAdvectionBorderMPI;
 
 
         bool interpolation;
@@ -2834,6 +2916,9 @@ namespace isaac
         std::vector<SyncedTexture3DAllocator<DevAcc, isaac_float>> advectionTextureAllocatorsBackBuffer;
         PersistentArrayStruct<fSourceListSize> advectionTextures;
         PersistentArrayStruct<fSourceListSize> advectionTexturesBackBuffer;
+        isaac_float advectionStepFactor;
+        isaac_float advectionHistoryWeight;
+        bool updateAdvectionBorderMPI;
 
         Neighbours<isaac_int> neighbourNodeIds;
 

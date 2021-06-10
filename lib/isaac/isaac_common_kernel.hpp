@@ -520,6 +520,8 @@ namespace isaac
             const Tex3D<isaac_float> noiseTexture,
             const isaac_int3 localSize,
             const isaac_float3 scale,
+            const isaac_float stepSize,
+            const isaac_float historyWeight,
             isaac_int timeStep) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
@@ -536,16 +538,16 @@ namespace isaac
             isaac_float vectorLength = glm::max(glm::length(vector), std::numeric_limits<isaac_float>::min());
             vector /= vectorLength;
 
-            isaac_float3 offset = vector * isaac_float(ISAAC_MAX_ADVECTION_STEP_SIZE) / scale;
+            isaac_float3 offset = vector * stepSize / scale;
             // Center coord to voxel and add the vector offset
-            isaac_float3 offsetCoord = isaac_float3(coord) + isaac_float(0.5) + offset;
+            isaac_float3 offsetCoord = isaac_float3(coord) + isaac_float(0.5) - offset;
             // Get the interpolated sample with the offset coordinates from the previous frame
             isaac_float historyValue = sampler.sample(advectionTextureBackBuffer, offsetCoord);
             // Sample the noise value
             isaac_float noiseValue = noiseTexture[coord];
 
             // Blend everything together with a falloff weight
-            advectionTexture[coord] = noiseValue + historyValue * isaac_float(0.95) * (1 - noiseValue);
+            advectionTexture[coord] = noiseValue + historyValue * historyWeight * (1 - noiseValue);
             // advectionTexture[coord] = glm::min(value, isaac_float(1));
 #else
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
