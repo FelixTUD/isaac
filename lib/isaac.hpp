@@ -1459,6 +1459,25 @@ namespace isaac
                         {
                             sendAO = true;
                         }
+                        if(strcmp(target, "start observing") == 0)
+                        {
+                            sendTransfer = true;
+                            sendFunctions = true;
+                            sendWeight = true;
+                            sendIsoThreshold = true;
+                            sendClipping = true;
+                            sendController = true;
+                            sendInterpolation = true;
+                            sendRenderOptimization = true;
+                            sendStep = true;
+                            sendSeedPoints = true;
+                            sendAdvectionStepSize = true;
+                            sendAdvectionHistoryWeight = true;
+                            sendAdvectionBorderMPI = true;
+                            sendBackgroundColor = true;
+                            sendAO = true;
+                            redraw = true;
+                        }
                     }
                     // Search for scene changes
                     if(json_array_size(js = json_object_get(last, "rotation absolute")) == 9)

@@ -497,6 +497,9 @@ function onClientMessage(response) {
 			document.getElementById("render_optimization_checkbox").checked = response["render optimization"];
 			document.getElementById("step").value = response["step"];
 			document.getElementById("seed_points").value = parseInt(response["seed points"]);
+			document.getElementById("border_advection_checkbox").value = response["advection border"];
+			document.getElementById("advection_step").value = parseFloat(response["advection step"]);
+			document.getElementById("advection_weight").value = parseFloat(response["advection weight"]);
 			
 			aoSetValues(response);
 
@@ -543,6 +546,12 @@ function onClientMessage(response) {
 				document.getElementById("step").value = response["step"];
 			if (response.hasOwnProperty("seed points"))
 				document.getElementById("seed_points").value = parseInt(response["seed points"]);
+			if (response.hasOwnProperty("advection border"))
+				document.getElementById("border_advection_checkbox").value = response["advection border"];
+			if (response.hasOwnProperty("advection step"))
+				document.getElementById("advection_step").value = parseFloat(response["advection step"]);
+			if (response.hasOwnProperty("advection weight"))
+				document.getElementById("advection_weight").value = parseFloat(response["advection weight"]);
 
 			aoSetValues(response);
 
@@ -1054,15 +1063,32 @@ function render_optimization_checkbox_click() {
 	sendFeedback("render optimization", status);
 };
 
+function border_advection_checkbox_click() {
+	var status = document.getElementById("advection border").checked;
+	sendFeedback("advection border", status);
+};
+
 function step_button_click() {
 	var status = parseFloat(document.getElementById("step").value);
 	sendFeedback("step", status);
 };
 
- function seed_points_button_click() {
+function seed_points_button_click() {
 	var count = parseInt(document.getElementById("seed_points").value);
 	sendFeedback("seed points", count);
 };
+
+function advection_step_changed() {
+	var step = parseFloat(document.getElementById("advection_step").value);
+	//document.getElementById("advection_step_text").value = step.toFixed(2);
+	sendFeedback("advection step", step);
+}
+
+function advection_weight_changed() {
+	var weight = parseFloat(document.getElementById("advection_weight").value);
+	//document.getElementById("advection_step_text").value = weight.toFixed(2);
+	sendFeedback("advection weight", weight);
+}
 
 
 document.getElementById("zoom_in").onclick = function () {
