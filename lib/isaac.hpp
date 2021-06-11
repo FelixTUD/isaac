@@ -1476,7 +1476,6 @@ namespace isaac
                             sendAdvectionBorderMPI = true;
                             sendBackgroundColor = true;
                             sendAO = true;
-                            redraw = true;
                         }
                     }
                     // Search for scene changes
@@ -1689,6 +1688,17 @@ namespace isaac
             {
                 updateAdvectionBorderMPI = json_boolean_value(js);
                 sendAdvectionBorderMPI = true;
+                if(!updateAdvectionBorderMPI)
+                {
+                    for(auto& advectionTexture : advectionTextureAllocators)
+                    {
+                        advectionTexture.clearColor(stream);
+                    }
+                    for(auto& advectionTexture : advectionTextureAllocatorsBackBuffer)
+                    {
+                        advectionTexture.clearColor(stream);
+                    }
+                }
             }
             if(json_array_size(js = json_object_get(message, "iso threshold")))
             {
@@ -2669,7 +2679,7 @@ namespace isaac
                     json_object_set_new(myself->jsonInitRoot, "seed points", json_integer(myself->seedPoints));
                     myself->sendInitJson = true;
                 }
-                if(myself->sendSeedPoints)
+                if(myself->sendAdvectionStepSize)
                 {
                     json_object_set_new(myself->jsonRoot, "advection step", json_real(myself->advectionStepFactor));
                     json_object_set_new(
@@ -2678,7 +2688,7 @@ namespace isaac
                         json_real(myself->advectionStepFactor));
                     myself->sendInitJson = true;
                 }
-                if(myself->sendSeedPoints)
+                if(myself->sendAdvectionHistoryWeight)
                 {
                     json_object_set_new(
                         myself->jsonRoot,
@@ -2690,7 +2700,7 @@ namespace isaac
                         json_real(myself->advectionHistoryWeight));
                     myself->sendInitJson = true;
                 }
-                if(myself->sendSeedPoints)
+                if(myself->sendAdvectionBorderMPI)
                 {
                     json_object_set_new(
                         myself->jsonRoot,

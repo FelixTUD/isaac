@@ -497,7 +497,7 @@ function onClientMessage(response) {
 			document.getElementById("render_optimization_checkbox").checked = response["render optimization"];
 			document.getElementById("step").value = response["step"];
 			document.getElementById("seed_points").value = parseInt(response["seed points"]);
-			document.getElementById("border_advection_checkbox").value = response["advection border"];
+			document.getElementById("border_advection_checkbox").checked = response["advection border"];
 			document.getElementById("advection_step").value = parseFloat(response["advection step"]);
 			document.getElementById("advection_weight").value = parseFloat(response["advection weight"]);
 			
@@ -547,7 +547,7 @@ function onClientMessage(response) {
 			if (response.hasOwnProperty("seed points"))
 				document.getElementById("seed_points").value = parseInt(response["seed points"]);
 			if (response.hasOwnProperty("advection border"))
-				document.getElementById("border_advection_checkbox").value = response["advection border"];
+				document.getElementById("border_advection_checkbox").checked = response["advection border"];
 			if (response.hasOwnProperty("advection step"))
 				document.getElementById("advection_step").value = parseFloat(response["advection step"]);
 			if (response.hasOwnProperty("advection weight"))
@@ -1064,7 +1064,7 @@ function render_optimization_checkbox_click() {
 };
 
 function border_advection_checkbox_click() {
-	var status = document.getElementById("advection border").checked;
+	var status = document.getElementById("border_advection_checkbox").checked;
 	sendFeedback("advection border", status);
 };
 
