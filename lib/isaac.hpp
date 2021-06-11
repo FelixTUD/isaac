@@ -1351,6 +1351,9 @@ namespace isaac
             sendRenderOptimization = false;
             sendStep = false;
             sendSeedPoints = false;
+            sendAdvectionStepSize = false;
+            sendAdvectionHistoryWeight = false;
+            sendAdvectionBorderMPI = false;
             sendIsoThreshold = false;
             sendFunctions = false;
             sendWeight = false;
