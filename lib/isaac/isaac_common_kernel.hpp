@@ -545,6 +545,8 @@ namespace isaac
             isaac_float historyValue = sampler.sample(advectionTextureBackBuffer, offsetCoord);
             // Sample the noise value
             isaac_float noiseValue = noiseTexture[coord];
+            // if(timeStep % 10 != 0)
+            //    noiseValue = 0;
 
             // Blend everything together with a falloff weight
             advectionTexture[coord] = noiseValue + historyValue * historyWeight * (1 - noiseValue);

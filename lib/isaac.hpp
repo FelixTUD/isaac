@@ -314,6 +314,7 @@ namespace isaac
                 bool updateAdvection,
                 const isaac_float& advectionStepFactor,
                 const isaac_float& advectionHistoryWeight,
+                uint64_t& advectionTime,
                 int offset = 0) const
             {
                 int index = I + offset;
@@ -323,6 +324,7 @@ namespace isaac
                 {
                     if(updateAdvection)
                     {
+                        ISAAC_START_TIME_MEASUREMENT(advection, getTicksUs());
                         GenerateAdvectionTextureKernel<T_Source> kernel;
                         executeKernelOnVolume<T_Acc>(
                             localSize + T_Source::guardSize * 2,
@@ -339,6 +341,7 @@ namespace isaac
                             advectionHistoryWeight,
                             timeStep);
                         alpaka::wait(stream);
+                        ISAAC_STOP_TIME_MEASUREMENT(advectionTime, +=, advection, getTicksUs());
                     }
                     {
                         UpdatePersistendTextureKernel<T_Source> kernel;
@@ -622,6 +625,8 @@ namespace isaac
             , copyTime(0)
             , sortingTime(0)
             , bufferTime(0)
+            , advectionTime(0)
+            , optimizationBufferTime(0)
             , interpolation(false)
             , step(isaac_float(ISAAC_DEFAULT_STEP))
             , seedPoints(1000)
@@ -1833,6 +1838,9 @@ namespace isaac
                 std::swap(advectionTextureAllocators, advectionTextureAllocatorsBackBuffer);
                 std::swap(advectionTextures, advectionTexturesBackBuffer);
                 int offset = vSourceListSize;
+                if(updateAdvection)
+                    timeStep++;
+                advectionTime = 0;
                 forEachParams(
                     fieldSources,
                     UpdateAdvectionTextureIterator(),
@@ -1851,6 +1859,7 @@ namespace isaac
                     updateAdvection,
                     advectionStepFactor,
                     advectionHistoryWeight,
+                    advectionTime,
                     offset);
 
                 offset = volumeFieldSourceListSize;
@@ -1908,8 +1917,10 @@ namespace isaac
                         }
                     }
                 }
+                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, =, buffer, getTicksUs())
+                bufferTime -= advectionTime;
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-
+                ISAAC_START_TIME_MEASUREMENT(optimizationBuffer, getTicksUs())
                 combinedVolumeTextureAllocator.clearColor(stream);
                 combinedIsoTextureAllocator.clearColor(stream);
                 isaac_float totalWeight = 0;
@@ -1938,9 +1949,8 @@ namespace isaac
                         combinedIsoTextureAllocator.getTexture());
                     alpaka::wait(stream);
                 }
+                ISAAC_STOP_TIME_MEASUREMENT(optimizationBufferTime, =, optimizationBuffer, getTicksUs())
 #endif
-
-                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, =, buffer, getTicksUs())
             }
             ISAAC_WAIT_VISUALIZATION
 
@@ -2122,23 +2132,14 @@ namespace isaac
         }
 
 
-        uint64_t getTicksUs()
-        {
-            struct timespec ts;
-            if(clock_gettime(CLOCK_MONOTONIC_RAW, &ts) == 0)
-            {
-                return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
-            }
-            return 0;
-        }
-
-
         uint64_t kernelTime;
         uint64_t mergeTime;
         uint64_t videoSendTime;
         uint64_t copyTime;
         uint64_t sortingTime;
         uint64_t bufferTime;
+        uint64_t advectionTime;
+        uint64_t optimizationBufferTime;
 
     private:
         static void drawCallBack(
@@ -2243,7 +2244,7 @@ namespace isaac
             IceTUByte* pixels = icetImageGetColorub(result);
 
             // start time for performance measurment
-            ISAAC_START_TIME_MEASUREMENT(kernel, myself->getTicksUs())
+            ISAAC_START_TIME_MEASUREMENT(kernel, getTicksUs())
 
             // set color values for background color
             isaac_float4 bgColor
@@ -2524,8 +2525,8 @@ namespace isaac
 #endif
 
             // stop and restart time for delta calculation
-            ISAAC_STOP_TIME_MEASUREMENT(myself->kernelTime, =, kernel, myself->getTicksUs())
-            ISAAC_START_TIME_MEASUREMENT(copy, myself->getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->kernelTime, =, kernel, getTicksUs())
+            ISAAC_START_TIME_MEASUREMENT(copy, getTicksUs())
 
             // get memory view from IceT pixels on host
             alpaka::ViewPlainPtr<T_Host, isaac_byte4, FraDim, ISAAC_IDX_TYPE> result_buffer(
@@ -2537,7 +2538,7 @@ namespace isaac
             myself->framebuffer.copyToBuffer(myself->stream, result_buffer);
 
             // stop timer and calculate copy time
-            ISAAC_STOP_TIME_MEASUREMENT(myself->copyTime, =, copy, myself->getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->copyTime, =, copy, getTicksUs())
         }
 
 
@@ -2793,7 +2794,7 @@ namespace isaac
             myself->recreateJSON();
 
             // Sending video
-            ISAAC_START_TIME_MEASUREMENT(video_send, myself->getTicksUs())
+            ISAAC_START_TIME_MEASUREMENT(video_send, getTicksUs())
             if(myself->communicator)
             {
                 if(myself->image[0].opaque_internals)
@@ -2809,7 +2810,7 @@ namespace isaac
                     myself->communicator->serverSend(NULL, false, true);
                 }
             }
-            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, =, video_send, myself->getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, =, video_send, getTicksUs())
             myself->metaNr++;
             return 0;
         }

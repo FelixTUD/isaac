@@ -414,7 +414,7 @@ int main(int argc, char** argv)
     // Program flow and time mesaurment variables
     float a = 0.0f;
     volatile int forceExit = 0;
-    int start = visualization->getTicksUs();
+    int start = getTicksUs();
     int count = 0;
     int drawingTime = 0;
     int simulationTime = 0;
@@ -426,6 +426,8 @@ int main(int argc, char** argv)
     int copyTime = 0;
     int videoSendTime = 0;
     int bufferTime = 0;
+    int advectionTime = 0;
+    int optimizationBufferTime = 0;
     bool pause = false;
     // How often should the visualization be updated?
     int interval = 1;
@@ -453,7 +455,7 @@ int main(int argc, char** argv)
         if(!pause)
         {
             a += 0.01f;
-            int startSimulation = visualization->getTicksUs();
+            int startSimulation = getTicksUs();
 #if ISAAC_NO_SIMULATION == 0
             if(!filename)
             {
@@ -477,7 +479,7 @@ int main(int argc, char** argv)
 #endif
 
 
-            simulationTime += visualization->getTicksUs() - startSimulation;
+            simulationTime += getTicksUs() - startSimulation;
         }
         step++;
         if(step >= interval)
@@ -522,6 +524,8 @@ int main(int argc, char** argv)
                 copyTime += visualization->copyTime;
                 videoSendTime += visualization->videoSendTime;
                 bufferTime += visualization->bufferTime;
+                advectionTime += visualization->advectionTime;
+                optimizationBufferTime += visualization->optimizationBufferTime;
                 drawingTime = 0;
                 simulationTime = 0;
                 visualization->sortingTime = 0;
@@ -533,9 +537,9 @@ int main(int argc, char** argv)
             }
 
             // Visualization
-            int start_drawing = visualization->getTicksUs();
+            int start_drawing = getTicksUs();
             json_t* meta = visualization->doVisualization(META_MASTER, NULL, !pause);
-            drawingTime += visualization->getTicksUs() - start_drawing;
+            drawingTime += getTicksUs() - start_drawing;
 
             // Message check
             if(meta)
@@ -572,7 +576,7 @@ int main(int argc, char** argv)
             // Debug output
             if(rank == 0)
             {
-                int end = visualization->getTicksUs();
+                int end = getTicksUs();
                 int diff = end - start;
                 if(diff >= 1000000)
                 {
@@ -582,7 +586,8 @@ int main(int argc, char** argv)
                         "Drawing: %.1f ms\n\t\tSorting: %.1f ms\n\t\t"
                         "Merge: %.1f ms\n\t\tKernel: %.1f ms\n\t\t"
                         "Copy: %.1f ms\n\t\tVideo: %.1f ms\n\t\t"
-                        "Buffer: %.1f ms\n",
+                        "Buffer: %.1f ms\n\t\tAdvection: %.1f ms\n\t\t"
+                        "Optimization Buffer: %.1f ms\n",
                         (float) count * 1000000.0f / (float) diff,
                         (float) fullSimulationTime / 1000.0f / (float) count,
                         (float) fullDrawingTime / 1000.0f / (float) count,
@@ -591,13 +596,17 @@ int main(int argc, char** argv)
                         (float) kernelTime / 1000.0f / (float) count,
                         (float) copyTime / 1000.0f / (float) count,
                         (float) videoSendTime / 1000.0f / (float) count,
-                        (float) bufferTime / 1000.0f / (float) count);
+                        (float) bufferTime / 1000.0f / (float) count,
+                        (float) advectionTime / 1000.0f / (float) count,
+                        (float) optimizationBufferTime / 1000.0f / (float) count);
                     sortingTime = 0;
                     mergeTime = 0;
                     kernelTime = 0;
                     copyTime = 0;
                     videoSendTime = 0;
                     bufferTime = 0;
+                    advectionTime = 0;
+                    optimizationBufferTime = 0;
                     fullDrawingTime = 0;
                     fullSimulationTime = 0;
                     start = end;

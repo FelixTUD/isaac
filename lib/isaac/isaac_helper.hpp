@@ -44,6 +44,16 @@ namespace isaac
 
     //--------------------------------------------------------------------------------------------------------------
 
+    uint64_t getTicksUs()
+    {
+        struct timespec ts;
+        if(clock_gettime(CLOCK_MONOTONIC_RAW, &ts) == 0)
+        {
+            return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+        }
+        return 0;
+    }
+
     ISAAC_HOST_DEVICE_INLINE isaac_float halton(isaac_uint index, isaac_uint base)
     {
         isaac_float result = 0;
