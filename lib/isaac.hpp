@@ -196,9 +196,12 @@ namespace isaac
                 const T_DevAcc& acc,
                 const int offset = 0) const
             {
-                allocatorVector.push_back(
-                    Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
-                persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
+                if(!T_Source::persistent)
+                {
+                    allocatorVector.push_back(
+                        Tex3DAllocator<T_DevAcc, isaac_float>(acc, localSize, isaac_size3(T_Source::guardSize)));
+                    persistentTextureArray.textures[I + offset] = allocatorVector.back().getTexture();
+                }
 
                 advectionAllocators.push_back(SyncedTexture3DAllocator<T_DevAcc, isaac_float>(
                     acc,
@@ -343,6 +346,7 @@ namespace isaac
                         alpaka::wait(stream);
                         ISAAC_STOP_TIME_MEASUREMENT(advectionTime, +=, advection, getTicksUs());
                     }
+                    if(!T_Source::persistent)
                     {
                         UpdatePersistendTextureKernel<T_Source> kernel;
                         executeKernelOnVolume<T_Acc>(
@@ -1347,6 +1351,15 @@ namespace isaac
 
             myself = this;
 
+            kernelTime = 0;
+            mergeTime = 0;
+            copyTime = 0;
+            sortingTime = 0;
+            bufferTime = 0;
+            advectionTime = 0;
+            advectionBorderTime = 0;
+            optimizationBufferTime = 0;
+
             sendDistance = false;
             sendLookAt = false;
             sendProjection = false;
@@ -1840,7 +1853,6 @@ namespace isaac
                 int offset = vSourceListSize;
                 if(updateAdvection)
                     timeStep++;
-                advectionTime = 0;
                 forEachParams(
                     fieldSources,
                     UpdateAdvectionTextureIterator(),
@@ -1864,7 +1876,7 @@ namespace isaac
 
                 offset = volumeFieldSourceListSize;
                 forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
-                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, =, buffer, getTicksUs())
+                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
                 bufferTime -= advectionTime;
                 ISAAC_START_TIME_MEASUREMENT(advectionBorder, getTicksUs())
                 if(updateAdvectionBorderMPI)
@@ -1919,12 +1931,10 @@ namespace isaac
                         }
                     }
                 }
-                ISAAC_STOP_TIME_MEASUREMENT(advectionBorderTime, =, advectionBorder, getTicksUs())
+                ISAAC_STOP_TIME_MEASUREMENT(advectionBorderTime, +=, advectionBorder, getTicksUs())
 
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                 ISAAC_START_TIME_MEASUREMENT(optimizationBuffer, getTicksUs())
-                combinedVolumeTextureAllocator.clearColor(stream);
-                combinedIsoTextureAllocator.clearColor(stream);
                 isaac_float totalWeight = 0;
                 for(int i = 0; i < volumeFieldSourceListSize; i++)
                 {
@@ -1932,6 +1942,8 @@ namespace isaac
                 }
                 if(renderOptimization)
                 {
+                    combinedVolumeTextureAllocator.clearColor(stream);
+                    combinedIsoTextureAllocator.clearColor(stream);
                     MergeToCombinedTextureKernel<T_transferSize> kernel;
                     executeKernelOnVolume<T_Acc>(
                         localSize,
@@ -1951,7 +1963,7 @@ namespace isaac
                         combinedIsoTextureAllocator.getTexture());
                     alpaka::wait(stream);
                 }
-                ISAAC_STOP_TIME_MEASUREMENT(optimizationBufferTime, =, optimizationBuffer, getTicksUs())
+                ISAAC_STOP_TIME_MEASUREMENT(optimizationBufferTime, +=, optimizationBuffer, getTicksUs())
 #endif
             }
             ISAAC_WAIT_VISUALIZATION
@@ -2054,13 +2066,13 @@ namespace isaac
                         }
                     }
                     icetCompositeOrder(icetOrderArray);
-                    ISAAC_STOP_TIME_MEASUREMENT(sortingTime, =, sorting, getTicksUs())
+                    ISAAC_STOP_TIME_MEASUREMENT(sortingTime, +=, sorting, getTicksUs())
 
                     // Drawing
                     ISAAC_START_TIME_MEASUREMENT(merge, getTicksUs())
                     image[pass]
                         = icetDrawFrame(glm::value_ptr(projections[pass]), glm::value_ptr(modelview), backgroundColor);
-                    ISAAC_STOP_TIME_MEASUREMENT(mergeTime, =, merge, getTicksUs())
+                    ISAAC_STOP_TIME_MEASUREMENT(mergeTime, +=, merge, getTicksUs())
                 }
             }
             else
@@ -2528,7 +2540,7 @@ namespace isaac
 #endif
 
             // stop and restart time for delta calculation
-            ISAAC_STOP_TIME_MEASUREMENT(myself->kernelTime, =, kernel, getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->kernelTime, +=, kernel, getTicksUs())
             ISAAC_START_TIME_MEASUREMENT(copy, getTicksUs())
 
             // get memory view from IceT pixels on host
@@ -2541,7 +2553,7 @@ namespace isaac
             myself->framebuffer.copyToBuffer(myself->stream, result_buffer);
 
             // stop timer and calculate copy time
-            ISAAC_STOP_TIME_MEASUREMENT(myself->copyTime, =, copy, getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->copyTime, +=, copy, getTicksUs())
         }
 
 
@@ -2797,6 +2809,7 @@ namespace isaac
             myself->recreateJSON();
 
             // Sending video
+            myself->videoSendTime = 0;
             ISAAC_START_TIME_MEASUREMENT(video_send, getTicksUs())
             if(myself->communicator)
             {
@@ -2813,7 +2826,7 @@ namespace isaac
                     myself->communicator->serverSend(NULL, false, true);
                 }
             }
-            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, =, video_send, getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, +=, video_send, getTicksUs())
             myself->metaNr++;
             return 0;
         }
