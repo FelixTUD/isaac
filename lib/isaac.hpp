@@ -1864,7 +1864,9 @@ namespace isaac
 
                 offset = volumeFieldSourceListSize;
                 forEachParams(particleSources, UpdateParticleSourceIterator(), sourceWeight, pointer, offset);
-
+                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, =, buffer, getTicksUs())
+                bufferTime -= advectionTime;
+                ISAAC_START_TIME_MEASUREMENT(advectionBorder, getTicksUs())
                 if(updateAdvectionBorderMPI)
                 {
                     for(isaac_uint j = 0; j < fSourceListSize; ++j)
@@ -1917,8 +1919,8 @@ namespace isaac
                         }
                     }
                 }
-                ISAAC_STOP_TIME_MEASUREMENT(bufferTime, =, buffer, getTicksUs())
-                bufferTime -= advectionTime;
+                ISAAC_STOP_TIME_MEASUREMENT(advectionBorderTime, =, advectionBorder, getTicksUs())
+
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
                 ISAAC_START_TIME_MEASUREMENT(optimizationBuffer, getTicksUs())
                 combinedVolumeTextureAllocator.clearColor(stream);
@@ -2139,6 +2141,7 @@ namespace isaac
         uint64_t sortingTime;
         uint64_t bufferTime;
         uint64_t advectionTime;
+        uint64_t advectionBorderTime;
         uint64_t optimizationBufferTime;
 
     private:

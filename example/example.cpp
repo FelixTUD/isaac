@@ -427,6 +427,7 @@ int main(int argc, char** argv)
     int videoSendTime = 0;
     int bufferTime = 0;
     int advectionTime = 0;
+    int advectionBorderTime = 0;
     int optimizationBufferTime = 0;
     bool pause = false;
     // How often should the visualization be updated?
@@ -525,15 +526,10 @@ int main(int argc, char** argv)
                 videoSendTime += visualization->videoSendTime;
                 bufferTime += visualization->bufferTime;
                 advectionTime += visualization->advectionTime;
+                advectionBorderTime += visualization->advectionBorderTime;
                 optimizationBufferTime += visualization->optimizationBufferTime;
                 drawingTime = 0;
                 simulationTime = 0;
-                visualization->sortingTime = 0;
-                visualization->mergeTime = 0;
-                visualization->kernelTime = 0;
-                visualization->copyTime = 0;
-                visualization->videoSendTime = 0;
-                visualization->bufferTime = 0;
             }
 
             // Visualization
@@ -587,7 +583,7 @@ int main(int argc, char** argv)
                         "Merge: %.1f ms\n\t\tKernel: %.1f ms\n\t\t"
                         "Copy: %.1f ms\n\t\tVideo: %.1f ms\n\t\t"
                         "Buffer: %.1f ms\n\t\tAdvection: %.1f ms\n\t\t"
-                        "Optimization Buffer: %.1f ms\n",
+                        "Advection Border: %.1f ms\n\t\tOptimization Buffer: %.1f ms\n",
                         (float) count * 1000000.0f / (float) diff,
                         (float) fullSimulationTime / 1000.0f / (float) count,
                         (float) fullDrawingTime / 1000.0f / (float) count,
@@ -598,6 +594,7 @@ int main(int argc, char** argv)
                         (float) videoSendTime / 1000.0f / (float) count,
                         (float) bufferTime / 1000.0f / (float) count,
                         (float) advectionTime / 1000.0f / (float) count,
+                        (float) advectionBorderTime / 1000.0f / (float) count,
                         (float) optimizationBufferTime / 1000.0f / (float) count);
                     sortingTime = 0;
                     mergeTime = 0;
@@ -606,6 +603,7 @@ int main(int argc, char** argv)
                     videoSendTime = 0;
                     bufferTime = 0;
                     advectionTime = 0;
+                    advectionBorderTime = 0;
                     optimizationBufferTime = 0;
                     fullDrawingTime = 0;
                     fullSimulationTime = 0;
