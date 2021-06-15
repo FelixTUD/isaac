@@ -2809,7 +2809,6 @@ namespace isaac
             myself->recreateJSON();
 
             // Sending video
-            myself->videoSendTime = 0;
             ISAAC_START_TIME_MEASUREMENT(video_send, getTicksUs())
             if(myself->communicator)
             {
@@ -2826,7 +2825,7 @@ namespace isaac
                     myself->communicator->serverSend(NULL, false, true);
                 }
             }
-            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, +=, video_send, getTicksUs())
+            ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, =, video_send, getTicksUs())
             myself->metaNr++;
             return 0;
         }
