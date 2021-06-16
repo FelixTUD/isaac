@@ -124,39 +124,6 @@ namespace isaac
             return bufferPtr;
         }
 
-        // TODO: this
-        /* Not yet working because of partial template specialization
-        template<typename T_Acc, typename T_AccDim, typename T_Stream, typename T_Kernel, typename... T_Args>
-        ISAAC_HOST_INLINE void kernelOnEachElement(T_Stream& stream, T_Kernel& kernel, T_Args&&... args)
-        {
-            isaac_size2 gridSize
-                = {ISAAC_IDX_TYPE((sizeWithGuard.x + 15) / 16), ISAAC_IDX_TYPE((sizeWithGuard.y + 15) / 16)};
-            isaac_size2 blockSize = {ISAAC_IDX_TYPE(16), ISAAC_IDX_TYPE(16)};
-#if ALPAKA_ACC_GPU_CUDA_ENABLED == 1
-            if(boost::mpl::not_<boost::is_same<T_Acc, alpaka::AccGpuCudaRt<T_AccDim, ISAAC_IDX_TYPE>>>::value)
-#endif
-            {
-                gridSize.x = ISAAC_IDX_TYPE(sizeWithGuard.x);
-                gridSize.y = ISAAC_IDX_TYPE(sizeWithGuard.y);
-                blockSize.x = ISAAC_IDX_TYPE(1);
-                blockSize.y = ISAAC_IDX_TYPE(1);
-            }
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> threads(
-                ISAAC_IDX_TYPE(1),
-                ISAAC_IDX_TYPE(1),
-                ISAAC_IDX_TYPE(1));
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> blocks(ISAAC_IDX_TYPE(1), blockSize.x, blockSize.y);
-            const alpaka::Vec<T_AccDim, ISAAC_IDX_TYPE> grid(ISAAC_IDX_TYPE(1), gridSize.x, gridSize.y);
-            auto const workdiv(alpaka::WorkDivMembers<T_AccDim, ISAAC_IDX_TYPE>(grid, blocks, threads));
-
-
-            auto const instance(alpaka::createTaskKernel<T_Acc>(workdiv, kernel, this, args));
-            alpaka::enqueue(stream, instance);
-            alpaka::wait(stream);
-        }
-        */
-
-
     private:
         T_Type* bufferPtr = nullptr;
         isaac_size_dim<T_textureDim> size;
@@ -275,42 +242,16 @@ namespace isaac
         {
             coord -= isaac_float(0.5);
             isaac_float data8[2][2][2];
-            if(T_border == BorderType::CLAMP)
+            for(int z = 0; z < 2; z++)
             {
-                const isaac_size3 guardSize = texture.getGuardSize();
-                const isaac_size3 sizeWithGuard = texture.getSizeWithGuard();
-
-                coord = glm::clamp(
-                    coord,
-                    isaac_float3(-guardSize) + std::numeric_limits<isaac_float>::min(),
-                    isaac_float3(sizeWithGuard - guardSize - ISAAC_IDX_TYPE(1))
-                        - (std::numeric_limits<isaac_float>::epsilon()
-                           * isaac_float3(sizeWithGuard - guardSize - ISAAC_IDX_TYPE(1))));
-
-                for(int z = 0; z < 2; z++)
+                for(int y = 0; y < 2; y++)
                 {
-                    for(int y = 0; y < 2; y++)
+                    for(int x = 0; x < 2; x++)
                     {
-                        for(int x = 0; x < 2; x++)
-                        {
-                            data8[x][y][z] = isaac_float(texture[isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z)]);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                for(int z = 0; z < 2; z++)
-                {
-                    for(int y = 0; y < 2; y++)
-                    {
-                        for(int x = 0; x < 2; x++)
-                        {
-                            data8[x][y][z] = isaac_float(safeMemoryAccess(
-                                texture,
-                                isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z),
-                                borderValue));
-                        }
+                        data8[x][y][z] = isaac_float(safeMemoryAccess(
+                            texture,
+                            isaac_int3(glm::floor(coord)) + isaac_int3(x, y, z),
+                            borderValue));
                     }
                 }
             }
