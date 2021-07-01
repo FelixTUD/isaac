@@ -679,9 +679,6 @@ namespace isaac
             // debugging reasons let's alloc 4 extra bytes for valgrind:
             json_set_alloc_funcs(extra_malloc, extra_free);
 #endif
-#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
-            renderOptimization = true;
-#endif
             json_object_seed(0);
             globalSizeScaled = isaac_float3(globalSize) * scale;
             localSizeScaled = isaac_float3(localSize) * scale;
@@ -697,6 +694,9 @@ namespace isaac
                 id = -1;
             }
 
+#ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
+            renderOptimization = true;
+
             Tex3DAllocator<T_Host, isaac_byte> tmpTexHost(host, isaac_size3(ISAAC_DITHER_SIZE));
             std::random_device rd;
             std::mt19937 gen(rd());
@@ -711,8 +711,10 @@ namespace isaac
                     }
                 }
             }
+
             tmpTexHost.copyToTexture(stream, volumeDitherAllocator);
             alpaka::wait(stream);
+#endif
 
             // INIT
             // TODO: get mpi communicator from application and duplicate that one!
@@ -2074,6 +2076,8 @@ namespace isaac
                         = icetDrawFrame(glm::value_ptr(projections[pass]), glm::value_ptr(modelview), backgroundColor);
                     ISAAC_STOP_TIME_MEASUREMENT(mergeTime, +=, merge, getTicksUs())
                 }
+                mergeTime -= kernelTime;
+                mergeTime -= copyTime;
             }
             else
             {
@@ -2810,6 +2814,7 @@ namespace isaac
 
             // Sending video
             ISAAC_START_TIME_MEASUREMENT(video_send, getTicksUs())
+#if 1
             if(myself->communicator)
             {
                 if(myself->image[0].opaque_internals)
@@ -2825,6 +2830,7 @@ namespace isaac
                     myself->communicator->serverSend(NULL, false, true);
                 }
             }
+#endif
             ISAAC_STOP_TIME_MEASUREMENT(myself->videoSendTime, =, video_send, getTicksUs())
             myself->metaNr++;
             return 0;

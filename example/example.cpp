@@ -576,7 +576,6 @@ int main(int argc, char** argv)
                 int diff = end - start;
                 if(diff >= 1000000)
                 {
-                    mergeTime -= kernelTime + copyTime;
                     printf(
                         "FPS: %.1f \n\tSimulation: %.1f ms\n\t"
                         "Drawing: %.1f ms\n\t\tSorting: %.1f ms\n\t\t"
