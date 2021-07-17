@@ -2085,8 +2085,6 @@ namespace isaac
                         = icetDrawFrame(glm::value_ptr(projections[pass]), glm::value_ptr(modelview), backgroundColor);
                     ISAAC_STOP_TIME_MEASUREMENT(mergeTime, +=, merge, getTicksUs())
                 }
-                mergeTime -= kernelTime;
-                mergeTime -= copyTime;
             }
             else
             {
