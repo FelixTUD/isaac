@@ -1383,6 +1383,8 @@ namespace isaac
             sendController = false;
             sendInitJson = false;
             sendAO = false;
+            sendRenderMode = false;
+            sendDitherMode = false;
 
             // Handle messages
             json_t* message;
@@ -1499,6 +1501,8 @@ namespace isaac
                             sendAdvectionBorderMPI = true;
                             sendBackgroundColor = true;
                             sendAO = true;
+                            sendRenderMode = true;
+                            sendDitherMode = true;
                         }
                     }
                     // Search for scene changes
@@ -1824,6 +1828,7 @@ namespace isaac
                 redraw = true;
                 json_t* mode = json_object_get(js, "mode");
                 myself->renderMode = (isaac_int) json_integer_value(mode);
+                sendRenderMode = true;
             }
 
             if(js = json_object_get(message, "dither mode"))
@@ -1832,6 +1837,7 @@ namespace isaac
                 updatePersistentBuffers = true;
                 json_t* mode = json_object_get(js, "mode");
                 myself->ditherMode = (isaac_int) json_integer_value(mode);
+                sendDitherMode = true;
             }
 
             json_t* metadata = json_object_get(message, "metadata");
@@ -2807,6 +2813,18 @@ namespace isaac
                     json_object_set_new(myself->jsonInitRoot, "ao weight", json_real(myself->ambientOcclusion.weight));
                     myself->sendInitJson = true;
                 }
+                if(myself->sendRenderMode)
+                {
+                    json_object_set_new(myself->jsonRoot, "render mode", json_integer(myself->renderMode));
+                    json_object_set_new(myself->jsonInitRoot, "render mode", json_integer(myself->renderMode));
+                    myself->sendInitJson = true;
+                }
+                if(myself->sendDitherMode)
+                {
+                    json_object_set_new(myself->jsonRoot, "dither mode", json_integer(myself->ditherMode));
+                    json_object_set_new(myself->jsonInitRoot, "dither mode", json_integer(myself->ditherMode));
+                    myself->sendInitJson = true;
+                }
                 myself->controller.sendFeedback(myself->jsonRoot, myself->sendController);
                 if(myself->sendInitJson)
                 {
@@ -2943,6 +2961,8 @@ namespace isaac
         bool sendController;
         bool sendInitJson;
         bool sendAO;
+        bool sendRenderMode;
+        bool sendDitherMode;
         bool sendAdvectionStepSize;
         bool sendAdvectionHistoryWeight;
         bool sendAdvectionBorderMPI;

@@ -496,10 +496,6 @@ function onClientMessage(response) {
 			document.getElementById("interpolation_checkbox").checked = response["interpolation"];
 			document.getElementById("render_optimization_checkbox").checked = response["render optimization"];
 			document.getElementById("step").value = response["step"];
-			document.getElementById("seed_points").value = parseInt(response["seed points"]);
-			document.getElementById("border_advection_checkbox").checked = response["advection border"];
-			document.getElementById("advection_step").value = parseFloat(response["advection step"]);
-			document.getElementById("advection_weight").value = parseFloat(response["advection weight"]);
 			
 			aoSetValues(response);
 
@@ -552,6 +548,10 @@ function onClientMessage(response) {
 				document.getElementById("advection_step").value = parseFloat(response["advection step"]);
 			if (response.hasOwnProperty("advection weight"))
 				document.getElementById("advection_weight").value = parseFloat(response["advection weight"]);
+			if (response.hasOwnProperty("render mode"))
+				document.getElementById("render_mode_list").selectedIndex = parseInt(response["render mode"]);
+			if (response.hasOwnProperty("dither mode"))
+				document.getElementById("dither_mode_list").selectedIndex = parseInt(response["dither mode"]);
 
 			aoSetValues(response);
 
