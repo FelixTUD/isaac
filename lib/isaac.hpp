@@ -1848,11 +1848,13 @@ namespace isaac
 
                 // swap back buffers with main buffers, as the last frames main buffer is this frames history back
                 // buffer
-                std::swap(advectionTextureAllocators, advectionTextureAllocatorsBackBuffer);
-                std::swap(advectionTextures, advectionTexturesBackBuffer);
-                int offset = vSourceListSize;
                 if(updateAdvection)
+                {
+                    std::swap(advectionTextureAllocators, advectionTextureAllocatorsBackBuffer);
+                    std::swap(advectionTextures, advectionTexturesBackBuffer);
                     timeStep++;
+                }
+                int offset = vSourceListSize;
                 forEachParams(
                     fieldSources,
                     UpdateAdvectionTextureIterator(),
@@ -1880,7 +1882,7 @@ namespace isaac
                 ISAAC_STOP_TIME_MEASUREMENT(bufferTime, +=, buffer, getTicksUs())
                 bufferTime -= advectionTime;
                 ISAAC_START_TIME_MEASUREMENT(advectionBorder, getTicksUs())
-                if(updateAdvectionBorderMPI)
+                if(updateAdvection && updateAdvectionBorderMPI)
                 {
                     for(isaac_uint j = 0; j < fSourceListSize; ++j)
                     {
