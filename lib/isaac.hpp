@@ -317,6 +317,7 @@ namespace isaac
                 bool updateAdvection,
                 const isaac_float& advectionStepFactor,
                 const isaac_float& advectionHistoryWeight,
+                const isaac_int& advectionInterval,
                 uint64_t& advectionTime,
                 int offset = 0) const
             {
@@ -342,6 +343,7 @@ namespace isaac
                             scale,
                             advectionStepFactor * ISAAC_MAX_ADVECTION_STEP_SIZE,
                             advectionHistoryWeight,
+                            advectionInterval,
                             timeStep);
                         alpaka::wait(stream);
                         ISAAC_STOP_TIME_MEASUREMENT(advectionTime, +=, advection, getTicksUs());
@@ -664,6 +666,7 @@ namespace isaac
             , noiseTmpTexAllocator(acc, localSize)
             , advectionStepFactor(1)
             , advectionHistoryWeight(0.95)
+            , advectionInterval(1)
             , updateAdvectionBorderMPI(true)
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
             , combinedVolumeTextureAllocator(acc, localSize)
@@ -918,12 +921,6 @@ namespace isaac
 
                 json_object_set_new(jsonRoot, "interpolation", json_boolean(interpolation));
                 json_object_set_new(jsonRoot, "step", json_real(step));
-                json_object_set_new(jsonRoot, "seed points", json_integer(seedPoints));
-
-                json_object_set_new(jsonRoot, "advection step", json_real(advectionStepFactor));
-                json_object_set_new(jsonRoot, "advection weight", json_real(advectionHistoryWeight));
-                json_object_set_new(jsonRoot, "advection border", json_boolean(updateAdvectionBorderMPI));
-
 
                 json_object_set_new(jsonRoot, "dimension", json_integer(3));
                 json_object_set_new(jsonRoot, "width", json_integer(globalSizeScaled.x));
@@ -1373,6 +1370,7 @@ namespace isaac
             sendSeedPoints = false;
             sendAdvectionStepSize = false;
             sendAdvectionHistoryWeight = false;
+            sendAdvectionInterval = false;
             sendAdvectionBorderMPI = false;
             sendIsoThreshold = false;
             sendFunctions = false;
@@ -1428,29 +1426,9 @@ namespace isaac
                         {
                             sendInterpolation = true;
                         }
-                        if(strcmp(target, "render optimization") == 0)
-                        {
-                            sendRenderOptimization = true;
-                        }
                         if(strcmp(target, "step") == 0)
                         {
                             sendStep = true;
-                        }
-                        if(strcmp(target, "seed points") == 0)
-                        {
-                            sendSeedPoints = true;
-                        }
-                        if(strcmp(target, "advection step") == 0)
-                        {
-                            sendAdvectionStepSize = true;
-                        }
-                        if(strcmp(target, "advection weight") == 0)
-                        {
-                            sendAdvectionHistoryWeight = true;
-                        }
-                        if(strcmp(target, "advection border") == 0)
-                        {
-                            sendAdvectionBorderMPI = true;
                         }
                         if(strcmp(target, "iso threshold") == 0)
                         {
@@ -1498,6 +1476,7 @@ namespace isaac
                             sendSeedPoints = true;
                             sendAdvectionStepSize = true;
                             sendAdvectionHistoryWeight = true;
+                            sendAdvectionInterval = true;
                             sendAdvectionBorderMPI = true;
                             sendBackgroundColor = true;
                             sendAO = true;
@@ -1711,6 +1690,11 @@ namespace isaac
                 advectionHistoryWeight = json_number_value(js);
                 sendAdvectionHistoryWeight = true;
             }
+            if(js = json_object_get(message, "advection interval"))
+            {
+                advectionInterval = json_integer_value(js);
+                sendAdvectionInterval = true;
+            }
             if(js = json_object_get(message, "advection border"))
             {
                 updateAdvectionBorderMPI = json_boolean_value(js);
@@ -1887,6 +1871,7 @@ namespace isaac
                     updateAdvection,
                     advectionStepFactor,
                     advectionHistoryWeight,
+                    advectionInterval,
                     advectionTime,
                     offset);
 
@@ -2736,6 +2721,18 @@ namespace isaac
                         json_real(myself->advectionHistoryWeight));
                     myself->sendInitJson = true;
                 }
+                if(myself->sendAdvectionInterval)
+                {
+                    json_object_set_new(
+                        myself->jsonRoot,
+                        "advection interval",
+                        json_integer(myself->advectionInterval));
+                    json_object_set_new(
+                        myself->jsonInitRoot,
+                        "advection interval",
+                        json_integer(myself->advectionInterval));
+                    myself->sendInitJson = true;
+                }
                 if(myself->sendAdvectionBorderMPI)
                 {
                     json_object_set_new(
@@ -2965,6 +2962,7 @@ namespace isaac
         bool sendDitherMode;
         bool sendAdvectionStepSize;
         bool sendAdvectionHistoryWeight;
+        bool sendAdvectionInterval;
         bool sendAdvectionBorderMPI;
 
 
@@ -3000,6 +2998,7 @@ namespace isaac
         PersistentArrayStruct<fSourceListSize> advectionTexturesBackBuffer;
         isaac_float advectionStepFactor;
         isaac_float advectionHistoryWeight;
+        isaac_int advectionInterval;
         bool updateAdvectionBorderMPI;
 
         Neighbours<isaac_int> neighbourNodeIds;

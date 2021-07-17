@@ -114,10 +114,13 @@
 			<input id="seed_points" size="4"><input type="button" value="Change number of seed points" id="seed_points_button" onclick="seed_points_button_click()"><br/>
 			<span>Advection step factor: </span>
 			<input type="range" min="-1" max="1" value="1" step="0.01" id="advection_step" oninput="this.nextElementSibling.value = parseFloat(this.value).toFixed(2)" onchange="advection_step_changed()">
-			<output id="advection_step_text" value="">1.00</output><br/>
+			<output id="advection_step_text" value=""></output><br/>
 			<span>Advection weight: </span>
 			<input type="range" min="0" max="1" value="1" step="0.01" id="advection_weight" oninput="this.nextElementSibling.value = parseFloat(this.value).toFixed(2)" onchange="advection_weight_changed()">
-			<output id="advection_weight_text" value="">0.95</output><br/>
+			<output id="advection_weight_text" value=""></output><br/>
+			<span>Seeding interval: </span>
+			<input type="range" min="1" max="100" value="1" step="1" id="advection_interval" oninput="this.nextElementSibling.value = parseInt(this.value)" onchange="advection_interval_changed()">
+			<output id="advection_interval_text" value=""></output><br/>
 			<div id="clipping_add_div">
 				<b>Clipping planes:</b><br/>
 				<span> Position: </span><input type="text"   value="0" size="4" id="clip_px"><input type="text"   value="0" size="4" id="clip_py"><input type="text"   value="0" size="4" id="clip_pz">

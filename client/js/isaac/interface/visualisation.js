@@ -545,9 +545,20 @@ function onClientMessage(response) {
 			if (response.hasOwnProperty("advection border"))
 				document.getElementById("border_advection_checkbox").checked = response["advection border"];
 			if (response.hasOwnProperty("advection step"))
+			{
 				document.getElementById("advection_step").value = parseFloat(response["advection step"]);
+				document.getElementById("advection_step_text").value = parseFloat(response["advection step"]).toFixed(2);
+			}
 			if (response.hasOwnProperty("advection weight"))
+			{
 				document.getElementById("advection_weight").value = parseFloat(response["advection weight"]);
+				document.getElementById("advection_weight_text").value = parseFloat(response["advection weight"]).toFixed(2);
+			}
+			if (response.hasOwnProperty("advection interval"))
+			{
+				document.getElementById("advection_interval").value = parseInt(response["advection interval"]);
+				document.getElementById("advection_interval_text").value = parseInt(response["advection interval"]);
+			}
 			if (response.hasOwnProperty("render mode"))
 				document.getElementById("render_mode_list").selectedIndex = parseInt(response["render mode"]);
 			if (response.hasOwnProperty("dither mode"))
@@ -1080,16 +1091,18 @@ function seed_points_button_click() {
 
 function advection_step_changed() {
 	var step = parseFloat(document.getElementById("advection_step").value);
-	//document.getElementById("advection_step_text").value = step.toFixed(2);
 	sendFeedback("advection step", step);
 }
 
 function advection_weight_changed() {
 	var weight = parseFloat(document.getElementById("advection_weight").value);
-	//document.getElementById("advection_step_text").value = weight.toFixed(2);
 	sendFeedback("advection weight", weight);
 }
 
+function advection_interval_changed() {
+	var weight = parseInt(document.getElementById("advection_interval").value);
+	sendFeedback("advection interval", weight);
+}
 
 document.getElementById("zoom_in").onclick = function () {
 	zoom(+0.1);
