@@ -29,6 +29,7 @@ namespace isaac
     using isaac_double = double;
     using isaac_int = int32_t;
     using isaac_uint = uint32_t;
+    using isaac_ushort = uint16_t;
     using isaac_byte = uint8_t;
 
 #ifndef ISAAC_IDX_TYPE
@@ -66,6 +67,10 @@ namespace isaac
     using isaac_uint4 = isaac_vec_dim<4, isaac_uint>;
     using isaac_uint3 = isaac_vec_dim<3, isaac_uint>;
     using isaac_uint2 = isaac_vec_dim<2, isaac_uint>;
+
+    using isaac_ushort4 = isaac_vec_dim<4, isaac_ushort>;
+    using isaac_ushort3 = isaac_vec_dim<3, isaac_ushort>;
+    using isaac_ushort2 = isaac_vec_dim<2, isaac_ushort>;
 
     using isaac_byte4 = isaac_vec_dim<4, isaac_byte>;
     using isaac_byte3 = isaac_vec_dim<3, isaac_byte>;

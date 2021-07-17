@@ -1225,13 +1225,25 @@ function aoSetValues(response) {
 /**
  * called when renderMode is changed
  */
+ function ditherModeUpdate() {
+	let modeID = document.getElementById("dither_mode_list").selectedIndex;
+
+	let dither_mode_object = {
+		"mode": modeID
+	};
+	sendFeedback("dither mode", dither_mode_object);
+}
+
+/**
+ * called when renderMode is changed
+ */
 function renderModeUpdate() {
 	let modeID = document.getElementById("render_mode_list").selectedIndex;
 
 	let render_mode_object = {
 		"mode": modeID
 	};
-	sendFeedback("render_mode", render_mode_object);
+	sendFeedback("render mode", render_mode_object);
 }
 
 /**

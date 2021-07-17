@@ -1819,11 +1819,19 @@ namespace isaac
                 sendAO = true;
             }
 
-            if(js = json_object_get(message, "render_mode"))
+            if(js = json_object_get(message, "render mode"))
             {
                 redraw = true;
                 json_t* mode = json_object_get(js, "mode");
                 myself->renderMode = (isaac_int) json_integer_value(mode);
+            }
+
+            if(js = json_object_get(message, "dither mode"))
+            {
+                redraw = true;
+                updatePersistentBuffers = true;
+                json_t* mode = json_object_get(js, "mode");
+                myself->ditherMode = (isaac_int) json_integer_value(mode);
             }
 
             json_t* metadata = json_object_get(message, "metadata");
@@ -1961,6 +1969,7 @@ namespace isaac
                         sourceIsoThreshold,
                         advectionTextures,
                         volumeDitherAllocator.getTexture(),
+                        ditherMode,
                         combinedVolumeTextureAllocator.getTexture(),
                         combinedIsoTextureAllocator.getTexture());
                     alpaka::wait(stream);
@@ -2952,6 +2961,7 @@ namespace isaac
         json_t* jsonMetaRoot = nullptr;
         isaac_int rank;
         isaac_int renderMode = 0;
+        isaac_int ditherMode = 0;
         isaac_int master;
         isaac_int numProc;
         isaac_uint metaNr;
