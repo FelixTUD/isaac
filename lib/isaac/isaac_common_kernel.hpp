@@ -524,6 +524,7 @@ namespace isaac
             const isaac_float stepSize,
             const isaac_float historyWeight,
             const isaac_int advectionInterval,
+            const isaac_int advectionSeedingTime,
             isaac_int timeStep) const
         {
             auto alpThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc);
@@ -547,7 +548,7 @@ namespace isaac
             isaac_float historyValue = sampler.sample(advectionTextureBackBuffer, offsetCoord);
             // Sample the noise value
             isaac_float noiseValue = noiseTexture[coord];
-            if(timeStep % advectionInterval != 0)
+            if(timeStep % advectionInterval >= advectionSeedingTime)
                 noiseValue = 0;
 
             // Blend everything together with a falloff weight

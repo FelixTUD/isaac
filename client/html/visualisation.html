@@ -121,6 +121,10 @@
 			<span>Seeding interval: </span>
 			<input type="range" min="1" max="100" value="1" step="1" id="advection_interval" oninput="this.nextElementSibling.value = parseInt(this.value)" onchange="advection_interval_changed()">
 			<output id="advection_interval_text" value=""></output><br/>
+			<span>Seeding time: </span>
+			<input type="range" min="1" max="100" value="1" step="1" id="advection_seeding_time" oninput="this.nextElementSibling.value = parseInt(this.value)" onchange="advection_seeding_time_changed()">
+			<output id="advection_seeding_time_text" value=""></output><br/>
+			<input type="checkbox" id="advection_on_pause_checkbox" checked onchange="advection_on_pause_checkbox_click()"> Advection during pause<br/>
 			<div id="clipping_add_div">
 				<b>Clipping planes:</b><br/>
 				<span> Position: </span><input type="text"   value="0" size="4" id="clip_px"><input type="text"   value="0" size="4" id="clip_py"><input type="text"   value="0" size="4" id="clip_pz">

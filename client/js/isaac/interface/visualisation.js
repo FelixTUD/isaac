@@ -559,6 +559,13 @@ function onClientMessage(response) {
 				document.getElementById("advection_interval").value = parseInt(response["advection interval"]);
 				document.getElementById("advection_interval_text").value = parseInt(response["advection interval"]);
 			}
+			if (response.hasOwnProperty("advection seeding time"))
+			{
+				document.getElementById("advection_seeding_time").value = parseInt(response["advection seeding time"]);
+				document.getElementById("advection_seeding_time_text").value = parseInt(response["advection seeding time"]);
+			}
+			if (response.hasOwnProperty("advection on pause"))
+				document.getElementById("advection_on_pause_checkbox").checked = response["advection on pause"];
 			if (response.hasOwnProperty("render mode"))
 				document.getElementById("render_mode_list").selectedIndex = parseInt(response["render mode"]);
 			if (response.hasOwnProperty("dither mode"))
@@ -1079,6 +1086,11 @@ function border_advection_checkbox_click() {
 	sendFeedback("advection border", status);
 };
 
+function advection_on_pause_checkbox_click() {
+	var status = document.getElementById("advection_on_pause_checkbox").checked;
+	sendFeedback("advection on pause", status);
+};
+
 function step_button_click() {
 	var status = parseFloat(document.getElementById("step").value);
 	sendFeedback("step", status);
@@ -1102,6 +1114,11 @@ function advection_weight_changed() {
 function advection_interval_changed() {
 	var weight = parseInt(document.getElementById("advection_interval").value);
 	sendFeedback("advection interval", weight);
+}
+
+function advection_seeding_time_changed() {
+	var weight = parseInt(document.getElementById("advection_seeding_time").value);
+	sendFeedback("advection seeding time", weight);
 }
 
 document.getElementById("zoom_in").onclick = function () {

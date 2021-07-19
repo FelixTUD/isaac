@@ -318,6 +318,7 @@ namespace isaac
                 const isaac_float& advectionStepFactor,
                 const isaac_float& advectionHistoryWeight,
                 const isaac_int& advectionInterval,
+                const isaac_int& advectionSeedingTime,
                 uint64_t& advectionTime,
                 int offset = 0) const
             {
@@ -344,6 +345,7 @@ namespace isaac
                             advectionStepFactor * ISAAC_MAX_ADVECTION_STEP_SIZE,
                             advectionHistoryWeight,
                             advectionInterval,
+                            advectionSeedingTime,
                             timeStep);
                         alpaka::wait(stream);
                         ISAAC_STOP_TIME_MEASUREMENT(advectionTime, +=, advection, getTicksUs());
@@ -667,6 +669,8 @@ namespace isaac
             , advectionStepFactor(1)
             , advectionHistoryWeight(0.95)
             , advectionInterval(1)
+            , advectionSeedingTime(1)
+            , advectionOnPause(false)
             , updateAdvectionBorderMPI(true)
 #ifdef ISAAC_COMBINED_BUFFER_OPTIMIZATION
             , combinedVolumeTextureAllocator(acc, localSize)
@@ -1345,6 +1349,7 @@ namespace isaac
             void* pointer = NULL,
             bool redraw = true)
         {
+            redraw = redraw || advectionOnPause;
             bool updatePersistentBuffers = redraw;
             bool updateAdvection = redraw;
 
@@ -1371,6 +1376,8 @@ namespace isaac
             sendAdvectionStepSize = false;
             sendAdvectionHistoryWeight = false;
             sendAdvectionInterval = false;
+            sendadvectionSeedingTime = false;
+            sendAdvectionOnPause = false;
             sendAdvectionBorderMPI = false;
             sendIsoThreshold = false;
             sendFunctions = false;
@@ -1477,6 +1484,8 @@ namespace isaac
                             sendAdvectionStepSize = true;
                             sendAdvectionHistoryWeight = true;
                             sendAdvectionInterval = true;
+                            sendadvectionSeedingTime = true;
+                            sendAdvectionOnPause = true;
                             sendAdvectionBorderMPI = true;
                             sendBackgroundColor = true;
                             sendAO = true;
@@ -1695,6 +1704,16 @@ namespace isaac
                 advectionInterval = json_integer_value(js);
                 sendAdvectionInterval = true;
             }
+            if(js = json_object_get(message, "advection seeding time"))
+            {
+                advectionSeedingTime = json_integer_value(js);
+                sendadvectionSeedingTime = true;
+            }
+            if(js = json_object_get(message, "advection on pause"))
+            {
+                advectionOnPause = json_boolean_value(js);
+                sendAdvectionOnPause = true;
+            }
             if(js = json_object_get(message, "advection border"))
             {
                 updateAdvectionBorderMPI = json_boolean_value(js);
@@ -1874,6 +1893,7 @@ namespace isaac
                     advectionStepFactor,
                     advectionHistoryWeight,
                     advectionInterval,
+                    advectionSeedingTime,
                     advectionTime,
                     offset);
 
@@ -2735,6 +2755,30 @@ namespace isaac
                         json_integer(myself->advectionInterval));
                     myself->sendInitJson = true;
                 }
+                if(myself->sendadvectionSeedingTime)
+                {
+                    json_object_set_new(
+                        myself->jsonRoot,
+                        "advection seeding time",
+                        json_integer(myself->advectionSeedingTime));
+                    json_object_set_new(
+                        myself->jsonInitRoot,
+                        "advection seeding time",
+                        json_integer(myself->advectionSeedingTime));
+                    myself->sendInitJson = true;
+                }
+                if(myself->sendAdvectionOnPause)
+                {
+                    json_object_set_new(
+                        myself->jsonRoot,
+                        "advection on pause",
+                        json_boolean(myself->advectionOnPause));
+                    json_object_set_new(
+                        myself->jsonInitRoot,
+                        "advection on pause",
+                        json_boolean(myself->advectionOnPause));
+                    myself->sendInitJson = true;
+                }
                 if(myself->sendAdvectionBorderMPI)
                 {
                     json_object_set_new(
@@ -2965,6 +3009,8 @@ namespace isaac
         bool sendAdvectionStepSize;
         bool sendAdvectionHistoryWeight;
         bool sendAdvectionInterval;
+        bool sendadvectionSeedingTime;
+        bool sendAdvectionOnPause;
         bool sendAdvectionBorderMPI;
 
 
@@ -3001,6 +3047,8 @@ namespace isaac
         isaac_float advectionStepFactor;
         isaac_float advectionHistoryWeight;
         isaac_int advectionInterval;
+        isaac_int advectionSeedingTime;
+        bool advectionOnPause;
         bool updateAdvectionBorderMPI;
 
         Neighbours<isaac_int> neighbourNodeIds;
