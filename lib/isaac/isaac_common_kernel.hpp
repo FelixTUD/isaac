@@ -771,17 +771,8 @@ namespace isaac
                 volumeColor,
                 isoColor);
 
-            // Render to optimization buffer without dithering
             volumeColor /= totalWeight;
-            if(ditherMode == 0)
-            {
-                volumeColor = clamp(volumeColor, isaac_float(0), isaac_float(1));
-                volumeTexture[coord] = isaac_byte4(glm::round(volumeColor * isaac_float(255)));
-            }
-            else
-            {
-                volumeTexture[coord] = applyDither3D(ditherMode, coord, volumeColor, ditherTexture);
-            }
+            volumeTexture[coord] = applyDither3D(ditherMode, coord, volumeColor, ditherTexture);
 
             isoColor = clamp(isoColor, isaac_float(0), isaac_float(1));
             isoTexture[coord] = isaac_byte4(glm::round(isoColor * isaac_float(255)));

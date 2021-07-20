@@ -3025,7 +3025,7 @@ namespace isaac
         json_t* jsonMetaRoot = nullptr;
         isaac_int rank;
         isaac_int renderMode = 0;
-        isaac_int ditherMode = 0;
+        isaac_int ditherMode = 1;
         isaac_int master;
         isaac_int numProc;
         isaac_uint metaNr;

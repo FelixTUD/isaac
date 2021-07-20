@@ -10,6 +10,14 @@ namespace isaac
         const isaac_float4& color,
         const Tex3D<isaac_byte>& ditherTexture)
     {
+        // Apply no dither and return rounded value
+        if(ditherMode == 0)
+        {
+            isaac_float4 colorClamped = clamp(color, isaac_float(0), isaac_float(1));
+            return isaac_byte4(glm::round(colorClamped * isaac_float(255)));
+        }
+
+        // All experimental dithering options
         isaac_float ditherValue;
         if(ditherMode == 1)
         {
