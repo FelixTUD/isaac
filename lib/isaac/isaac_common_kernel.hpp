@@ -552,8 +552,8 @@ namespace isaac
                 noiseValue = 0;
 
             // Blend everything together with a falloff weight
-            advectionTexture[coord] = noiseValue + historyValue * historyWeight * (1 - noiseValue);
-            // advectionTexture[coord] = glm::min(value, isaac_float(1));
+            // advectionTexture[coord] = noiseValue + historyValue * historyWeight * (1 - noiseValue);
+            advectionTexture[coord] = glm::min(noiseValue + historyValue * historyWeight, isaac_float(1));
 #else
             Sampler<FilterType::LINEAR, BorderType::REPEAT> sampler;
             isaac_float3 fCoord = coord;
